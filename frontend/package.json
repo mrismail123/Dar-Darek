@@ -10,8 +10,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^7.3.8",
+    "@toolpad/core": "^0.16.0",
+    "bootstrap": "^5.3.8",
+    "framer-motion": "^12.35.0",
+    "mui-tel-input": "^9.0.1",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-bootstrap": "^2.10.10",
+    "react-dom": "^19.2.0",
+    "react-icons": "^5.6.0",
+    "react-phone-number-input": "^3.4.16",
+    "react-router-dom": "^7.13.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
