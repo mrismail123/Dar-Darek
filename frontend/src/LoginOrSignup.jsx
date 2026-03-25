@@ -12,7 +12,11 @@ import PhoneInput from 'react-phone-number-input'
 // import animation materials
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function SignUp(){
+// import axios 
+
+import axios from 'axios'
+
+export default function LoginOrSignup(){
 
     // Start states & their functions
 
@@ -29,9 +33,63 @@ export default function SignUp(){
     // theme state
     const theme = useTheme()
 
+    // sing up form state
+    const [signUpInfo , setSignUpInfo] = useState({
+        firstName : "",
+        lastName : "",
+        email : "",
+        password : "",
+        confirmPassword : "",
+        phoneNumber : ""
+    })
 
-    // phone number state
-    const [value, setValue] = useState('')
+    // login form state
+    const [loginInfo , setLoginInfo] = useState({
+        email : "",
+        password : ""
+    })
+
+
+    // functions 
+    const handleSubmitSingUp = async (e)=>{
+        e.preventDefault()
+        try {
+            const response = await axios.post('http://localhost:5000/api/signup' , signUpInfo)
+            console.log("Response from server:" , response.data)
+            alert("The user has been added successfully!")
+        } catch (error) {
+            console.error("FULL ERROR OBJECT:", error);
+            if (error.response) {
+                
+                alert(`Server Error: ${error.response.status} - ${error.response.data.error || "Unknown"}`);
+            } else if (error.request) {
+               
+                alert("Cannot reach the server. Is Node.js running on port 5000?");
+            } else {
+                alert("Error setting up the request: " + error.message);
+            }
+        }
+    }
+
+    const handleSubmitLogin = async (e)=>{
+        e.preventDefault()
+        try {
+            console.log(loginInfo)
+            const request = await axios.post('http://localhost:5000/api/login' , loginInfo)
+            const response = request.data;
+            if(response.role==="admin"){
+                alert("welcome admin!");
+            }else{
+                alert("welcome user");
+            }
+            alert("Login successful!");
+        } catch (error) {
+            console.error("Error :" + error)
+        }
+    }
+
+
+
 
     return (
         <AnimatePresence mode="wait">
@@ -46,18 +104,18 @@ export default function SignUp(){
                     className="auth-card card border-0 shadow-sm w-100"
                 >
                     <div className="card-body p-4 p-sm-5">
-                        <form action="">
+                        <form onSubmit={handleSubmitLogin}  action="">
                             <h1 className='font-luxury text-center mb-1'>Welcome to DarDarek</h1>
                             <p className="text-center text-muted mb-4">Login or sign up</p>
 
                             <div className="mb-3">
                                 <label className="form-label" htmlFor="email">Email</label>
-                                <input className="form-control rounded-pill py-2 px-3" type="email" name="email" id="email"/>
+                                <input onChange={(e)=>setLoginInfo({...loginInfo ,email:e.target.value})} value={loginInfo.email} className="form-control rounded-pill py-2 px-3" type="email" name="email" id="email"/>
                             </div>
 
                             <div className="mb-3">
                                 <label className="form-label" htmlFor="pass">Password</label>
-                                <input className="form-control rounded-pill py-2 px-3" type="password" name="password" id="pass"/>
+                                <input onChange={(e)=>setLoginInfo({...loginInfo ,password:e.target.value})} value={loginInfo.password}  className="form-control rounded-pill py-2 px-3" type="password" name="password" id="pass"/>
                             </div>
 
                             <input
@@ -103,27 +161,27 @@ export default function SignUp(){
                             <ArrowBackIcon sx={{ fontSize: "1.8rem", color: "#131313" }}/>
                         </button>
 
-                        <form action="" className="signup-form-compact">
+                        <form onSubmit={handleSubmitSingUp} action="" className="signup-form-compact">
                             <h1 className='font-luxury text-center mt-3 mb-1'>Welcome to DarDarek</h1>
                             <p className="text-center text-muted mb-3">Login or sign up</p>
 
                             <label className="form-label" htmlFor="fullName">Full name</label>
-                            <input className="form-control rounded-top-4 rounded-bottom-0 py-2 px-3 mb-0" type="text" name="first name" id="firtName" placeholder="First Name"/>
-                            <input className="form-control rounded-bottom-4 rounded-top-0 py-2 px-3 mb-3" type="text" name="last name" id="lastName" placeholder="Last Name"/>
+                            <input onChange={(e)=>setSignUpInfo({...signUpInfo , firstName:e.target.value })} value={signUpInfo.firstName} className="form-control rounded-top-4 rounded-bottom-0 py-2 px-3 mb-0" type="text" name="first name" id="firtName" placeholder="First Name"/>
+                            <input onChange={(e)=>setSignUpInfo({...signUpInfo , lastName:e.target.value})} value={signUpInfo.lastName} className="form-control rounded-bottom-4 rounded-top-0 py-2 px-3 mb-3" type="text" name="last name" id="lastName" placeholder="Last Name"/>
 
                             <div className="mb-3">
                                 <label className="form-label" htmlFor="email">Email</label>
-                                <input className="form-control rounded-pill py-2 px-3" type="email" name="email" id="email" placeholder="Email"/>
+                                <input onChange={(e)=>setSignUpInfo({...signUpInfo , email : e.target.value})} value={signUpInfo.email} className="form-control rounded-pill py-2 px-3" type="email" name="email" id="email" placeholder="Email"/>
                             </div>
 
                             <div className="mb-3">
                                 <label className="form-label" htmlFor="pass">Password</label>
-                                <input className="form-control rounded-pill py-2 px-3" type="password" name="password" id="pass" placeholder="Password"/>
+                                <input onChange={(e)=>setSignUpInfo({...signUpInfo , password:e.target.value})} value={signUpInfo.password} className="form-control rounded-pill py-2 px-3" type="password" name="password" id="pass" placeholder="Password"/>
                             </div>
 
                             <div className="mb-3">
                                 <label className="form-label" htmlFor="confirm">Confirm password</label>
-                                <input className="form-control rounded-pill py-2 px-3" type="password" name="confirm password" id="confirm" placeholder="Confirm password"/>
+                                <input onChange={(e)=>setSignUpInfo({...signUpInfo , confirmPassword:e.target.value})} value={signUpInfo.confirmPassword} className="form-control rounded-pill py-2 px-3" type="password" name="confirm password" id="confirm" placeholder="Confirm password"/>
                             </div>
 
                             <div className="mb-3">
@@ -131,8 +189,8 @@ export default function SignUp(){
                                 <PhoneInput
                                     id="phoneNumber"
                                     placeholder="Phone number"
-                                    value={value}
-                                    onChange={(phone) => setValue(phone || "")}
+                                    value={signUpInfo.phoneNumber}
+                                    onChange={(e)=>setSignUpInfo({...signUpInfo , phoneNumber:e})}
                                     defaultCountry="MA"
                                 />
                             </div>
@@ -142,6 +200,7 @@ export default function SignUp(){
                                 style={{ background: theme.colors.primary }}
                                 type="submit"
                                 value="Create account"
+                                
                             />
                         </form>
                     </div>
