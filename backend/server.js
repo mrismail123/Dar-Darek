@@ -2,15 +2,19 @@
 
 // express to facilitate the coding
 const express = require('express'); 
+
+// jwt 
+const jwt = require('jsonwebtoken');
+
 // cors for security
 const cors = require('cors');
+// bcrypt
+const bcrypt = require('bcrypt');
 // Our db
 const db = require('./db');
 // .env file
 require('dotenv').config();
 
-// bcrypt
-const bcrypt = require('bcrypt');
 
 
 // 2. INITIALIZATION
@@ -33,9 +37,6 @@ app.get('/api/test-db' , async (req , res)=>{
     }
     })
 
-
-
-
 // API for sign up 
 app.post('/api/signup' , async (req , res)=>{
     const {firstName , lastName , email , password, confirmPassword, phoneNumber } = req.body;
@@ -55,8 +56,6 @@ app.post('/api/signup' , async (req , res)=>{
 // API for login
 app.post('/api/login' , async (req ,res)=>{
     const {email , password} = req.body;
-    console.log(email);
-    console.log(password)
     const cleanEmail = email.trim().toLowerCase();
     const query = 'select * from users where email=?';
     const values = [cleanEmail];
@@ -74,9 +73,19 @@ app.post('/api/login' , async (req ,res)=>{
             return res.status(401).json({message : "Email or password is incorrect"})
         }
 
-        console.log("User found...");
-        return res.status(201).json({id : user.id, name : user.name, email : user.email , role : user.role})
-    } catch (error) {
+        const token = jwt.sign(
+            {id : user.id , name : user.name , role : user.role}, // payload (info)
+            process.env.JWT_SECRET,
+            {expiresIn : "1d"}
+        )
+
+        return res.status(200).json({
+            message :  `welcome ${user.role}`,
+            user : {id : user.id , name : user.name , role : user.role},
+            token : token
+        })
+
+    }catch (error) {
         res.status(500).json({message : "Error while compiling..." , details:error.message})
     }
 })

@@ -74,15 +74,14 @@ export default function LoginOrSignup(){
     const handleSubmitLogin = async (e)=>{
         e.preventDefault()
         try {
-            console.log(loginInfo)
-            const request = await axios.post('http://localhost:5000/api/login' , loginInfo)
+            // Searching the user in the database and store its data
+            const request = await axios.post('http://localhost:5000/api/login' , loginInfo);
             const response = request.data;
-            if(response.role==="admin"){
-                alert("welcome admin!");
-            }else{
-                alert("welcome user");
-            }
-            alert("Login successful!");
+
+            // Save the token and the user in the local storage
+            localStorage.setItem('token' , response.token);
+            localStorage.setItem('user' , JSON.stringify(response.user));
+
         } catch (error) {
             console.error("Error :" + error)
         }
