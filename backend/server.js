@@ -47,7 +47,7 @@ app.post('/api/signup' , async (req , res)=>{
     const values = [name , cleanEmail ,hashedPassword,phoneNumber]
     try {
         await db.execute(query , values);
-        res.status(201).json({message : "User created successfunolly!"})
+        res.status(201).json({user : name})
     } catch (error) {
         res.status(500).json({error:error.message})
     }

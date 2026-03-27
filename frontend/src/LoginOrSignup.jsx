@@ -1,25 +1,29 @@
+// States
 import { useTheme } from "./ThemeContext"
-import { useState } from "react";
+import { useState} from "react";
+
+// Google & Facebook login button
+import { GoogleLogin } from '@react-oauth/google';
+import FacebookLogin from "@greatsumini/react-facebook-login";
 
 // import icons 
 import { FcGoogle } from "react-icons/fc";
 import { FaFacebook } from "react-icons/fa"
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
+// Phone number comp
 import 'react-phone-number-input/style.css'
 import PhoneInput from 'react-phone-number-input'
 
 // import animation materials
 import { motion, AnimatePresence } from 'framer-motion';
 
-// import axios 
-
+// import axios for API calls
 import axios from 'axios'
 
 export default function LoginOrSignup(){
 
     // Start states & their functions
-
 
     // mode signup or login
     const [mode , setMode] = useState("login")
@@ -54,9 +58,11 @@ export default function LoginOrSignup(){
     const handleSubmitSingUp = async (e)=>{
         e.preventDefault()
         try {
-            const response = await axios.post('http://localhost:5000/api/signup' , signUpInfo)
-            console.log("Response from server:" , response.data)
-            alert("The user has been added successfully!")
+            const request = await axios.post('http://localhost:5000/api/signup' , signUpInfo)
+            const response = request.data;
+            console.log(response)
+            alert(`The dar-darek team wish you a good journey ${response.user}`)
+            changeMode();
         } catch (error) {
             console.error("FULL ERROR OBJECT:", error);
             if (error.response) {
@@ -86,7 +92,6 @@ export default function LoginOrSignup(){
             console.error("Error :" + error)
         }
     }
-
 
 
 
@@ -133,15 +138,41 @@ export default function LoginOrSignup(){
 
                             <p className='auth-or mb-3'>or</p>
 
-                            <button type="button" className="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2 mb-2 rounded-3 py-2">
-                                <FcGoogle size={25} />
-                                <span>Continue with Google</span>
-                            </button>
 
-                            <button type="button" className="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2 rounded-3 py-2">
-                                <FaFacebook size={23} color={theme.colors.accent} />
-                                <span>Continue with Facebook</span>
-                            </button>
+                            <GoogleLogin
+                            onSuccess={credentialResponse => {
+                                console.log("Google Token:", credentialResponse.credential);
+                                // هنا سنرسل هذا التوكن لسيرفر Node.js (سنتعلمها في الخطوة القادمة)
+                            }}
+                            onError={() => {
+                                console.log('Login Failed');
+                            }}
+                            />
+
+                            <FacebookLogin
+                            appId="1453411473064303"
+                            onSuccess={(response) => {
+                                console.log("Facebook login success:", response);
+                            }}
+                            onFail={(error) => {
+                                console.log("Facebook login failed:", error);
+                            }}
+                            render={({ onClick }) => (
+                                <button
+                                    type="button"
+                                    onClick={onClick}
+                                    className="facebook-auth-button"
+                                >
+                                    <span className="facebook-auth-button__icon">
+                                        <FaFacebook size={20} />
+                                    </span>
+                                    <span className="facebook-auth-button__label">
+                                        Sign in with Facebook
+                                    </span>
+                                    <span className="facebook-auth-button__spacer" />
+                                </button>
+                            )}
+                            />
                         </form>
                     </div>
                 </motion.div>
@@ -198,8 +229,7 @@ export default function LoginOrSignup(){
                                 className="btn w-100 rounded-pill py-2 text-white"
                                 style={{ background: theme.colors.primary }}
                                 type="submit"
-                                value="Create account"
-                                
+                                value="Create account"  
                             />
                         </form>
                     </div>
