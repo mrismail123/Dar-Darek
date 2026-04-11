@@ -1,0 +1,408 @@
+@media (min-width: 1200px) {
+    .css-61rcf0-MuiContainer-root {
+        max-width: 100% !important;
+    }
+}
+
+body {
+    /* min-height: 300vh; */
+}
+
+@keyframes panelReveal {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.header {
+}
+
+div.landing {
+    min-height: calc(100vh - 200px);
+    background-image: url(./assets/landingBackground.jpg);
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    position: relative;
+    border-bottom-left-radius: 50% 100px;
+    border-bottom-right-radius: 50% 100px;
+    isolation: isolate;
+}
+
+div.landing::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.12) 0%,
+        rgba(255, 255, 255, 0.02) 45%,
+        rgba(255, 255, 255, 0.18) 100%
+    );
+    z-index: 0;
+}
+
+div.landing > * {
+    position: relative;
+    z-index: 1;
+}
+
+div.landing .titleLanding {
+    color: rgb(3, 38, 95);
+}
+
+
+.searchBar select , .searchBar input , .searchBar .buttonGuests {
+    /* padding: 5px; */
+}
+
+.searchBar {
+    position: relative;
+    padding: 10px;
+    border-radius: 16px;
+    border: 1px solid rgba(185, 167, 138, 0.35);
+    box-shadow: 0 14px 34px rgba(73, 55, 28, 0.12);
+}
+
+.searchBar > .browseForm {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0;
+}
+
+
+.searchBar div:first-child:active {
+}
+
+.searchBar div p {
+    margin-bottom: 0;
+    color:rgb(88, 88, 88);
+    font-size: 0.92rem;
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.searchBar > .browseForm > div:not(:first-child) {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    background-color: white;
+    min-height: 54px;
+    padding: 0 18px;
+    border: 1px solid rgba(201, 192, 178, 0.9);
+    margin-right: -1px;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+
+.searchBar > .browseForm > div:not(:first-child):hover {
+    border-color: rgba(0, 169, 181, 0.45);
+}
+
+.searchBar > .browseForm > div:nth-child(4) {
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+.LocationSelect {
+    min-width: 280px;
+}
+
+.locationSelect__control {
+    min-height: 54px !important;
+    border-radius: 10px 0 0 10px !important;
+    border: 1px solid rgba(201, 192, 178, 0.9) !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+}
+
+.locationSelect__control:hover,
+.locationSelect__control--menu-is-open {
+    border-color: rgba(0, 169, 181, 0.45) !important;
+}
+
+.locationSelect__value-container {
+    padding: 0 16px !important;
+}
+
+.locationSelect__placeholder,
+.locationSelect__single-value {
+    color: #6b7280 !important;
+    font-size: 0.92rem !important;
+}
+
+.locationSelect__indicator-separator {
+    background-color: rgba(201, 192, 178, 0.9) !important;
+}
+
+.locationSelect__dropdown-indicator {
+    color: #9aa3b2 !important;
+}
+
+.locationSelect__menu {
+    margin-top: 10px !important;
+    border-radius: 14px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(208, 196, 176, 0.8) !important;
+    box-shadow: 0 18px 38px rgba(73, 55, 28, 0.12) !important;
+}
+
+.locationSelect__menu-list {
+    padding: 8px !important;
+    background: #fffdf8 !important;
+}
+
+.locationSelect__option {
+    border-radius: 10px !important;
+    padding: 10px 12px !important;
+    font-size: 0.92rem !important;
+    color: #4b5563 !important;
+    cursor: pointer !important;
+}
+
+.locationSelect__option--is-focused {
+    background: rgba(0, 169, 181, 0.08) !important;
+    color: #135c64 !important;
+}
+
+.locationSelect__option--is-selected {
+    background: rgba(0, 169, 181, 0.14) !important;
+    color: #0f4f55 !important;
+}
+
+.css-1nmdiq5-menu {
+    z-index: 1000;
+}
+
+
+div.dateRange {
+    background-color: #fffdf8;
+    width: 100%;
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    box-shadow: 0 18px 38px rgba(73, 55, 28, 0.12);
+    padding: 12px;
+    border: 1px solid rgba(208, 196, 176, 0.8);
+    border-radius: 16px;
+    overflow: hidden;
+    z-index: 3;
+    animation: panelReveal 0.2s ease-out;
+    transform-origin: top center;
+}
+
+div.dateRange .rdrDateRangeWrapper {
+    width: 100%;
+    background: transparent;
+}
+
+div.dateRange .rdrMonths {
+    width: 100%;
+    display: flex;
+    gap: 12px;
+}
+
+div.dateRange .rdrMonth {
+    width: 50%;
+    min-width: 0;
+    flex: 1 1 0;
+    background: #ffffff;
+    border: 1px solid rgba(214, 205, 188, 0.75);
+    border-radius: 14px;
+    padding: 12px;
+}
+
+div.dateRange .rdrCalendarWrapper {
+    width: 100%;
+    background: transparent;
+    color: #49617e;
+    font-size: 0.92rem;
+}
+
+div.dateRange .rdrMonthAndYearWrapper {
+    padding-top: 2px;
+    padding-bottom: 12px;
+}
+
+div.dateRange .rdrMonthName {
+    display: none;
+}
+
+div.dateRange .rdrWeekDay {
+    color: #8a93a0;
+    font-weight: 500;
+}
+
+div.dateRange .rdrDayNumber span {
+    color: #41556d;
+}
+
+div.dateRange .rdrDayToday .rdrDayNumber span:after {
+    background: #00a9b5;
+}
+
+div.dateRange .rdrStartEdge,
+div.dateRange .rdrEndEdge,
+div.dateRange .rdrInRange {
+    color: #00a9b5 !important;
+}
+
+div.dateRange .rdrDayPassive .rdrDayNumber span {
+    color: #c3c8d0;
+}
+
+div.dateRange .rdrDateDisplayWrapper {
+    background: transparent;
+    gap: 10px;
+    padding: 0 0 12px;
+}
+
+div.dateRange .rdrDateDisplayItem {
+    border-radius: 10px;
+    border: 1px solid rgba(214, 205, 188, 0.85);
+    box-shadow: none;
+}
+
+@media (max-width: 900px) {
+    div.dateRange .rdrMonths {
+        flex-direction: column;
+    }
+
+    div.dateRange .rdrMonth {
+        width: 100%;
+    }
+}
+
+
+.GuestsHandler {
+    width: min(100%, 820px);
+    min-width: 420px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-radius: 16px;
+    background: #fffdf8;
+    border: 1px solid rgba(208, 196, 176, 0.8);
+    box-shadow: 0 18px 38px rgba(73, 55, 28, 0.12);
+    position: absolute;
+    z-index: 2;
+    top: calc(100% + 10px);
+    right: 0;
+    animation: panelReveal 0.2s ease-out;
+    transform-origin: top right;
+}
+
+.GuestsHandlerHeader {
+    text-align: left;
+    padding: 6px 10px 8px;
+}
+
+.GuestsEyebrow {
+    display: none;
+}
+
+.GuestsHandlerHeader h3 {
+    margin: 0 0 4px;
+    color: #274768;
+    font-size: 1.02rem;
+    font-weight: 600;
+}
+
+.GuestsHandlerHeader p {
+    margin: 0;
+    color: #7b8794;
+    font-size: 0.86rem;
+    line-height: 1.4;
+}
+
+.GuestRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    padding: 18px 18px;
+    border: 1px solid rgba(214, 205, 188, 0.7);
+    border-radius: 12px;
+    background: #ffffff;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.GuestCopy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    flex: 1 1 45%;
+}
+
+.GuestCopy p {
+    margin-bottom: 0;
+    color: #274768;
+    font-size: 0.98rem;
+    font-weight: 600;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.GuestCopy span {
+    color: #8a93a0;
+    font-size: 0.84rem;
+}
+
+.GuestRow > .MuiFormControl-root,
+.GuestRow > div:last-child {
+    width: 100%;
+    max-width: 360px;
+    flex: 1 1 55%;
+}
+
+.GuestRow > .MuiFormControl-root > .MuiBox-root,
+.GuestRow > div:last-child > .MuiBox-root {
+    width: 100%;
+}
+
+.GuestRow .MuiOutlinedInput-root {
+    width: 100%;
+}
+
+.GuestsHandler .GuestRow:last-child {
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+@media (max-width: 768px) {
+    .GuestsHandler {
+        width: min(94vw, 820px);
+        min-width: 0;
+        padding: 16px;
+        border-radius: 16px;
+    }
+
+    .GuestsHandlerHeader h3 {
+        font-size: 1.05rem;
+    }
+
+    .GuestRow {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 14px;
+    }
+
+    .GuestCopy {
+        align-items: center;
+        text-align: center;
+    }
+
+    .GuestRow > .MuiFormControl-root,
+    .GuestRow > div:last-child {
+        max-width: none;
+    }
+}

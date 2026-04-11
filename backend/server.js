@@ -91,6 +91,17 @@ app.post('/api/login' , async (req ,res)=>{
 })
 
 
+// API for extracting cities
+app.get('/api/extractCities' , async (req , res)=>{
+    try {
+        const [rows] = await db.query('SELECT name FROM cities');
+        res.json(rows)
+    } catch (error) {
+        res.status(500).json({message:"Error occured:" , details : error.message})
+    }
+})
+
+
 // 5. START SERVER
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

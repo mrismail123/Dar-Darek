@@ -27,4 +27,4 @@ export const ThemeProvider = ({ children }) => {
 
 // Custom hook to make it easy to use in components
 // eslint-disable-next-line react-refresh/only-export-components
-export const useTheme = () => useContext(ThemeContext);
+export const useThemeGlobal = () => useContext(ThemeContext);

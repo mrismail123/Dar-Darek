@@ -1,5 +1,5 @@
 // States
-import { useTheme } from "./ThemeContext"
+import { useThemeGlobal } from "./Contexts/ThemeContext"
 import { useState} from "react";
 
 // Google & Facebook login button
@@ -21,6 +21,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 // import axios for API calls
 import axios from 'axios'
 
+
+
 export default function LoginOrSignup(){
 
     // Start states & their functions
@@ -35,7 +37,7 @@ export default function LoginOrSignup(){
     }
 
     // theme state
-    const theme = useTheme()
+    const theme = useThemeGlobal()
 
     // sing up form state
     const [signUpInfo , setSignUpInfo] = useState({
@@ -114,12 +116,12 @@ export default function LoginOrSignup(){
 
                             <div className="mb-3">
                                 <label className="form-label" htmlFor="email">Email</label>
-                                <input onChange={(e)=>setLoginInfo({...loginInfo ,email:e.target.value})} value={loginInfo.email} className="form-control rounded-pill py-2 px-3" type="email" name="email" id="email"/>
+                                <input onChange={(e)=>setLoginInfo({...loginInfo ,email:e.target.value})} value={loginInfo.email} className="form-control rounded-pill py-2 px-3" type="email" name="email" id="email" required/>
                             </div>
 
                             <div className="mb-3">
                                 <label className="form-label" htmlFor="pass">Password</label>
-                                <input onChange={(e)=>setLoginInfo({...loginInfo ,password:e.target.value})} value={loginInfo.password}  className="form-control rounded-pill py-2 px-3" type="password" name="password" id="pass"/>
+                                <input onChange={(e)=>setLoginInfo({...loginInfo ,password:e.target.value})} value={loginInfo.password}  className="form-control rounded-pill py-2 px-3" type="password" name="password" id="pass" required/>
                             </div>
 
                             <input
