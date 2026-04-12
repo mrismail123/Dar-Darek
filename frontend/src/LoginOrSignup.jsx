@@ -1,6 +1,7 @@
 // States
 import { useThemeGlobal } from "./Contexts/ThemeContext"
 import { useState} from "react";
+import { replace, useNavigate } from "react-router-dom";
 
 // Google & Facebook login button
 import { GoogleLogin } from '@react-oauth/google';
@@ -26,6 +27,9 @@ import axios from 'axios'
 export default function LoginOrSignup(){
 
     // Start states & their functions
+
+    //navigation 
+    const navigate = useNavigate();
 
     // mode signup or login
     const [mode , setMode] = useState("login")
@@ -89,7 +93,8 @@ export default function LoginOrSignup(){
             // Save the token and the user in the local storage
             localStorage.setItem('token' , response.token);
             localStorage.setItem('user' , JSON.stringify(response.user));
-
+            alert(`Welcome back ${response.user.name}`);
+            navigate("/" , { replace: true });
         } catch (error) {
             console.error("Error :" + error)
         }

@@ -9,8 +9,8 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 
 
 // import browse context
-import { useBrowse } from './Contexts/BrowseContext';
-import { useThemeGlobal } from './Contexts/ThemeContext';
+import { useBrowse } from '../../Contexts/BrowseContext';
+import { useThemeGlobal } from '../../Contexts/ThemeContext';
 
 
 

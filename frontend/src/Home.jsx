@@ -5,15 +5,12 @@ import './Home.css'
 // Importing theme
 import { useThemeGlobal } from './Contexts/ThemeContext';
 // import header
-import Header from './Header';
+import Header from './Home components/Header';
 // import axios
 import axios from 'axios';
 // browse context state
 import { useBrowse } from './Contexts/BrowseContext';
-// External components
-import Guests from './Guests';
-import Location from './Location';
-import Calendar from './Calndar';
+
 
 
 // Start MUI #############################
@@ -21,6 +18,8 @@ import Calendar from './Calndar';
 // Material UI
 import * as React from 'react';
 import Button from '@mui/material/Button';
+import Landing from './Home components/Landing';
+import About from './Home components/About';
 
 // Material UI Icons
 
@@ -38,10 +37,7 @@ export default function Home(){
 
     // start functions
 
-    // browse form handling
-    function handleBrowseFormSubmit(e){
-        e.preventDefault();
-    }
+
 
     return (
         <>
@@ -50,22 +46,15 @@ export default function Home(){
             {/* End header */}
 
             {/* Start Landing */}
-            <div className='landing' style={{display:"flex" , alignItems:"center" , flexDirection:"column" , justifyContent:"center" ,gap:"100px", textAlign:"center"}}>
-                <div className='titling'>
-                    <h1 style={{fontSize:"2.8rem",fontWeight:"700"}} className='font-luxury titleLanding'>Feel at <span style={{fontStyle:"italic" , marginRight:"3px"}}>h</span>ome</h1>
-                    <p style={{fontSize:"1.5rem",color:themeGlobal.colors.text}} className='font-clean'>Find your place in northern Morocco</p>
-                </div>
-                <div style={{background:themeGlobal.colors.background,borderRadius:"5px"}} className="searchBar">
-                    <form onSubmit={handleBrowseFormSubmit} className='browseForm' action="">
-                        <Location/>
-                        <Calendar/>
-                        <Guests/>
-                        <Button type='submit' sx={{background:themeGlobal.colors.primary,margin:"0px 10px",padding:'10px'}} variant='contained'>Browse Apartments</Button>
-                    </form>
-
-                </div>
-            </div>
+            <Landing/>
             {/* End Landing */}
+
+            {/* Start about */}
+            <About/>
+            {/* End about */}
+
+            {/* Start footer*/}
+            {/* End footer*/}
         </>
         )
 }

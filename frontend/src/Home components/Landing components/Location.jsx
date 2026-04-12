@@ -3,8 +3,7 @@ import React from "react"
 
 import axios from "axios"
 
-import { useBrowse } from "./Contexts/BrowseContext"
-
+import { useBrowse } from "../../Contexts/BrowseContext";
 
 // select search
 import Select2 from 'react-select'

@@ -13,7 +13,6 @@ function App() {
 
   return (
     <>
-      {/* <Authentication/> */}
       <Routes>
         <Route path='/' element={<Home/>} />
         <Route path='/Authentication' element={<Authentication/>} />

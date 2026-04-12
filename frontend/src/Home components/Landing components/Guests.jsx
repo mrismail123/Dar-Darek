@@ -4,8 +4,8 @@ import React from "react";
 import FamilyRestroomIcon from '@mui/icons-material/FamilyRestroom';
 
 // MUI Materials 
-import NumberSpinner from './NumberSpinner'
-import { useBrowse } from './Contexts/BrowseContext';
+import NumberSpinner from '../../NumberSpinner'
+import { useBrowse } from '../../Contexts/BrowseContext';
 
 
 

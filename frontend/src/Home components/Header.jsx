@@ -1,11 +1,12 @@
 // Importing the logo
-import Logo from './assets/logo.png'
+import Logo from '../assets/logo.png'
 // Importing the css file 
-import './Home.css'
+import '../Home.css'
 // Importing theme
 
+import { Link } from 'react-router-dom';
 
-import { useThemeGlobal } from './Contexts/ThemeContext';
+import { useThemeGlobal } from '../Contexts/ThemeContext';
 import React from "react";
 import Container from '@mui/material/Container'
 import { styled, alpha } from '@mui/material/styles';
@@ -31,7 +32,7 @@ import Avatar from '@mui/material/Avatar';
 import Stack from '@mui/material/Stack';
 
 // Avatar pictures
-import profilePicture1 from './assets/1.jpg'
+import profilePicture1 from '../assets/1.jpg'
 
 
 
@@ -165,9 +166,14 @@ export default function Header(){
 
                             {
                                 showLogin && !showNotiAva ?
-                                    <IconButton>
-                                        <Button sx={{background:themeGlobal.colors.primary}} variant='contained'>Login to become a host</Button>
-                                    </IconButton>
+                                    
+                                    <Button
+                                    component={Link}
+                                    to="/Authentication"
+                                    sx={{background:themeGlobal.colors.primary}}
+                                    variant='contained'>
+                                        Login to become a host
+                                    </Button>
                                 : <></>
                             }
                                 
