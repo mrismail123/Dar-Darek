@@ -406,3 +406,181 @@ div.dateRange .rdrDateDisplayItem {
         max-width: none;
     }
 }
+
+
+div.aboutSection {
+    display: flex;
+    justify-content: space-between;
+    /* align-items: center; */
+    background-color: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+}
+
+@media (max-width:750px){
+    div.aboutSection {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    div.aboutSection .picture img {
+        width: 600px !important ;
+    }
+
+    div.aboutSection .picture {
+        display: flex;
+        justify-content: center;
+        align-itemskll: center;
+    }
+}
+
+div.aboutSection div.info {
+    text-align: center;
+}
+
+div.aboutSection div.info h2 {
+    position: relative;
+    text-align: center;
+}
+
+div.aboutSection div.info h2::before{
+    content:"";
+    position:absolute;
+    width:calc(50% - 100px);
+    height: 2px;
+    top: 50%;
+    left: 0%;
+    background-color: rgb(122, 112, 52);
+    border-radius: 50%;
+}
+div.aboutSection div.info h2::after{
+    content:"";
+    position:absolute;
+    width:calc(50% - 100px);
+    height: 2px;
+    top: 50%;
+    right:0%;
+    background-color: rgb(122, 112, 52);
+    border-radius: 50%;
+}
+
+
+div.aboutSection .picture img {
+    border-radius: 5px;    
+    width: 900px;
+    max-width: 100%;
+}
+
+
+.norhtCitiesBoxes {
+    /* flex: 1; */
+}
+
+.norhtCitiesBoxes h3:first-child {
+    position: relative;
+}
+
+.norhtCitiesBoxes h3:first-child::after{
+    content:"";
+    position:absolute;
+    width:calc(50% - 100px);
+    height: 2px;
+    top: 50%;
+    right:7%;
+    background-color: rgb(122, 112, 52);
+    border-radius: 50%;
+
+}
+
+.norhtCitiesBoxes .cards {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.norhtCitiesBoxes .cards .card  {
+    /* border-radius: 8px; */
+    position: relative;
+    overflow: hidden;
+}
+
+.norhtCitiesBoxes .cards .card::before {
+    content:attr(cityName);
+    position: absolute;
+    width: 100%;
+    height: 20%;
+    bottom: -50px;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    display: flex;
+    justify-content:flex-start;
+    align-items: center;
+    padding-left: 10px;
+    transition-duration: 0.2s;
+    transition-timing-function: ease-in;
+    transition-property: all;
+
+}
+
+.norhtCitiesBoxes .cards .card:hover::before {
+    bottom: 0;
+}
+
+.norhtCitiesBoxes .cards .card > img {
+    max-width: 100%;
+    width: 190px;
+    height: 150px;
+    /* display: inline; */
+    object-fit: cover;
+    border-radius: 5px;
+}
+
+
+
+.guarantee {
+}
+
+.guarantee h3 {
+    position: relative;
+}
+
+.guarantee h3::before {
+    content: "";
+    position:absolute;
+    width:calc(50% - 100px);
+    height: 2px;
+    top: 50%;
+    left:calc(0% - 90px);
+    background-color: rgb(122, 112, 52);
+    border-radius: 50%;
+}
+.guarantee h3::after {
+    content: "";
+    position:absolute;
+    width:calc(50% - 100px);
+    height: 2px;
+    top: 50%;
+    right:calc(0% - 40px);
+    background-color: rgb(122, 112, 52);
+    border-radius: 50%;
+}
+
+.guarantee .cards {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.guarantee .cards .card {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    text-align: center;
+    border-radius: 0;
+}
+
+.guarantee .cards .card p {
+    font-size: 0.9rem;
+}

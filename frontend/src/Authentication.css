@@ -116,6 +116,68 @@
     color: #131313;
 }
 
+.auth-forgot-password {
+    margin-top: 0.35rem;
+    text-align: right;
+    font-size: 0.86rem;
+    color: #6c757d;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.auth-forgot-password:hover {
+    color: #2f4858;
+}
+
+.auth-inline-error {
+    margin: 0 0 0.9rem;
+    padding: 0.85rem 1rem;
+    border-radius: 14px;
+    border: 1px solid rgba(184, 55, 55, 0.18);
+    background: linear-gradient(135deg, rgba(201, 52, 52, 0.1), rgba(255, 244, 244, 0.95));
+    color: #9f1f1f;
+    font-size: 0.93rem;
+    font-weight: 500;
+    line-height: 1.4;
+    box-shadow: 0 10px 22px rgba(159, 31, 31, 0.08);
+}
+
+.auth-submit-button {
+    border: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-submit-button:disabled {
+    opacity: 0.92;
+    cursor: wait;
+}
+
+.auth-loading-content {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.auth-spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #ffffff;
+    animation: authSpin 0.75s linear infinite;
+}
+
+@keyframes authSpin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .auth-or {
     position: relative;
     text-align: center;
@@ -204,6 +266,85 @@
     padding-top: 0.4rem;
     padding-bottom: 0.4rem;
     margin-bottom: 0.6rem;
+}
+
+.password-strength-wrap {
+    margin-top: -0.1rem;
+    margin-bottom: 0.2rem;
+}
+
+.password-strength-track {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 0.45rem;
+}
+
+.password-strength-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: #e8eaed;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.password-strength-bar.is-active {
+    transform: scaleY(1.05);
+}
+
+.password-strength-bar.is-active:nth-child(1) {
+    background: #d64545;
+}
+
+.password-strength-bar.is-active:nth-child(2) {
+    background: #e6a23c;
+}
+
+.password-strength-bar.is-active:nth-child(3) {
+    background: #1f9d68;
+}
+
+.password-strength {
+    font-size: 0.84rem;
+    font-weight: 500;
+    color: #7b8794;
+    transition: color 0.2s ease;
+}
+
+.password-strength--weak {
+    color: #b73232;
+}
+
+.password-strength--medium {
+    color: #c98517;
+}
+
+.password-strength--strong {
+    color: #157f57;
+}
+
+.confirm-password-mismatch {
+    border-color: #d84b4b !important;
+    box-shadow: 0 0 0 0.2rem rgba(216, 75, 75, 0.14) !important;
+}
+
+.confirm-password-match {
+    border-color: #25a06a !important;
+    box-shadow: 0 0 0 0.2rem rgba(37, 160, 106, 0.12) !important;
+}
+
+.confirm-password-hint {
+    margin-top: -0.15rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.84rem;
+    font-weight: 500;
+}
+
+.confirm-password-hint--mismatch {
+    color: #b73232;
+}
+
+.confirm-password-hint--match {
+    color: #157f57;
 }
 
 .signup-form-compact .PhoneInput {

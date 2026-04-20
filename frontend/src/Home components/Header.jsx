@@ -4,10 +4,10 @@ import Logo from '../assets/logo.png'
 import '../Home.css'
 // Importing theme
 
-import { Link } from 'react-router-dom';
+import { Link, Navigate, replace , useNavigate } from 'react-router-dom';
 
 import { useThemeGlobal } from '../Contexts/ThemeContext';
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Container from '@mui/material/Container'
 import { styled, alpha } from '@mui/material/styles';
 import AppBar from '@mui/material/AppBar';
@@ -33,12 +33,24 @@ import Stack from '@mui/material/Stack';
 
 // Avatar pictures
 import profilePicture1 from '../assets/1.jpg'
+import { useToken } from '../Contexts/TokenContext';
 
 
 
 export default function Header(){
+
+    // Contexts ######################
+
     // theme
     const themeGlobal = useThemeGlobal();
+
+    // token context
+    const {token , setToken , user , setUser} = useToken();
+
+
+    // Navigate ########
+
+    const navigate = useNavigate(); 
 
 
 
@@ -51,7 +63,9 @@ export default function Header(){
     const isMenuOpen = Boolean(anchorEl);
     const isMobileMenuOpen = Boolean(mobileMoreAnchorEl);
 
-    const handleProfileMenuOpen = (event) => {
+    const handleProfileMenuOpen = (event) => { 
+
+        
         setAnchorEl(event.currentTarget);
     };
 
@@ -59,10 +73,21 @@ export default function Header(){
         setMobileMoreAnchorEl(null);
     };
 
+    const handleSignOut = () => {
+        // remove the token and the user from localStorage
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        // Update the states of token and the user
+        setToken(null);
+        setUser(null);
+        // navigate to authentication
+        navigate("/Authentication", { replace: true });
+    };
+
     const handleMenuClose = () => {
         setAnchorEl(null);
         handleMobileMenuClose();
-    };
+    }
 
     const handleMobileMenuOpen = (event) => {
         setMobileMoreAnchorEl(event.currentTarget);
@@ -85,13 +110,16 @@ export default function Header(){
         open={isMenuOpen}
         onClose={handleMenuClose}
         >
+
         <MenuItem onClick={handleMenuClose}>Profile</MenuItem>
-        <MenuItem onClick={handleMenuClose}>My account</MenuItem>
+        {/* We will set the sign out here */}
+        <MenuItem onClick={handleSignOut}>Sign out</MenuItem>
         </Menu>
     );
 
     const mobileMenuId = 'primary-search-account-menu-mobile';
     const renderMobileMenu = (
+        
         <Menu
         anchorEl={mobileMoreAnchorEl}
         anchorOrigin={{
@@ -142,11 +170,6 @@ export default function Header(){
         </Menu>
     );
 
-    // Show or Hide Login 
-    const [showLogin , setShowLogin] = React.useState(true)
-
-    // Show or Hide notification & avatar
-    const [showNotiAva, setShowNotiAva] = React.useState(false)
 
 
     // ##################### END ########################
@@ -165,7 +188,7 @@ export default function Header(){
                         <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
 
                             {
-                                showLogin && !showNotiAva ?
+                                !token ?
                                     
                                     <Button
                                     component={Link}
@@ -174,14 +197,9 @@ export default function Header(){
                                     variant='contained'>
                                         Login to become a host
                                     </Button>
-                                : <></>
-                            }
+                                : <>
                                 
-                                {
-
-                                    showNotiAva && !showLogin ?
-                                    <>
-                                        <IconButton
+                                    <IconButton
                                         size="large"
                                         aria-label="show 17 new notifications"
                                         sx={{color:themeGlobal.colors.primary}} 
@@ -201,15 +219,19 @@ export default function Header(){
                                         // color={}
                                         >
                                         <Stack direction="row" spacing={2}>
-                                            <Avatar alt="Remy Sharp" src={profilePicture1} />
+                                            <Avatar alt="Remy Sharp"/>
                                         </Stack>
-                                        </IconButton>
+                                    </IconButton>
 
-                                    </>
-                                    : <></>
-                                }    
+
+                                </>
+                            }
+                                
                         </Box>
                         <Box sx={{ display: { xs: 'flex', md: 'none' } }}>
+                            {
+                            token
+                            ?
                             <IconButton
                             size="large"
                             aria-label="show more"
@@ -220,6 +242,16 @@ export default function Header(){
                             >
                             <MoreIcon />
                             </IconButton>
+                            :
+                            <Button
+                                component={Link}
+                                to="/Authentication"
+                                sx={{background:themeGlobal.colors.primary}}
+                                variant='contained'>
+                                    Login to become a host
+                            </Button>
+
+                            }
                         </Box>
                         </Toolbar>
                     {renderMobileMenu}
