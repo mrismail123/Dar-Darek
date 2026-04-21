@@ -18,8 +18,6 @@ import { useBrowse } from './Contexts/BrowseContext';
 import * as React from 'react';
 import Button from '@mui/material/Button';
 import Landing from './Home components/Landing';
-import About from './Home components/About';
-import Suggestions from './Home components/Suggestions';
 import { useToken } from './Contexts/TokenContext';
 
 // Material UI Icons
@@ -52,14 +50,6 @@ export default function Home(){
             {/* Start Landing */}
             <Landing/>
             {/* End Landing */}
-
-            {/* Start suggestions */}
-            <Suggestions/>
-            {/* End suggestions */}
-
-            {/* Start about */}
-            <About/>
-            {/* End about */}
 
 
             {/* Start footer*/}
