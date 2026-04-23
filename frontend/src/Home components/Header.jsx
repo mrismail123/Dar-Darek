@@ -177,7 +177,19 @@ export default function Header(){
     return (
             <>
                 {/* Start header */}
-                <Container sx={{margin:"0 auto",display:"flex", alignItems:"center" ,justifyContent:"space-between" , background:themeGlobal.colors.background}}>
+                <Container
+                    maxWidth={false}
+                    disableGutters
+                    sx={{
+                        width: "min(100%, 1480px)",
+                        margin: "0 auto",
+                        padding: { xs: "0 18px", sm: "0 24px", md: "0 32px" },
+                        display:"flex",
+                        alignItems:"center",
+                        justifyContent:"space-between",
+                        background:themeGlobal.colors.background
+                    }}
+                >
                     <div className='font-luxury' style={{display:"flex" , alignItems:"center"}}>
                         <img style={{maxWidth:"100%", height:"70px"}} src={Logo} alt="" />
                         <h3 className='mb-0'>DarDarek</h3>                

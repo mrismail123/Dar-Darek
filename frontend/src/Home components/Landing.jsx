@@ -1,6 +1,10 @@
 // MUI materials 
-
 import Button from '@mui/material/Button';
+import Container from '@mui/material/Container';
+// MUI icons
+import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
+import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
+import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 
 // External components
 import Guests from './Landing components/Guests';
@@ -26,20 +30,54 @@ export default function Landing(){
         e.preventDefault();
     }
     return (
-        <div className='landing' style={{display:"flex" , alignItems:"center" , flexDirection:"column" , justifyContent:"center" ,gap:"100px", textAlign:"center"}}>
-            <div className='titling'>
-                <h1 style={{fontSize:"2.8rem",fontWeight:"700"}} className='font-luxury titleLanding'>Feel at <span style={{fontStyle:"italic" , marginRight:"3px"}}>h</span>ome</h1>
-                <p style={{fontSize:"1.5rem",color:themeGlobal.colors.text}} className='font-clean'>Find your place in northern Morocco</p>
+        <Container className='landing' sx={{
+            padding:"40px",
+            display:"flex" , 
+            alignItems:"flex-start", 
+            flexDirection:"column",
+            gap:"50px",
+            }}>
+            <div style={{maxWidth:"100%" , width:"50%"}} className='titling'>
+                <p className='landingEyebrow'>Welcome to Dar Darek</p>
+                <h1 style={{fontSize:"3.7rem",fontWeight:"bold"}} className='font-luxury titleLanding'>Feel at home</h1>
+                <p style={{color:themeGlobal.colors.gray}} className='landingLead'>Find your place in northern Morocco with stays that feel local, warm, and easy to trust.</p>
             </div>
-            <div style={{background:themeGlobal.colors.background,borderRadius:"5px"}} className="searchBar">
-                <form onSubmit={handleBrowseFormSubmit} className='browseForm' action="">
+            <div style={{background:themeGlobal.colors.background}} className="searchBar">
+                <form style={{
+                    display:"flex",
+                    justifyContent:"space-between",
+                    alignItems:"center"
+                }} onSubmit={handleBrowseFormSubmit} className='browseForm' action="">
                     <Location/>
                     <Calendar/>
                     <Guests/>
-                    <Button type='submit' sx={{background:themeGlobal.colors.primary,margin:"0px 10px",padding:'10px'}} variant='contained'>Browse Apartments</Button>
+                    <Button sx={{padding:"10px",background:themeGlobal.colors.primary , color:"white"}} variant='filled'>Browse stays</Button>
                 </form>
             </div>
-        </div>
+            <div className="about">
+                <div>
+                    <VerifiedUserOutlinedIcon sx={{color:themeGlobal.colors.lineSeparetor}}/>
+                    <div>
+                        <p>Trusted stays</p>
+                        <p style={{color:themeGlobal.colors.gray}}>Carefully selected for comfort and quality.</p>
+                    </div>
+                </div>
+                <div>
+                    <SupportAgentOutlinedIcon sx={{color:themeGlobal.colors.lineSeparetor}}/>
+                    <div>
+                        <p>Local support</p> 
+                        <p style={{color:themeGlobal.colors.gray}}>We&apos;re here to help before and during your stay.</p> 
+                    </div>
+                </div>
+                <div>
+                    <LocalOfferOutlinedIcon sx={{color:themeGlobal.colors.lineSeparetor}}/>
+                    <div>
+                        <p>Best price guarantee</p>
+                        <p style={{color:themeGlobal.colors.gray}}>Honest prices, no hidden fees or surprises.</p>
+                    </div>
+                </div>
+            </div>
+        </Container>
 
     )
 }

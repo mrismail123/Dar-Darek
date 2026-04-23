@@ -46,6 +46,10 @@ app.get('/api/test-db' , async (req , res)=>{
     })
 
 
+
+// ########################## Start APIs for Login System ############################
+
+
 // API for forgot-password form
 app.post("/api/forgot-password", async (req , res)=>{
     const {email} = req.body;
@@ -105,7 +109,6 @@ app.post("/api/forgot-password", async (req , res)=>{
     }
 })
 
-
 // API to change password
 app.post("/api/change-password", async (req , res)=>{
     const {password, confirmPassword , token} = req.body;
@@ -148,22 +151,6 @@ app.post("/api/change-password", async (req , res)=>{
         res.status(500).json({message:"An error occurred during try to change your password" , details:error.message});
     }
 })
-
-
-// // API for reseting password
-// app.get('api/reset-password', async (req , res)=>{
-//     const {token} = req.query;
-//     if(!token) return res.status(400).send('Token is missing.');
-//     try {
-//         const decoded = jwt.verify(token , process.env.JWT_SECRET);
-//         const email = decoded.email;
-
-//         res.redirect("http://localhost:5173/Authentication/change-password");
-//     } catch (error) {
-//         res.status(400).send("Link expired or invalid. Please sign up again.");
-//     }
-// })
-
 
 // API for sign up 
 app.post('/api/signup' , async (req , res)=>{
@@ -320,8 +307,6 @@ app.post('/api/login' , async (req ,res)=>{
     }
 })
 
-
-
 // API to verify continue with google
 app.post("/api/google-auth" , async (req, res)=>{
     const {idToken} = req.body;
@@ -357,16 +342,112 @@ app.post("/api/google-auth" , async (req, res)=>{
 })
 
 
+// ########################## End APIs for Login System ############################
 
-// API for extracting cities
-app.get('/api/extractCities' , async (req , res)=>{
+
+
+// ########################## Start APIs for Extracting properties System ############################
+
+// API for extracting cities for the location select
+app.get('/api/extractCities', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT name FROM cities');
-        res.json(rows)
+        const [rows] = await db.query(`
+            SELECT id_city, name
+            FROM cities
+            ORDER BY name ASC
+        `);
+
+        return res.status(200).json(rows);
     } catch (error) {
-        res.status(500).json({message:"Failed to fetch cities." , details : error.message})
+        return res.status(500).json({
+            message: "Failed to fetch cities.",
+            details: error.message
+        });
+    }
+});
+
+// API for extracting properties
+app.get('/api/extractHomePageProperties' , async (req , res)=>{
+    try {
+
+
+        const [latestRows] = await db.query(`   
+            SELECT p.*, c.name AS city_name 
+            FROM properties p 
+            JOIN cities c 
+            ON p.id_city = c.id_city 
+            ORDER BY p.created_at DESC LIMIT 10;
+        `);
+
+        const [tangierRows] = await db.query(`
+            SELECT p.*, c.name AS city_name
+            FROM properties p
+            JOIN cities c ON p.id_city = c.id_city
+            WHERE c.name = 'Tangier'
+            ORDER BY p.created_at DESC
+            LIMIT 10;            
+        `);
+        const [tetouanRows] = await db.query(`
+            SELECT p.*, c.name AS city_name
+            FROM properties p
+            JOIN cities c ON p.id_city = c.id_city
+            WHERE c.name = 'Tetouan'
+            ORDER BY p.created_at DESC
+            LIMIT 10;            
+        `);
+        const [chefchaouenRows] = await db.query(`
+            SELECT p.*, c.name AS city_name
+            FROM properties p
+            JOIN cities c ON p.id_city = c.id_city
+            WHERE c.name = 'Chefchaouen'
+            ORDER BY p.created_at DESC
+            LIMIT 10;            
+        `);
+
+        const [asilahRows] = await db.query(`
+            SELECT p.*, c.name AS city_name
+            FROM properties p
+            JOIN cities c ON p.id_city = c.id_city
+            WHERE c.name = 'Asilah'
+            ORDER BY p.created_at DESC
+            LIMIT 10;            
+        `);
+
+        const [alHoceimaRows] = await db.query(`
+            SELECT p.*, c.name AS city_name
+            FROM properties p
+            JOIN cities c ON p.id_city = c.id_city
+            WHERE c.name = 'Al Hoceima'
+            ORDER BY p.created_at DESC
+            LIMIT 10;            
+        `);
+
+        if (
+            latestRows.length === 0 &&
+            tangierRows.length === 0 &&
+            tetouanRows.length === 0 &&
+            chefchaouenRows.length === 0
+        ) {
+            return res.status(404).json({ message: "No properties found" });
+        }
+        
+        res.status(200).json({
+            message: "Extracted with success",
+            latest: latestRows,
+            tangier:tangierRows ,
+            tetouan: tetouanRows,
+            chefchaouen: chefchaouenRows,
+            asilah: asilahRows,
+            alHoceima : alHoceimaRows
+        });
+
+    } catch (error) {
+        res.status(500).json({message:"Extracting properties failed" , details : error.message});
     }
 })
+
+// ########################## Start APIs for Extracting properties System ############################
+
 
 
 // 5. START SERVER
