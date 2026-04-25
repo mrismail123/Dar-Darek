@@ -8,8 +8,13 @@ import { DateRange } from 'react-date-range';
 import { format } from 'date-fns';
 import 'react-date-range/dist/styles.css'; // main style file
 import 'react-date-range/dist/theme/default.css'; // theme css file
+import { useBrowse } from '../../Contexts/BrowseContext';
 
-export default function Calndar(){
+export default function Calndar() {
+    // browse state 
+
+    const { browse, setBrowse } = useBrowse();
+
     const themeGloabl = useThemeGlobal();
     const dropdownRef = useRef(null);
     const [isOpen, setIsOpen] = useState(false);
@@ -27,74 +32,76 @@ export default function Calndar(){
         key: 'selection',
     });
 
-    useEffect(()=>{
-        const handleClickOutside = (e)=>{
-            if(dropdownRef.current && !dropdownRef.current.contains(e.target)){
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
                 setIsOpen(false);
             }
         }
-        
-        document.addEventListener("mousedown" , handleClickOutside);
 
-        return ()=>{
-            document.removeEventListener("mousedown" , handleClickOutside);
+        document.addEventListener("mousedown", handleClickOutside);
+
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
         }
-    },[])
+    }, [])
 
     const handleSelect = (ranges) => {
         setSelectionRange(ranges.selection);
-        
-        // Save the dates in our specific checkIn / checkOut object state
+
         setDates({
             checkIn: ranges.selection.startDate,
             checkOut: ranges.selection.endDate
         });
+
+        // Save the dates in our specific checkIn / checkOut object state which is browse state
+        setBrowse({ ...browse, checkIn: ranges.selection.startDate, checkOut: ranges.selection.endDate })
     };
 
     return (
-        <div 
-            ref={dropdownRef} 
-            className='asjustmentFlexing' 
+        <div
+            ref={dropdownRef}
+            className='asjustmentFlexing'
             style={{ position: 'relative' }}
         >
             {/* Check-in Trigger */}
-            <div 
-                className='asjustmentFlexing' 
+            <div
+                className='asjustmentFlexing'
                 onClick={() => setIsOpen((prev) => !prev)}
                 style={{ cursor: 'pointer', flex: 1 }}
             >
                 <div>
-                    <CalendarTodayOutlinedIcon sx={{color:themeGloabl.colors.primary}}/>
+                    <CalendarTodayOutlinedIcon sx={{ color: themeGloabl.colors.primary }} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <p style={{ fontWeight:"bold", fontSize:"0.7rem", margin: 0, color: '#222' }}>Check-in</p>
-                    <p style={{ fontSize:"0.8rem", color: dates.checkIn ? '#222' : themeGloabl.colors.gray, margin: 0 }}>
+                    <p style={{ fontWeight: "bold", fontSize: "0.7rem", margin: 0, color: '#222' }}>Check-in</p>
+                    <p style={{ fontSize: "0.8rem", color: dates.checkIn ? '#222' : themeGloabl.colors.gray, margin: 0 }}>
                         {dates.checkIn ? format(dates.checkIn, 'MMM dd') : "Add dates"}
                     </p>
                 </div>
-                <KeyboardArrowDownOutlinedIcon sx={{ color: themeGloabl.colors.gray, transition: 'transform 0.3s ease', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}/>
+                <KeyboardArrowDownOutlinedIcon sx={{ color: themeGloabl.colors.gray, transition: 'transform 0.3s ease', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
             </div>
 
             {/* Check-out Trigger */}
-            <div 
-                className='asjustmentFlexing' 
+            <div
+                className='asjustmentFlexing'
                 onClick={() => setIsOpen((prev) => !prev)}
                 style={{ cursor: 'pointer', flex: 1 }}
             >
                 <div>
-                    <CalendarTodayOutlinedIcon sx={{color:themeGloabl.colors.primary}}/>
+                    <CalendarTodayOutlinedIcon sx={{ color: themeGloabl.colors.primary }} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <p style={{ fontWeight:"bold", fontSize:"0.7rem", margin: 0, color: '#222' }}>Check-out</p>
-                    <p style={{ fontSize:"0.8rem", color: dates.checkOut && dates.checkOut !== dates.checkIn ? '#222' : themeGloabl.colors.gray, margin: 0 }}>
+                    <p style={{ fontWeight: "bold", fontSize: "0.7rem", margin: 0, color: '#222' }}>Check-out</p>
+                    <p style={{ fontSize: "0.8rem", color: dates.checkOut && dates.checkOut !== dates.checkIn ? '#222' : themeGloabl.colors.gray, margin: 0 }}>
                         {dates.checkOut && dates.checkOut !== dates.checkIn ? format(dates.checkOut, 'MMM dd') : "Add dates"}
                     </p>
                 </div>
-                <KeyboardArrowDownOutlinedIcon sx={{ color: themeGloabl.colors.gray, transition: 'transform 0.3s ease', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}/>
+                <KeyboardArrowDownOutlinedIcon sx={{ color: themeGloabl.colors.gray, transition: 'transform 0.3s ease', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
             </div>
 
             {/* Dropdown Picker Panel with Animations */}
-            <div 
+            <div
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     position: 'absolute',

@@ -2,15 +2,34 @@ import { useEffect, useRef, useState } from 'react';
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import KeyboardArrowDownOutlinedIcon from '@mui/icons-material/KeyboardArrowDownOutlined';
 import { useThemeGlobal } from '../../Contexts/ThemeContext';
+import { useBrowse } from '../../Contexts/BrowseContext';
+import axios from 'axios';
 
-export default function Location(){
+export default function Location() {
+
+    // Browse data
+    const { browse, setBrowse } = useBrowse();
+
+
     const themeGloabl = useThemeGlobal();
     const [isOpen, setIsOpen] = useState(false);
     const [selectedCity, setSelectedCity] = useState("");
     const dropdownRef = useRef(null);
 
+
+
     // Keep this empty for now; later you can fill it with cities from the DB.
-    const cities = [];
+    const [cities, setCities] = useState([]);
+
+    // use Effect function to bring those citites
+    useEffect(() => {
+        const bringCitites = async (e) => {
+            const response = await axios.get('http://localhost:5000/api/extractCities');
+            const citiesList = response.data;
+            setCities(citiesList);
+        }
+        bringCitites();
+    }, [])
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -41,7 +60,7 @@ export default function Location(){
             }}
         >
             <div className="locationField__icon">
-                <LocationOnOutlinedIcon sx={{color:themeGloabl.colors.primary}}/>
+                <LocationOnOutlinedIcon sx={{ color: themeGloabl.colors.primary }} />
             </div>
             <div className="locationField__copy">
                 <p>Where to?</p>
@@ -67,16 +86,17 @@ export default function Location(){
                     <div className="locationDropdown__list">
                         {cities.map((city) => (
                             <button
-                                key={city}
+                                key={city.id_city}
                                 type="button"
                                 className="locationDropdown__option"
                                 onClick={(event) => {
                                     event.stopPropagation();
-                                    setSelectedCity(city);
+                                    setBrowse({ ...browse, location: city.name })
+                                    setSelectedCity(city.name);
                                     setIsOpen(false);
                                 }}
                             >
-                                {city}
+                                {city.name}
                             </button>
                         ))}
                     </div>

@@ -5,36 +5,41 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import { useThemeGlobal } from '../../Contexts/ThemeContext';
 
 import { useEffect, useRef, useState } from 'react';
+import { useBrowse } from '../../Contexts/BrowseContext';
 
-export default function Guests(){
+export default function Guests() {
 
+    // browse state
+    const { browse, setBrowse } = useBrowse();
     const dropdownRef = useRef(null);
     const themeGloabl = useThemeGlobal();
-    const [isOpen , setIsOpen] = useState(false);
-    
+    const [isOpen, setIsOpen] = useState(false);
+
     // 1. Initializing state object for guests
     const [guests, setGuests] = useState({ adults: 0, children: 0, pets: 0 });
 
-    useEffect(()=>{
-        const handleClickOutside = (e)=>{
-            if(dropdownRef.current && !dropdownRef.current.contains(e.target)){
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
                 setIsOpen(false);
             }
         }
         // Fixed: Event listener needs to be attached OUTSIDE the handler function
-        document.addEventListener("mousedown" , handleClickOutside);
+        document.addEventListener("mousedown", handleClickOutside);
 
-        return ()=>{
-            document.removeEventListener("mousedown" , handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
         }
-    },[])
+    }, [])
 
     const updateGuest = (type, operation) => {
-        setGuests(prev => {
-            const newValue = prev[type] + operation;
-            if (newValue < 0) return prev;
-            return { ...prev, [type]: newValue };
-        });
+        const newValue = guests[type] + operation;
+        if (newValue < 0) return;
+
+        const updatedGuests = { ...guests, [type]: newValue };
+
+        setGuests(updatedGuests);
+        setBrowse({ ...browse, guests: updatedGuests });
     };
 
     const renderGuestOption = (title, description, type) => (
@@ -44,7 +49,8 @@ export default function Guests(){
                 <span style={{ fontSize: '0.8rem', color: themeGloabl.colors.gray, margin: 0 }}>{description}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <button 
+                <button
+                    type='button'
                     onClick={(e) => { e.stopPropagation(); updateGuest(type, -1); }}
                     disabled={guests[type] === 0}
                     style={{
@@ -60,7 +66,8 @@ export default function Guests(){
                 <span style={{ width: '20px', textAlign: 'center', fontWeight: '600', fontSize: '1rem', color: '#222' }}>
                     {guests[type]}
                 </span>
-                <button 
+                <button
+                    type='button'
                     onClick={(e) => { e.stopPropagation(); updateGuest(type, 1); }}
                     style={{
                         width: '32px', height: '32px', borderRadius: '50%', border: `1px solid ${themeGloabl.colors.gray}`,
@@ -80,27 +87,27 @@ export default function Guests(){
     const petsText = guests.pets > 0 ? `, ${guests.pets} pet${guests.pets > 1 ? 's' : ''}` : "";
 
     return (
-        <div 
+        <div
             ref={dropdownRef}
             onClick={() => setIsOpen((prev) => !prev)}
             className='asjustmentFlexing'
             style={{ position: 'relative', cursor: 'pointer' }}
         >
             <div>
-                <PeopleAltOutlinedIcon sx={{color:themeGloabl.colors.primary}}/>
+                <PeopleAltOutlinedIcon sx={{ color: themeGloabl.colors.primary }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <p style={{ fontWeight:"bold", fontSize:"0.7rem", margin: 0, color: '#222' }}>Guests</p>
-                <p style={{ fontSize:"0.8rem", color: totalGuests > 0 ? '#222' : themeGloabl.colors.gray, margin: 0 }}>
+                <p style={{ fontWeight: "bold", fontSize: "0.7rem", margin: 0, color: '#222' }}>Guests</p>
+                <p style={{ fontSize: "0.8rem", color: totalGuests > 0 ? '#222' : themeGloabl.colors.gray, margin: 0 }}>
                     {guestText}{petsText}
                 </p>
             </div>
-            <KeyboardArrowDownOutlinedIcon 
+            <KeyboardArrowDownOutlinedIcon
                 sx={{ color: themeGloabl.colors.gray, transition: 'transform 0.3s ease', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
             />
 
             {/* Dropdown Panel with Animations */}
-            <div 
+            <div
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     position: 'absolute',

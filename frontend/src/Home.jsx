@@ -37,34 +37,32 @@ import { useToken } from './Contexts/TokenContext';
 
 
 
-export default function Home(){
+export default function Home() {
     // theme
     const themeGlobal = useThemeGlobal();
-    // Browse data
-    const {browse , setBrowse} = useBrowse();
-     
-    const {token , setToken , user , setUser} = useToken();
+
+    const { token, setToken, user, setUser } = useToken();
 
     // states
-    const [homePageProperties , setHomePageProperties] = React.useState(null);
+    const [homePageProperties, setHomePageProperties] = React.useState(null);
 
     // start functions
 
     // Extracting Limited properties
-    React.useEffect(()=>{
+    React.useEffect(() => {
 
-        const extractLimitedHomePageProperties = async (e)=>{
+        const extractLimitedHomePageProperties = async (e) => {
             try {
                 const response = await axios.get('http://localhost:5000/api/extractHomePageProperties');
 
                 setHomePageProperties(response.data);
 
             } catch (error) {
-                if(error.response){
+                if (error.response) {
                     alert(error.response.message || error.response.details || "Unknown");
-                }else if(error.request){
+                } else if (error.request) {
                     alert("Can't reach the server, please check the server is running on port:5000");
-                }else{
+                } else {
                     alert("An error occured:", error);
                 }
             }
@@ -72,25 +70,20 @@ export default function Home(){
         // Call the function to start extracting
         extractLimitedHomePageProperties();
 
-  },[]);
-
-
-
-  console.log(homePageProperties);
-
+    }, []);
 
 
     return (
         <>
             {/* Start header */}
-            <Header className="header"/>
+            <Header className="header" />
             {/* End header */}
 
             {/* Start Landing */}
-            <Landing/>
+            <Landing />
             {/* End Landing */}
 
-            {homePageProperties && 
+            {homePageProperties &&
                 (
                     <>
                         {/* Start Show the grid component */}
@@ -113,8 +106,8 @@ export default function Home(){
             }
 
             {/* Start footer*/}
-            <Footer/>
+            <Footer />
             {/* End footer*/}
         </>
-        )
+    )
 }

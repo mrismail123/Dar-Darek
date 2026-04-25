@@ -1,34 +1,34 @@
-import { createContext  , useContext , useState} from "react";
+import { createContext, useContext, useState } from "react";
 
 const BrowseContext = createContext({});
 
 
-export function BrowseProvider({children}){
+export function BrowseProvider({ children }) {
 
     // $$$$$$$$$$$$$$$$ Browsing states $$$$$$$$$$$$$$$$$$$$$$$$$$
 
-    const [browse , setBrowse] = useState({
-        Location : "",
-        checkIn :null,
-        checkOut : null,
-        guests : {
-            adults : 0,
-            children :0,
+    const [browse, setBrowse] = useState({
+        location: "",
+        checkIn: null,
+        checkOut: null,
+        guests: {
+            adults: 0,
+            children: 0,
             pets: 0
         }
     })
-    
-    
+
+
     // $$$$$$$$$$$$$$$ End Browsing states $$$$$$$$$$$$$$$$$$$$
 
 
     return (
-        <BrowseContext.Provider value={{browse , setBrowse}}>
+        <BrowseContext.Provider value={{ browse, setBrowse }}>
             {children}
         </BrowseContext.Provider>
     )
 }
 
-export const useBrowse = ()=>{
+export const useBrowse = () => {
     return useContext(BrowseContext)
 }

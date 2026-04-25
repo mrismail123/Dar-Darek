@@ -1,0 +1,77 @@
+.filterBarContainer {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.mainFilterBtn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #ffffff;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+    color: #374151;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.mainFilterBtn:hover {
+    border-color: #D1D5DB;
+    background-color: #F9FAFB;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+}
+
+.mainFilterBtn svg {
+    color: #119E92; /* Teal color matching the design */
+}
+
+.filterDropdown {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #ffffff;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    padding: 10px 16px;
+    cursor: pointer;
+    min-width: 150px;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.filterDropdown:hover {
+    border-color: #D1D5DB;
+    background-color: #F9FAFB;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+}
+
+.filterText {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.filterLabel {
+    font-size: 0.75rem;
+    color: #111827; /* Darker heading */
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.filterValue {
+    font-size: 0.85rem;
+    color: #6B7280; /* Lighter value */
+}
+
+.sortDropdown {
+    margin-left: auto; /* Pushes the sort dropdown to the right edge */
+}
