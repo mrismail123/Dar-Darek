@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Footer from "../Home components/Footer";
 import "./PropertyDetails.css";
 
 import chaouenImage from "../assets/chaouen-bg.jpg";
@@ -884,6 +885,8 @@ export default function PropertyDetails() {
           onGuestChange={updateGuests}
         />
       </section>
+
+      <Footer />
     </main>
   );
 }
