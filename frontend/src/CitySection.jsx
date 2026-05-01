@@ -41,17 +41,32 @@ export default function CitySection({ title, properties, message }) {
         });
     };
 
+    const BaseUrl = "http://localhost:5000";
+
     const propertiesSlide = properties?.map((property) => {
         const dateFrom = new Date(property.available_from);
         const dateTo = new Date(property.available_to);
         const diffMil = dateTo - dateFrom;
         const nights = diffMil / (1000 * 60 * 60 * 24);
+        // steps for the image
+        let imagePath = property.main_image;
+        if (imagePath) {
+            imagePath = imagePath.replace(/\\/g, '/'); // Convert Windows backslashes to forward slashes
+            if (!imagePath.startsWith('/')) {
+                imagePath = '/' + imagePath; // Ensure it starts with a slash
+            }
+        }
+
+        const imageUrl = imagePath ?
+            `${BaseUrl}${imagePath}` :
+            tangier;
+        console.log(imageUrl);
         return (
             <Box
                 key={property.id_property}
                 sx={{
-                    width: "260px",
-                    minWidth: "350px",
+                    width: "240px",
+                    minWidth: "240px",
                     borderRadius: "14px",
                     overflow: "hidden",
                     backgroundColor: "#ffffff",
@@ -77,56 +92,46 @@ export default function CitySection({ title, properties, message }) {
                         }}
                     />
                     <img
-                        src={tangier}
+                        src={imageUrl}
                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                         alt={property.title}
+                        onError={(e) => {
+                            e.target.onerror = null; 
+                            e.target.src = tangier;
+                        }}
                     />
                 </div>
-                <div style={{ padding: "12px 12px 10px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
-                        <div>
-                            <h4
-                                className="font-luxury"
-                                style={{
-                                    margin: "0 0 4px",
-                                    fontSize: "1.05rem",
-                                    lineHeight: "1.2",
-                                    color: "#1A1A1A"
-                                }}
-                            >
-                                {property.title}
-                            </h4>
-                            <p style={{ margin: "0", fontSize: "0.86rem", color: "#6B7280" }}>
-                                {property.city_name}
-                            </p>
-                        </div>
-                        <p style={{ margin: "0", fontSize: "0.92rem", whiteSpace: "nowrap", color: "#1A1A1A" }}>
+                <div style={{ padding: "10px 12px" }}>
+                    <h4
+                        className="font-luxury"
+                        style={{
+                            margin: "0 0 4px",
+                            fontSize: "1.05rem",
+                            lineHeight: "1.2",
+                            color: "#1A1A1A",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis"
+                        }}
+                    >
+                        {property.title}
+                    </h4>
+                    <p style={{ margin: "0 0 10px 0", fontSize: "0.86rem", color: "#6B7280" }}>
+                        {property.city_name}
+                    </p>
+                    <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        borderTop: "1px solid rgba(215, 194, 154, 0.35)",
+                        paddingTop: "10px"
+                    }}>
+                        <p style={{ margin: "0", fontSize: "0.92rem", color: "#1A1A1A" }}>
                             <span style={{ fontWeight: "700" }}>${property.price_per_day}</span> / night
                         </p>
-                    </div>
-                    <div
-                        className="amenities"
-                        style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: "12px",
-                            marginTop: "10px",
-                            paddingTop: "10px",
-                            borderTop: "1px solid rgba(215, 194, 154, 0.35)",
-                            flexWrap: "nowrap"
-                        }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#5F6876", whiteSpace: "nowrap", flex: "0 0 auto" }}>
-                            <PersonIcon sx={{ fontSize: "0.95rem" }} />
-                            <p style={{ margin: "0", fontSize: "0.76rem" }}>{property.guests_total} guests</p>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#5F6876", whiteSpace: "nowrap", flex: "0 0 auto" }}>
-                            <BedIcon sx={{ fontSize: "0.95rem" }} />
-                            <p style={{ margin: "0", fontSize: "0.76rem" }}>{nights} nights</p>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#D9A11B", whiteSpace: "nowrap", flex: "0 0 auto" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                             <StarIcon sx={{ fontSize: "0.95rem", color: "#D9A11B" }} />
-                            <p style={{ margin: "0", fontSize: "0.76rem", color: "#5F6876" }}>4.8</p>
+                            <p style={{ margin: "0", fontSize: "0.86rem", color: "#5F6876" }}>4.8</p>
                         </div>
                     </div>
                 </div>

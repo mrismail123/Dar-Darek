@@ -42,7 +42,17 @@ export default function Landing() {
             return;
         }
 
-        window.open(`/properties?city=${browse.location}&check-in=${browse.checkIn}&check-out=${browse.checkOut}&guests=${totlaGuests}`, '_blank');
+        let url = `/properties?city=${browse.location}&guests=${totalGuestsPeople}`;
+
+        if (browse.checkIn && browse.checkOut) {
+            const formatLocal = (date) => {
+                const d = new Date(date);
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            };
+            url += `&checkIn=${formatLocal(browse.checkIn)}&checkOut=${formatLocal(browse.checkOut)}`;
+        }
+
+        window.open(url, '_blank');
     }
     return (
         <Container className='landing' sx={{

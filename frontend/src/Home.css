@@ -554,6 +554,10 @@ div.aboutSection .picture img {
     }
 
     .site-footer__brand {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        margin: 0 auto;
         gap: 12px;
     }
 
@@ -563,6 +567,18 @@ div.aboutSection .picture img {
 
     .site-footer__links {
         grid-template-columns: 1fr;
-        gap: 22px;
+        gap: 32px;
+        text-align: center;
+    }
+
+    .site-footer__bottom {
+        flex-direction: column;
+        justify-content: center;
+        text-align: center;
+        gap: 8px;
+    }
+
+    .site-footer__dot {
+        display: none;
     }
 }

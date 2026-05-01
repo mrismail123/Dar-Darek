@@ -1,11 +1,11 @@
 .dynamicPropertiesIntro {
     display: flex;
     align-items: stretch;
-    height: 300px;
+    height: 250px;
     background-color: #F7F4EB;
     position: relative;
     overflow: hidden;
-    margin-bottom: 40px;
+    /* margin-bottom: 40px; */
 }
 
 .dynamicPropertiesIntro .intro {
@@ -27,6 +27,7 @@
 .dynamicPropertiesIntro .intro p.breadcrumb a {
     color: #6B7280;
     text-decoration: none;
+    margin-right: 10px;
 }
 
 .dynamicPropertiesIntro .intro p.breadcrumb span {
@@ -96,4 +97,192 @@
     height: 100%;
     object-fit: cover;
     object-position: center;
+}
+
+
+
+.showProperties {
+    align-items: flex-start;
+    padding: 30px 5%;
+    display: flex;
+    gap: 18px;
+}
+
+.showProperties .propertiesAndFilter .properties {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.propertiesAndFilter {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.mapAndAboutCity {
+    position: sticky;
+    top: 20px;
+}
+
+.mapAndAboutCity .map {
+    height: 268px;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.propertiesAndFilter .pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.propertiesAndFilter .pagination-container button {}
+
+.about {
+    background-color: #FCF8F2;
+    border-radius: 10px;
+    padding: 20px 22px 24px;
+    margin-top: 14px;
+    border: 1px solid rgba(215, 194, 154, 0.3);
+}
+
+.about-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.about-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.about-header h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #2D3748;
+    font-weight: 700;
+}
+
+.about-text {
+    color: #4A5568;
+    line-height: 1.6;
+    font-size: 0.88rem;
+    margin-bottom: 18px;
+    margin-top: 0;
+}
+
+.about-link {
+    color: #2F8A8A;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.88rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.2s;
+}
+
+.about-link:hover {
+    color: #2b7a7a;
+}
+
+.about-link .arrow {
+    font-size: 1.1rem;
+    transition: transform 0.2s;
+}
+
+.about-link:hover .arrow {
+    transform: translateX(4px);
+}
+
+
+.savedFavourite::after {
+    content: "";
+    position: absolute;
+    width: 1px;
+    height: 50%;
+    right: -10px;
+    background-color: #8E8E8E;
+}
+
+/* Responsive Styles */
+@media (max-width: 1400px) {
+    .showProperties .propertiesAndFilter .properties {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+}
+
+@media (max-width: 1100px) {
+    .showProperties .propertiesAndFilter .properties {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+}
+
+@media (max-width: 950px) {
+    .showProperties {
+        flex-direction: column;
+        padding: 30px 4%;
+        gap: 30px;
+    }
+
+    .mapAndAboutCity {
+        width: 100% !important;
+        position: static;
+        margin-top: 10px;
+    }
+
+    .showProperties .propertiesAndFilter .properties {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+
+    /* Responsive Intro for tablet */
+    .dynamicPropertiesIntro {
+        height: auto;
+        flex-direction: column-reverse;
+        /* Image on top, text below */
+    }
+
+    .dynamicPropertiesIntro .intro {
+        width: 100%;
+        padding: 30px 5% 40px;
+        align-items: center;
+        text-align: center;
+    }
+
+    .dynamicPropertiesIntro .intro h2 {
+        font-size: 3.2rem;
+    }
+
+    .dynamicPropertiesIntro .image {
+        position: relative;
+        width: 100%;
+        height: 300px;
+    }
+
+    /* Adjust gradient to blend vertically instead of horizontally */
+    .dynamicPropertiesIntro .image::before {
+        background: linear-gradient(to top, #F7F4EB 0%, rgba(247, 244, 235, 0.9) 15%, transparent 50%);
+    }
+}
+
+@media (max-width: 700px) {
+    .showProperties {
+        padding: 30px 20px;
+    }
+
+    .showProperties .propertiesAndFilter .properties {
+        /* grid-template-columns: 1fr; */
+    }
+
+    .dynamicPropertiesIntro .intro h2 {
+        font-size: 2.5rem;
+    }
+
+    .dynamicPropertiesIntro .image {
+        height: 220px;
+    }
 }

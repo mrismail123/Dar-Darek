@@ -10,7 +10,7 @@ import { useThemeGlobal } from './Contexts/ThemeContext';
 
 // import header
 import Header from './Home components/Header';
-import Footer from './Home components/Footer';
+import Footer from './Footer';
 // import CitySection 
 import CitySection from './CitySection';
 

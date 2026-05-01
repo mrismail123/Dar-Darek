@@ -18,6 +18,7 @@ import ForgotPassword from './ForgotPassword'
 import ResetPassword from './ResetPassword'
 import { useThemeGlobal } from './Contexts/ThemeContext'
 import PropertiesPage from './PropertiesPage'
+import AdminDashboard from './AdminDashboard'
 
 
 function App() {
@@ -67,6 +68,7 @@ function App() {
         <Route path='/Authentication/verify-account' element={<VerifyAccountPage />} />
         <Route path='/properties' element={<PropertiesPage />} />
         <Route path='/Create-New-Property' element={<ProtectedRoute></ProtectedRoute>} />
+        <Route path='/admin' element={<><AdminDashboard /></>} />
         <Route path='/Authentication/forgot-password' element={<ForgotPassword />} />
         <Route path='/Authentication/reset-password' element={<ResetPassword />} />
       </Routes>

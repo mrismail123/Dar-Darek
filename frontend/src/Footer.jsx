@@ -1,5 +1,5 @@
-import Logo from "../assets/Logo2.png";
-import { useThemeGlobal } from "../Contexts/ThemeContext";
+import Logo from "./assets/Logo2.png";
+import { useThemeGlobal } from "./Contexts/ThemeContext";
 
 export default function Footer() {
     const themeGlobal = useThemeGlobal();

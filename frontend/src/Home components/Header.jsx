@@ -4,7 +4,7 @@ import Logo from '../assets/logo.png'
 import '../Home.css'
 // Importing theme
 
-import { Link, Navigate, replace , useNavigate } from 'react-router-dom';
+import { Link, Navigate, replace, useNavigate } from 'react-router-dom';
 
 import { useThemeGlobal } from '../Contexts/ThemeContext';
 import React, { useEffect, useState } from "react";
@@ -30,6 +30,14 @@ import Button from '@mui/material/Button';
 // Avatar 
 import Avatar from '@mui/material/Avatar';
 import Stack from '@mui/material/Stack';
+import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
+import PermIdentityOutlinedIcon from '@mui/icons-material/PermIdentityOutlined';
+import FavoriteBorderOutlinedIcon from '@mui/icons-material/FavoriteBorderOutlined';
+import BookmarkBorderOutlinedIcon from '@mui/icons-material/BookmarkBorderOutlined';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import Divider from '@mui/material/Divider';
 
 // Avatar pictures
 import profilePicture1 from '../assets/1.jpg'
@@ -37,7 +45,7 @@ import { useToken } from '../Contexts/TokenContext';
 
 
 
-export default function Header(){
+export default function Header() {
 
     // Contexts ######################
 
@@ -45,32 +53,23 @@ export default function Header(){
     const themeGlobal = useThemeGlobal();
 
     // token context
-    const {token , setToken , user , setUser} = useToken();
+    const { token, setToken, user, setUser } = useToken();
 
 
     // Navigate ########
 
-    const navigate = useNavigate(); 
+    const navigate = useNavigate();
 
 
 
     // Start header things
     // ##################### START ########################
-    
+
     const [anchorEl, setAnchorEl] = React.useState(null);
-    const [mobileMoreAnchorEl, setMobileMoreAnchorEl] = React.useState(null);
-
     const isMenuOpen = Boolean(anchorEl);
-    const isMobileMenuOpen = Boolean(mobileMoreAnchorEl);
 
-    const handleProfileMenuOpen = (event) => { 
-
-        
+    const handleProfileMenuOpen = (event) => {
         setAnchorEl(event.currentTarget);
-    };
-
-    const handleMobileMenuClose = () => {
-        setMobileMoreAnchorEl(null);
     };
 
     const handleSignOut = () => {
@@ -86,192 +85,245 @@ export default function Header(){
 
     const handleMenuClose = () => {
         setAnchorEl(null);
-        handleMobileMenuClose();
     }
-
-    const handleMobileMenuOpen = (event) => {
-        setMobileMoreAnchorEl(event.currentTarget);
-    };
 
     const menuId = 'primary-search-account-menu';
     const renderMenu = (
         <Menu
-        anchorEl={anchorEl}
-        anchorOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-        }}
-        id={menuId}
-        keepMounted
-        transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-        }}
-        open={isMenuOpen}
-        onClose={handleMenuClose}
+            anchorEl={anchorEl}
+            anchorOrigin={{
+                vertical: 'bottom',
+                horizontal: 'right',
+            }}
+            id={menuId}
+            keepMounted
+            transformOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+            }}
+            open={isMenuOpen}
+            onClose={handleMenuClose}
+            PaperProps={{
+                elevation: 0,
+                sx: {
+                    overflow: 'visible',
+                    filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.15))',
+                    mt: 1.5,
+                    borderRadius: '12px',
+                    minWidth: '220px',
+                    '& .MuiAvatar-root': {
+                        width: 32,
+                        height: 32,
+                        ml: -0.5,
+                        mr: 1,
+                    },
+                    '&:before': {
+                        content: '""',
+                        display: 'block',
+                        position: 'absolute',
+                        top: 0,
+                        right: 14,
+                        width: 10,
+                        height: 10,
+                        bgcolor: 'background.paper',
+                        transform: 'translateY(-50%) rotate(45deg)',
+                        zIndex: 0,
+                    },
+                },
+            }}
         >
+            <MenuItem onClick={handleMenuClose} sx={{ py: 1.5 }}>
+                <Avatar src={user?.profilePicture || profilePicture1} />
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: '600', fontSize: '0.95rem', color: '#111827' }}>{user?.name || "User Profile"}</span>
+                    <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>{user?.email || "Account Settings"}</span>
+                </div>
+            </MenuItem>
 
-        <MenuItem onClick={handleMenuClose}>Profile</MenuItem>
-        {/* We will set the sign out here */}
-        <MenuItem onClick={handleSignOut}>Sign out</MenuItem>
+            <Divider sx={{ my: 0.5 }} />
+
+            <MenuItem onClick={handleMenuClose} sx={{ py: 1.2, color: '#374151' }}>
+                <ReceiptLongOutlinedIcon sx={{ mr: 2, color: '#6B7280', fontSize: '1.3rem' }} />
+                My Bookings
+            </MenuItem>
+
+            <MenuItem onClick={handleMenuClose} sx={{ py: 1.2, color: '#374151' }}>
+                <FavoriteBorderOutlinedIcon sx={{ mr: 2, color: '#6B7280', fontSize: '1.3rem' }} />
+                Saved Favorites
+            </MenuItem>
+
+            <MenuItem onClick={handleMenuClose} sx={{ py: 1.2, color: '#374151' }}>
+                <SettingsOutlinedIcon sx={{ mr: 2, color: '#6B7280', fontSize: '1.3rem' }} />
+                Account Settings
+            </MenuItem>
+
+            <Divider sx={{ my: 0.5 }} />
+
+            <MenuItem onClick={handleSignOut} sx={{ py: 1.2, color: '#DC2626' }}>
+                <LogoutOutlinedIcon sx={{ mr: 2, color: '#DC2626', fontSize: '1.3rem' }} />
+                Sign out
+            </MenuItem>
         </Menu>
     );
-
-    const mobileMenuId = 'primary-search-account-menu-mobile';
-    const renderMobileMenu = (
-        
-        <Menu
-        anchorEl={mobileMoreAnchorEl}
-        anchorOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-        }}
-        id={mobileMenuId}
-        keepMounted
-        transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-        }}
-        open={isMobileMenuOpen}
-        onClose={handleMobileMenuClose}
-        >
-        <MenuItem>
-            <IconButton size="large" aria-label="show 4 new mails" color="inherit">
-            <Badge badgeContent={4} color="error">
-                <MailIcon />
-            </Badge>
-            </IconButton>
-            <p>Messages</p>
-        </MenuItem>
-        <MenuItem>
-            <IconButton
-            size="large"
-            aria-label="show 17 new notifications"
-            color="inherit"
-            >
-            <Badge badgeContent={17} color="error">
-                <NotificationsIcon />
-            </Badge>
-            </IconButton>
-            <p>Notifications</p>
-        </MenuItem>
-        <MenuItem onClick={handleProfileMenuOpen}>
-            <IconButton
-            size="large"
-            aria-label="account of current user"
-            aria-controls="primary-search-account-menu"
-            aria-haspopup="true"
-            color="inherit"
-            >
-            <AccountCircle />
-            </IconButton>
-            <p>Profile</p>
-        </MenuItem>
-        </Menu>
-    );
-
-
 
     // ##################### END ########################
 
     return (
-            <>
-                {/* Start header */}
+        <>
+            {/* Start header */}
+            <Box
+                component="header"
+                sx={{
+                    width: "100%",
+                    height: "66px",
+                    backgroundColor: themeGlobal.colors.white,
+                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02)",
+                    position: "relative",
+                    zIndex: 100,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                }}
+            >
                 <Container
                     maxWidth={false}
                     disableGutters
                     sx={{
-                        width: "min(100%, 1480px)",
+                        width: "min(100%, 1510px)",
                         margin: "0 auto",
-                        padding: { xs: "0 18px", sm: "0 24px", md: "0 32px" },
-                        display:"flex",
-                        alignItems:"center",
-                        justifyContent:"space-between",
-                        background:themeGlobal.colors.background
+                        padding: "0 50px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between"
                     }}
                 >
-                    <div className='font-luxury' style={{display:"flex" , alignItems:"center"}}>
-                        <img style={{maxWidth:"100%", height:"70px"}} src={Logo} alt="" />
-                        <h3 className='mb-0'>DarDarek</h3>                
+                    <div className='font-luxury' style={{ display: "flex", alignItems: "center" }}>
+                        <img style={{ maxWidth: "100%", height: "70px" }} src={Logo} alt="" />
+                        <h3 className='mb-0'>DarDarek</h3>
                     </div>
-                    <Box sx={{ flexGrow:1}}>
+                    <Box sx={{ flexGrow: 1 }}>
                         <Toolbar>
-                        <Box sx={{ flexGrow: 1 }} />
-                        <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
+                            <Box sx={{ flexGrow: 1 }} />
+                            <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
 
-                            {
-                                !token ?
-                                    
-                                    <Button
-                                    component={Link}
-                                    to="/Authentication"
-                                    sx={{background:themeGlobal.colors.primary}}
-                                    variant='contained'>
-                                        Login to become a host
-                                    </Button>
-                                : <>
-                                
-                                    <IconButton
-                                        size="large"
-                                        aria-label="show 17 new notifications"
-                                        sx={{color:themeGlobal.colors.primary}} 
-                                        >
-                                        <Badge sx={{marginRight:"10px"}} badgeContent={17} color="error">
-                                            <NotificationsIcon/>
-                                        </Badge>
-                                        </IconButton>
+                                {
+                                    !token ?
+                                        <div style={{ display: "flex", alignItems: "center" }}>
+                                            <Button className='savedFavourite' sx={{
+                                                color: themeGlobal.colors.gray,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "5px",
+                                                textTransform: "none",
+                                                marginRight: "15px",
+                                                position: "relative"
+                                            }}>
+                                                <FavoriteBorderOutlinedIcon />
+                                                Saved
+                                            </Button>
+                                            <Button
+                                                component={Link}
+                                                to="/Authentication"
+                                                sx={{
+                                                    color: themeGlobal.colors.gray,
+                                                    textTransform: 'none',
+                                                    marginRight: "20px"
 
+                                                }}
+                                            >
+                                                <PermIdentityOutlinedIcon sx={{ marginRight: "5px" }} />
+                                                Log in
+                                            </Button>
+                                            <Button
+                                                component={Link}
+                                                to="/Authentication"
+                                                sx={{
+                                                    background: themeGlobal.colors.primary,
+                                                    display: "flex",
+                                                    gap: "10px"
+                                                }}
+                                                variant='contained'>
+                                                <HomeOutlinedIcon />
+                                                List your property
+                                            </Button>
+                                        </div>
+                                        : <div style={{ display: "flex", alignItems: "center" }}>
+                                            <Button
+                                                component={Link}
+                                                to="/Create-New-Property"
+                                                sx={{
+                                                    background: themeGlobal.colors.primary,
+                                                    display: "flex",
+                                                    gap: "10px",
+                                                    marginRight: "20px",
+                                                    textTransform: "none",
+                                                    fontWeight: 500
+                                                }}
+                                                variant='contained'>
+                                                <HomeOutlinedIcon />
+                                                List your property
+                                            </Button>
+
+                                            <IconButton
+                                                size="large"
+                                                aria-label="show 17 new notifications"
+                                                sx={{ color: themeGlobal.colors.primary, mr: 1 }}
+                                            >
+                                                <Badge badgeContent={17} color="error">
+                                                    <NotificationsIcon />
+                                                </Badge>
+                                            </IconButton>
+
+                                            <IconButton
+                                                size="large"
+                                                edge="end"
+                                                aria-label="account of current user"
+                                                aria-controls={menuId}
+                                                aria-haspopup="true"
+                                                onClick={handleProfileMenuOpen}
+                                                sx={{ padding: 0.5, border: '1px solid #E5E7EB', borderRadius: '30px' }}
+                                            >
+                                                <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1 }}>
+                                                    <MenuIcon sx={{ color: '#6B7280', fontSize: '1.2rem' }} />
+                                                    <Avatar alt="User Profile" src={user?.profilePicture || profilePicture1} sx={{ width: 32, height: 32 }} />
+                                                </Stack>
+                                            </IconButton>
+                                        </div>
+                                }
+
+                            </Box>
+                            <Box sx={{ display: { xs: 'flex', md: 'none' } }}>
+                                {
+                                    token
+                                        ?
                                         <IconButton
-                                        size="large"
-                                        edge="end"
-                                        aria-label="account of current user"
-                                        aria-controls={menuId}
-                                        aria-haspopup="true"
-                                        onClick={handleProfileMenuOpen}
-                                        // color={}
+                                            size="large"
+                                            aria-label="show more"
+                                            aria-controls={menuId}
+                                            aria-haspopup="true"
+                                            onClick={handleProfileMenuOpen}
+                                            color="inherit"
                                         >
-                                        <Stack direction="row" spacing={2}>
-                                            <Avatar alt="Remy Sharp"/>
-                                        </Stack>
-                                    </IconButton>
+                                            <MoreIcon />
+                                        </IconButton>
+                                        :
+                                        <Button
+                                            component={Link}
+                                            to="/Authentication"
+                                            sx={{ background: themeGlobal.colors.primary }}
+                                            variant='contained'>
+                                            Login to become a host
+                                        </Button>
 
-
-                                </>
-                            }
-                                
-                        </Box>
-                        <Box sx={{ display: { xs: 'flex', md: 'none' } }}>
-                            {
-                            token
-                            ?
-                            <IconButton
-                            size="large"
-                            aria-label="show more"
-                            aria-controls={mobileMenuId}
-                            aria-haspopup="true"
-                            onClick={handleMobileMenuOpen}
-                            color="inherit"
-                            >
-                            <MoreIcon />
-                            </IconButton>
-                            :
-                            <Button
-                                component={Link}
-                                to="/Authentication"
-                                sx={{background:themeGlobal.colors.primary}}
-                                variant='contained'>
-                                    Login to become a host
-                            </Button>
-
-                            }
-                        </Box>
+                                }
+                            </Box>
                         </Toolbar>
-                    {renderMobileMenu}
-                    {renderMenu}
+                        {renderMenu}
                     </Box>
                 </Container>
-                {/* End header */}
-            </>
+            </Box>
+            {/* End header */}
+        </>
 
     )
 }
