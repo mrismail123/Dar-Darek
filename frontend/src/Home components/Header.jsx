@@ -250,7 +250,7 @@ export default function Header() {
                                         : <div style={{ display: "flex", alignItems: "center" }}>
                                             <Button
                                                 component={Link}
-                                                to="/Create-New-Property"
+                                                to="/new-listing"
                                                 sx={{
                                                     background: themeGlobal.colors.primary,
                                                     display: "flex",

@@ -21,6 +21,10 @@ import PropertiesPage from './PropertiesPage'
 import AdminDashboard from './AdminDashboard'
 
 
+import PropertyDetails from "./pages/PropertyDetails";
+import Publish from './pages/Publish'
+
+
 function App() {
 
   const themeGlobal = useThemeGlobal();
@@ -67,15 +71,17 @@ function App() {
         <Route path='/Authentication' element={<Authentication />} />
         <Route path='/Authentication/verify-account' element={<VerifyAccountPage />} />
         <Route path='/properties' element={<PropertiesPage />} />
-        <Route path='/Create-New-Property' element={<ProtectedRoute></ProtectedRoute>} />
-        <Route path='/admin' element={<><AdminDashboard /></>} />
+        <Route path='/admin' element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+        <Route path='/new-listing' element={<><Publish /></>} />
         <Route path='/Authentication/forgot-password' element={<ForgotPassword />} />
         <Route path='/Authentication/reset-password' element={<ResetPassword />} />
+        {/* <Route path='/property-details' element={<PropertyDetails />} /> */}
       </Routes>
     </div>
   )
 }
 
-export default App
 
 
+
+export default App;
