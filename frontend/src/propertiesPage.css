@@ -1,0 +1,99 @@
+.dynamicPropertiesIntro {
+    display: flex;
+    align-items: stretch;
+    height: 300px;
+    background-color: #F7F4EB;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 40px;
+}
+
+.dynamicPropertiesIntro .intro {
+    width: 50%;
+    padding: 20px 40px 20px 4%;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+}
+
+.dynamicPropertiesIntro .intro p.breadcrumb {
+    font-size: 0.85rem;
+    color: #6B7280;
+    margin-bottom: 20px;
+}
+
+.dynamicPropertiesIntro .intro p.breadcrumb a {
+    color: #6B7280;
+    text-decoration: none;
+}
+
+.dynamicPropertiesIntro .intro p.breadcrumb span {
+    color: #0A2540;
+    font-weight: 500;
+}
+
+.dynamicPropertiesIntro .intro h2 {
+    font-size: 3.8rem;
+    color: #0A2540;
+    margin: 0;
+    font-weight: bold;
+}
+
+/* The elegant separator under the title */
+.title-separator {
+    display: flex;
+    align-items: center;
+    margin: 15px 0 25px 0;
+}
+
+.title-separator .line {
+    height: 1px;
+    background-color: #D4AF37;
+    width: 25px;
+}
+
+.title-separator .diamond {
+    width: 6px;
+    height: 6px;
+    background-color: #D4AF37;
+    transform: rotate(45deg);
+    margin: 0 6px;
+}
+
+.dynamicPropertiesIntro .intro p.description {
+    font-size: 1.1rem;
+    color: #4B5563;
+    line-height: 1.5;
+    max-width: 90%;
+    margin: 0;
+}
+
+.dynamicPropertiesIntro .image {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 65%;
+    height: 100%;
+    z-index: 1;
+}
+
+/* Gradient overlay to smoothly blend the image into the background color */
+.dynamicPropertiesIntro .image::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to right, #F7F4EB 0%, rgba(247, 244, 235, 0.95) 10%, rgba(247, 244, 235, 0.6) 30%, transparent 60%);
+    z-index: 2;
+}
+
+.dynamicPropertiesIntro .image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
