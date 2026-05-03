@@ -23,6 +23,7 @@ import AdminDashboard from './AdminDashboard'
 
 import PropertyDetails from "./pages/PropertyDetails";
 import Publish from './pages/Publish'
+import RentalRequests from './RentalRequests'
 
 
 function App() {
@@ -72,10 +73,11 @@ function App() {
         <Route path='/Authentication/verify-account' element={<VerifyAccountPage />} />
         <Route path='/properties' element={<PropertiesPage />} />
         <Route path='/admin' element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-        <Route path='/new-listing' element={<><Publish /></>} />
+        <Route path='/new-listing' element={<ProtectedRoute><Publish /></ProtectedRoute>} />
         <Route path='/Authentication/forgot-password' element={<ForgotPassword />} />
         <Route path='/Authentication/reset-password' element={<ResetPassword />} />
-        {/* <Route path='/property-details' element={<PropertyDetails />} /> */}
+        <Route path='/property-details/:id' element={<PropertyDetails />} />
+        <Route path='/rental-requests' element={<ProtectedRoute><RentalRequests /></ProtectedRoute>} />
       </Routes>
     </div>
   )

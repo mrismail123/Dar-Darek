@@ -211,6 +211,7 @@ export default function PropertiesPage() {
         return (
             <Box
                 key={property.id_property}
+                onClick={() => window.open(`/property-details/${property.id_property}`, '_blank')}
                 sx={{
                     width: "100%",
                     borderRadius: "14px",
@@ -220,7 +221,13 @@ export default function PropertiesPage() {
                     boxShadow: "0 8px 22px rgba(73, 55, 28, 0.12)",
                     display: "flex",
                     flexDirection: "column",
-                    marginBottom: "0"
+                    marginBottom: "0",
+                    cursor: "pointer",
+                    transition: "transform 0.18s ease, box-shadow 0.18s ease",
+                    "&:hover": {
+                        transform: "translateY(-4px)",
+                        boxShadow: "0 14px 32px rgba(73, 55, 28, 0.18)",
+                    }
                 }}
             >
                 <div style={{ position: "relative", height: "138px", overflow: "hidden" }}>

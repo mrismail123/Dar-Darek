@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import "./PropertyDetails.css";
+import { useToken } from "../Contexts/TokenContext";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
-import chaouenImage from "../assets/chaouen-bg.jpg";
-import tetouanImage from "../assets/tetouan-hero.webp";
+const BASE_URL = "http://localhost:5000";
 
 const mockProperty = {
   brand: "Dar Darek",
@@ -25,11 +28,11 @@ const mockProperty = {
   rating: 4.86,
   reviewCount: 32,
   images: [
-    tetouanImage,
+    // tetouanImage,
     "/dardarek-tangier-coast.jpeg",
     "/dardarek-chefchaouen.jpeg",
     "/nur-tetouan-hero.webp",
-    chaouenImage,
+    // chaouenImage,
   ],
   description:
     "Profitez d'un appartement calme, lumineux et soigneusement équipé, idéal pour découvrir Tanger tout en gardant le confort d'un vrai chez-soi. Le salon s'ouvre sur une belle lumière naturelle, les chambres sont préparées pour un séjour reposant, et le quartier permet de rejoindre facilement la plage, les restaurants et les lieux incontournables de la ville.",
@@ -196,9 +199,76 @@ const scrollToAvailability = () => {
 };
 
 function BookingCard({ property, dates, guests, onDateChange, onGuestChange }) {
+
+  const { id } = useParams();
+
   const nights = getNightCount(dates.checkIn, dates.checkOut);
   const nightsTotal = nights * property.pricePerNight;
   const total = nightsTotal + property.cleaningFee + property.serviceFee;
+
+  // navigate
+  const navigate = useNavigate();
+
+
+  async function handleReserveFunction(){
+
+
+    const currentToken = localStorage.getItem("token");
+
+    if(!currentToken){
+      alert("Please sign in first...");
+      
+      navigate("/Authentication", {state:{from : location.pathname}});
+      return;
+    }
+
+
+    // const response = await axios.post();
+
+
+    const reservationData = {
+      id_property: id,
+      checkIn: dates.checkIn,
+      checkOut: dates.checkOut,
+      total_price: total,
+      id_user: localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")).id : null,
+    }
+
+    if(!reservationData.checkIn || !reservationData.checkOut){
+      alert("Please select check-in and check-out dates.");
+      return;
+    }
+    
+    try {
+      
+        const config = {
+            headers: {
+              Authorization: `Bearer ${currentToken}`,
+            },
+          };
+
+          const response = await axios.post(
+            `${BASE_URL}/api/bookingProperty`, 
+            reservationData, 
+            config
+          );
+          if (response.data) {
+            alert("Your reservation request has been sent successfully! The host will review it and get back to you soon.");
+            navigate("/MyBookings");
+          }
+        } catch (error) {
+          if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            alert("Session expired. Please login again.");
+            navigate("/Authentication", { state: { from: location.pathname } });
+          } else if (error.response && error.response.data && error.response.data.message) {
+            alert(error.response.data.message);
+          } else {
+            alert(error.message || "An error occurred while making the reservation.");
+          }
+    }
+  }
+
+  const {token, setToken} = useToken();
 
   return (
     <div className="pd-booking-wrap">
@@ -267,10 +337,10 @@ function BookingCard({ property, dates, guests, onDateChange, onGuestChange }) {
             </div>
           </div>
         </div>
-
-        <button type="button" className="pd-primary-btn">
-          Réserver
-        </button>
+        
+          <button onClick={handleReserveFunction} type="button" className="pd-primary-btn">
+            Réserver
+          </button>
 
         <p className="pd-booking__note">Vous ne serez pas encore débité</p>
 
@@ -419,13 +489,10 @@ function LocationSection({ property }) {
         <div className="pd-location__map" aria-label="Carte du logement">
           <iframe
             title="Carte du logement"
-            src={`https://www.openstreetmap.org/export/embed.html?bbox=${
-              property.coordinates.lng - 0.01
-            }%2C${property.coordinates.lat - 0.01}%2C${
-              property.coordinates.lng + 0.01
-            }%2C${property.coordinates.lat + 0.01}&layer=mapnik&marker=${
-              property.coordinates.lat
-            }%2C${property.coordinates.lng}`}
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${property.coordinates.lng - 0.01
+              }%2C${property.coordinates.lat - 0.01}%2C${property.coordinates.lng + 0.01
+              }%2C${property.coordinates.lat + 0.01}&layer=mapnik&marker=${property.coordinates.lat
+              }%2C${property.coordinates.lng}`}
             loading="lazy"
           />
         </div>
@@ -787,23 +854,133 @@ function AboutPlaceSection({ property }) {
 }
 
 export default function PropertyDetails() {
-  const [dates, setDates] = useState({
-    checkIn: mockProperty.bookingDefaults.checkIn,
-    checkOut: mockProperty.bookingDefaults.checkOut,
-  });
-  const [guests, setGuests] = useState(mockProperty.bookingDefaults.guests);
+  const { id } = useParams();
+
+  const [property, setProperty] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const [dates, setDates] = useState({ checkIn: "", checkOut: "" });
+  const [guests, setGuests] = useState(1);
+
+  useEffect(() => {
+    const fetchProperty = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`${BASE_URL}/api/houses/${id}`);
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.message || "Property not found.");
+        }
+        const data = await res.json();
+        setProperty(data.property);
+        setGuests(1);
+      } catch (err) {
+        if (err.res) {
+          setError(err.res.message);
+        } else {
+          setError(err.message);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProperty();
+  }, [id]);
 
   const updateDate = (field, value) => {
-    setDates((currentDates) => ({
-      ...currentDates,
-      [field]: value,
-    }));
+    setDates((current) => ({ ...current, [field]: value }));
   };
 
   const updateGuests = (change) => {
-    setGuests((currentGuests) =>
-      Math.min(mockProperty.guests, Math.max(1, currentGuests + change)),
+    if (!property) return;
+    setGuests((current) =>
+      Math.min(property.guests || 10, Math.max(1, current + change))
     );
+  };
+
+  if (loading) {
+    return (
+      <main className="pd-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+        <p style={{ fontSize: "1.2rem", color: "#64748b" }}>Chargement du logement…</p>
+      </main>
+    );
+  }
+
+  if (error || !property) {
+    return (
+      <main className="pd-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ fontSize: "1.4rem", color: "#dc2626", marginBottom: "12px" }}>😕 Logement introuvable</p>
+          <p style={{ color: "#64748b" }}>{error}</p>
+          <a href="/" style={{ marginTop: "20px", display: "inline-block", color: "#14a89d" }}>← Retour à l'accueil</a>
+        </div>
+      </main>
+    );
+  }
+
+  // Normalize images: prepend BASE_URL if needed
+  const normalizeUrl = (path) => {
+    if (!path) return null;
+    const clean = path.replace(/\\/g, "/");
+    return clean.startsWith("http") ? clean : `${BASE_URL}${clean.startsWith("/") ? "" : "/"}${clean}`;
+  };
+
+  const images = (property.images || []).map(normalizeUrl).filter(Boolean);
+  const hostName = property.host_name || "Hôte";
+  const hostInitials = hostName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("") || "H";
+
+  // Build the enriched property object matching the component API
+  const enriched = {
+    brand: "Dar Darek",
+    title: property.title || "Logement",
+    propertyType: property.property_type || "Logement entier",
+    city: property.city_name || "",
+    neighborhood: property.neighborhood || property.city_name || "",
+    address: property.address || property.city_name || "",
+    coordinates: {
+      lat: parseFloat(property.latitude) || 35.76,
+      lng: parseFloat(property.longitude) || -5.83,
+    },
+    guests: parseInt(property.guests_total) || 1,
+    bedrooms: parseInt(property.bedrooms) || 1,
+    beds: parseInt(property.beds) || parseInt(property.bedrooms) || 1,
+    bathrooms: parseInt(property.bathrooms) || 1,
+    pricePerNight: parseFloat(property.price_per_day) || 0,
+    cleaningFee: 0,
+    serviceFee: 0,
+    rating: 4.8,
+    reviewCount: 0,
+    images: images.length > 0 ? images : [mockProperty.images[0]],
+    description: property.description || "",
+    highlights: mockProperty.highlights,
+    amenities: (property.amenities || []).map((name) => ({
+      label: name,
+      icon: "wifi", // generic icon fallback
+    })),
+    ratingBreakdown: mockProperty.ratingBreakdown,
+    reviews: [],
+    availability: mockProperty.availability,
+    houseRules: mockProperty.houseRules,
+    cancellationPolicy: mockProperty.cancellationPolicy,
+    thingsToKnow: mockProperty.thingsToKnow,
+    host: {
+      name: [property.host_first_name, property.host_last_name].filter(Boolean).join(" ") || "Hôte",
+      avatarInitials: (property.host_first_name || "H").slice(0, 1).toUpperCase() + (property.host_last_name || "").slice(0, 1).toUpperCase(),
+      rating: 4.9,
+      yearsHosting: 1,
+      reviews: 0,
+      responseRate: "—",
+      responseTime: "—",
+      verified: false,
+      bio: property.host_description || "",
+    },
+    bookingDefaults: { checkIn: "", checkOut: "", guests: 1 },
   };
 
   return (
@@ -811,18 +988,18 @@ export default function PropertyDetails() {
       <header className="pd-topbar">
         <a className="pd-brand" href="/" aria-label="Dar Darek">
           <span className="pd-brand__mark">D</span>
-          <span>{mockProperty.brand}</span>
+          <span>{enriched.brand}</span>
         </a>
       </header>
 
       <section className="pd-section pd-title-card">
-        <h1>{mockProperty.title}</h1>
+        <h1>{enriched.title}</h1>
         <p className="pd-title-card__location">
-          {mockProperty.neighborhood}, {mockProperty.city}
+          {enriched.neighborhood}, {enriched.city}
         </p>
       </section>
 
-      <PropertyGallery property={mockProperty} />
+      <PropertyGallery property={enriched} />
 
       <section className="pd-layout">
         <div className="pd-content">
@@ -830,54 +1007,58 @@ export default function PropertyDetails() {
           <section className="pd-summary" aria-label="Résumé du logement">
             <div className="pd-summary__content">
               <h2 className="pd-summary__headline">
-                {mockProperty.propertyType} à {mockProperty.city}
+                {enriched.propertyType} à {enriched.city}
               </h2>
               <div className="pd-summary__details">
-                <span>👥 {mockProperty.guests} voyageurs</span>
-                <span>🛏️ {mockProperty.bedrooms} chambres</span>
-                <span>🛌 {mockProperty.beds} lits</span>
-                <span>🚿 {mockProperty.bathrooms} salle de bain</span>
+                <span>👥 {enriched.guests} voyageurs</span>
+                <span>🛏️ {enriched.bedrooms} chambres</span>
+                <span>🛌 {enriched.beds} lits</span>
+                <span>🚿 {enriched.bathrooms} salle de bain</span>
               </div>
               <div className="pd-summary__rating">
-                <strong>⭐ {mockProperty.rating}</strong>
+                <strong>⭐ {enriched.rating}</strong>
                 <span>·</span>
-                <button type="button">{mockProperty.reviewCount} avis</button>
+                <button type="button">{enriched.reviewCount} avis</button>
               </div>
             </div>
           </section>
 
-          <HighlightsSection highlights={mockProperty.highlights} />
+          <HighlightsSection highlights={enriched.highlights} />
 
           {/* Description */}
-          <section className="pd-section">
-            <div className="pd-section__head">
-              <h2 className="pd-section__title">Description</h2>
-              <p className="pd-section__hint">
-                Un aperçu clair de l'ambiance, du confort et du quartier.
-              </p>
-            </div>
-            <p className="pd-description">{mockProperty.description}</p>
-          </section>
+          {enriched.description && (
+            <section className="pd-section">
+              <div className="pd-section__head">
+                <h2 className="pd-section__title">Description</h2>
+                <p className="pd-section__hint">
+                  Un aperçu clair de l'ambiance, du confort et du quartier.
+                </p>
+              </div>
+              <p className="pd-description">{enriched.description}</p>
+            </section>
+          )}
 
-          <AmenitiesSection amenities={mockProperty.amenities} />
+          {enriched.amenities.length > 0 && (
+            <AmenitiesSection amenities={enriched.amenities} />
+          )}
 
           <AvailabilitySection
-            availability={mockProperty.availability}
+            availability={enriched.availability}
             dates={dates}
             onDateChange={updateDate}
           />
 
-          <ReviewsSection property={mockProperty} />
+          <ReviewsSection property={enriched} />
 
-          <LocationSection property={mockProperty} />
+          <LocationSection property={enriched} />
 
-          <AboutPlaceSection property={mockProperty} />
+          <AboutPlaceSection property={enriched} />
 
-          <HostSection host={mockProperty.host} />
+          <HostSection host={enriched.host} />
         </div>
 
         <BookingCard
-          property={mockProperty}
+          property={enriched}
           dates={dates}
           guests={guests}
           onDateChange={updateDate}

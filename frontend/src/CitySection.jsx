@@ -60,10 +60,10 @@ export default function CitySection({ title, properties, message }) {
         const imageUrl = imagePath ?
             `${BaseUrl}${imagePath}` :
             tangier;
-        console.log(imageUrl);
         return (
             <Box
                 key={property.id_property}
+                onClick={() => window.open(`/property-details/${property.id_property}`, '_blank')}
                 sx={{
                     width: "240px",
                     minWidth: "240px",
@@ -73,7 +73,13 @@ export default function CitySection({ title, properties, message }) {
                     border: "1px solid rgba(215, 194, 154, 0.45)",
                     boxShadow: "0 8px 22px rgba(73, 55, 28, 0.12)",
                     display: "flex",
-                    flexDirection: "column"
+                    flexDirection: "column",
+                    cursor: "pointer",
+                    transition: "transform 0.18s ease, box-shadow 0.18s ease",
+                    "&:hover": {
+                        transform: "translateY(-4px)",
+                        boxShadow: "0 14px 32px rgba(73, 55, 28, 0.18)",
+                    }
                 }}
             >
                 <div style={{ position: "relative", height: "138px", overflow: "hidden" }}>

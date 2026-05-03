@@ -724,10 +724,23 @@ export default function Publish() {
 
     formData.images.forEach((file) => formPayload.append("images", file));
 
+
+
+
+    const storedUser = JSON.parse(localStorage.getItem('user'));
+    const userId = storedUser?.id;
+
+    if (!userId) {
+      alert("Session expired. Please log in again.");
+      return;
+    }
+
+    formPayload.append("idUser", userId);
+
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("http://localhost:5000/api/houses", {
+      const response = await fetch("http://localhost:5000/api/publishProperty", {
         method: "POST",
         body: formPayload,
       });
@@ -839,9 +852,8 @@ export default function Publish() {
                     id="title"
                     name="title"
                     type="text"
-                    className={`pub-input ${
-                      errors.title ? "pub-input--error" : ""
-                    }`}
+                    className={`pub-input ${errors.title ? "pub-input--error" : ""
+                      }`}
                     placeholder="Ex: Stunning riad with medina views"
                     value={formData.title}
                     onChange={handleChange}
@@ -861,11 +873,10 @@ export default function Publish() {
                       <button
                         key={type.value}
                         type="button"
-                        className={`pub-property-card ${
-                          formData.propertyType === type.value
-                            ? "pub-property-card--active"
-                            : ""
-                        }`}
+                        className={`pub-property-card ${formData.propertyType === type.value
+                          ? "pub-property-card--active"
+                          : ""
+                          }`}
                         onClick={() => handlePropertyTypeSelect(type.value)}
                       >
                         <span className="pub-property-card__icon">
@@ -905,9 +916,8 @@ export default function Publish() {
                       <select
                         id="city"
                         name="city"
-                        className={`pub-input pub-select ${
-                          errors.city ? "pub-input--error" : ""
-                        }`}
+                        className={`pub-input pub-select ${errors.city ? "pub-input--error" : ""
+                          }`}
                         value={formData.city}
                         onChange={handleChange}
                       >
@@ -964,9 +974,8 @@ export default function Publish() {
                       id="address"
                       name="address"
                       type="text"
-                      className={`pub-input ${
-                        errors.address ? "pub-input--error" : ""
-                      }`}
+                      className={`pub-input ${errors.address ? "pub-input--error" : ""
+                        }`}
                       placeholder="Ex: 12 Rue Outa el Hammam, Chefchaouen"
                       value={formData.address}
                       onChange={handleChange}
@@ -1124,11 +1133,10 @@ export default function Publish() {
                     {group.items.map((item) => (
                       <label
                         key={item.name}
-                        className={`pub-chip ${
-                          formData.amenities[item.name]
-                            ? "pub-chip--active"
-                            : ""
-                        }`}
+                        className={`pub-chip ${formData.amenities[item.name]
+                          ? "pub-chip--active"
+                          : ""
+                          }`}
                       >
                         <input
                           type="checkbox"
@@ -1176,9 +1184,8 @@ export default function Publish() {
                 <textarea
                   id="description"
                   name="description"
-                  className={`pub-input pub-textarea pub-description-textarea ${
-                    errors.description ? "pub-input--error" : ""
-                  }`}
+                  className={`pub-input pub-textarea pub-description-textarea ${errors.description ? "pub-input--error" : ""
+                    }`}
                   placeholder="Ex: A bright apartment with a balcony, thoughtful décor, a calm atmosphere, and a convenient location for exploring the city..."
                   value={formData.description}
                   onChange={handleChange}
@@ -1262,9 +1269,8 @@ export default function Publish() {
                   id="checkIn"
                   name="checkIn"
                   type="time"
-                  className={`pub-input pub-stay-input ${
-                    errors.checkIn ? "pub-input--error" : ""
-                  }`}
+                  className={`pub-input pub-stay-input ${errors.checkIn ? "pub-input--error" : ""
+                    }`}
                   value={formData.checkIn}
                   onChange={handleChange}
                 />
@@ -1288,9 +1294,8 @@ export default function Publish() {
                   id="checkOut"
                   name="checkOut"
                   type="time"
-                  className={`pub-input pub-stay-input ${
-                    errors.checkOut ? "pub-input--error" : ""
-                  }`}
+                  className={`pub-input pub-stay-input ${errors.checkOut ? "pub-input--error" : ""
+                    }`}
                   value={formData.checkOut}
                   onChange={handleChange}
                 />
@@ -1360,9 +1365,8 @@ export default function Publish() {
                     id="availableFrom"
                     name="availableFrom"
                     type="date"
-                    className={`pub-input pub-availability-input ${
-                      errors.availableFrom ? "pub-input--error" : ""
-                    }`}
+                    className={`pub-input pub-availability-input ${errors.availableFrom ? "pub-input--error" : ""
+                      }`}
                     value={formData.availableFrom}
                     min={new Date().toISOString().split("T")[0]}
                     onChange={(e) => {
@@ -1398,9 +1402,8 @@ export default function Publish() {
                     id="availableTo"
                     name="availableTo"
                     type="date"
-                    className={`pub-input pub-availability-input ${
-                      errors.availableTo ? "pub-input--error" : ""
-                    }`}
+                    className={`pub-input pub-availability-input ${errors.availableTo ? "pub-input--error" : ""
+                      }`}
                     value={formData.availableTo}
                     min={
                       formData.availableFrom ||
@@ -1429,9 +1432,8 @@ export default function Publish() {
               </div>
 
               <div
-                className={`pub-photo-counter ${
-                  formData.images.length >= 4 ? "pub-photo-counter--ok" : ""
-                }`}
+                className={`pub-photo-counter ${formData.images.length >= 4 ? "pub-photo-counter--ok" : ""
+                  }`}
               >
                 {formData.images.length} / 35{" "}
                 {formData.images.length >= 4 && "✓"}
@@ -1525,9 +1527,8 @@ export default function Publish() {
                   name="price"
                   type="number"
                   min="0"
-                  className={`pub-input pub-input--price ${
-                    errors.price ? "pub-input--error" : ""
-                  }`}
+                  className={`pub-input pub-input--price ${errors.price ? "pub-input--error" : ""
+                    }`}
                   placeholder="0"
                   value={formData.price}
                   onChange={handleChange}

@@ -9,9 +9,6 @@ import { useThemeGlobal } from './Contexts/ThemeContext';
 
 export default function AdminDashboard() {
     const themeGlobal = useThemeGlobal();
-    
-    // Lifted state so the widget and the table can share it
-    const [properties, setProperties] = useState([]);
 
     return (
         <Box sx={{ minHeight: "100vh", backgroundColor: "#F1F5F9" }}>
@@ -26,9 +23,9 @@ export default function AdminDashboard() {
             >
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: "30px" }}>
                     <h2 className="font-luxury" style={{ color: "#1E293B", margin: 0 }}>Pending Properties</h2>
-                    
+
                     {/* The Total Pending Widget */}
-                    <Box sx={{ 
+                    <Box sx={{
                         backgroundColor: "#FFFFFF",
                         padding: "12px 24px 12px 16px",
                         borderRadius: "12px",
@@ -38,10 +35,10 @@ export default function AdminDashboard() {
                         gap: "16px",
                         border: "1px solid #E2E8F0"
                     }}>
-                        <Box sx={{ 
-                            width: "48px", 
-                            height: "48px", 
-                            borderRadius: "50%", 
+                        <Box sx={{
+                            width: "48px",
+                            height: "48px",
+                            borderRadius: "50%",
                             border: `2px solid rgba(217, 161, 27, 0.2)`, // Gold subtle border
                             display: "flex",
                             alignItems: "center",
@@ -53,13 +50,13 @@ export default function AdminDashboard() {
                         <Box>
                             <Typography sx={{ color: "#64748B", fontSize: "0.85rem", fontWeight: 500, lineHeight: 1 }}>Total Pending</Typography>
                             <Typography sx={{ color: "#0D9488", fontSize: "1.8rem", fontWeight: 600, lineHeight: 1.2 }}>
-                                {properties.length}
+                                {localStorage.getItem("howManyPending")}
                             </Typography>
                         </Box>
                     </Box>
                 </Box>
-                
-                <PendingPropertiesTable properties={properties} setProperties={setProperties} />
+
+                <PendingPropertiesTable />
             </Container>
         </Box>
     );

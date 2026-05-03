@@ -1,7 +1,7 @@
 // States
 import { useThemeGlobal } from "./Contexts/ThemeContext"
 import { useState } from "react";
-import { replace, useNavigate } from "react-router-dom";
+import { replace, useNavigate,useLocation } from "react-router-dom";
 
 // Google & Facebook login button
 import { GoogleLogin } from '@react-oauth/google';
@@ -41,9 +41,11 @@ export default function LoginOrSignup() {
 
     // Start states & their functions
 
-    //navigation 
+    // location & navigate & from state (this from one is from the page that he clicks on something and it redirects him to login
+    // so that he can come back to the same path he was in)
+    const location = useLocation();
     const navigate = useNavigate();
-
+    const from = location.state?.from || "/";
     // mode signup or login
     const [mode, setMode] = useState("login")
 
@@ -176,14 +178,17 @@ export default function LoginOrSignup() {
             localStorage.setItem('token', response.token);
             localStorage.setItem('user', JSON.stringify(response.user));
 
+
             setToken(response.token);
             setUser(response.user);
+            console.log("Logged in token:", response.token);
 
+            
             alert(`Welcome back, ${response.user.name}.`);
             if (response.user.role === "admin") {
                 navigate("/admin", { replace: true })
             } else {
-                navigate("/", { replace: true });
+                navigate(from, { replace: true });
             }
         } catch (error) {
             console.error("Error :", error);

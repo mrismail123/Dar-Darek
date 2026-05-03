@@ -7,6 +7,21 @@ const path = require('path');
 // jwt 
 const jwt = require('jsonwebtoken');
 
+const verifyToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ message: "Access Denied: No Token Provided" });
+    }
+    try {
+        const verified = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
+        req.user = verified; 
+        next();
+    } catch (error) {
+        res.status(403).json({ message: "Invalid or Expired Token" });
+    }
+};
 // cors for security
 const cors = require('cors');
 // bcrypt
@@ -294,14 +309,14 @@ app.post('/api/login', async (req, res) => {
         }
 
         const token = jwt.sign(
-            { id: user.id, name: user.name, role: user.role }, // payload (info)
+            { id: user.id_user, name: user.name, role: user.role }, // payload (info)
             process.env.JWT_SECRET,
             { expiresIn: "1d" }
         )
 
         return res.status(200).json({
             message: "Login successful.",
-            user: { id: user.id, name: user.name, role: user.role },
+            user: { id: user.id_user, name: user.name, role: user.role },
             token: token
         })
 
@@ -326,13 +341,13 @@ app.post("/api/google-auth", async (req, res) => {
 
         if (rows.length === 0) {
             const [result] = await db.execute("INSERT INTO USERS (name,email,role) VALUES (?,?,'user')", [name, email]);
-            user = { id: result.id, name: result.name, email: result.email, role: "user" };
+            user = { id_user: result.insertId, name, email, role: "user" };
         } else {
             user = rows[0];
         }
 
         const token = jwt.sign(
-            { id: user.id, name: user.name, role: user.role },
+            { id: user.id_user, name: user.name, role: user.role },
             process.env.JWT_SECRET,
             { expiresIn: "1d" }
         )
@@ -379,9 +394,10 @@ app.get('/api/extractHomePageProperties', async (req, res) => {
         FROM properties p 
         JOIN cities c ON p.id_city = c.id_city 
         LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
+        where p.status = 'approved'
         ORDER BY p.created_at DESC 
         LIMIT 10;
-    `);
+        `);
 
         // 2. Tangier
         const [tangierRows] = await db.query(`
@@ -390,42 +406,46 @@ app.get('/api/extractHomePageProperties', async (req, res) => {
         JOIN cities c ON p.id_city = c.id_city
         LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
         WHERE c.name = 'Tangier'
+        AND p.status = 'approved'
         ORDER BY p.created_at DESC
         LIMIT 10;
-    `);
+        `);
 
         // 3. Tetouan
         const [tetouanRows] = await db.query(`
-        SELECT p.*, c.name AS city_name, img.image_url AS main_image
-        FROM properties p
-        JOIN cities c ON p.id_city = c.id_city
-        LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
-        WHERE c.name = 'Tetouan'
-        ORDER BY p.created_at DESC
-        LIMIT 10;
-    `);
+            SELECT p.*, c.name AS city_name, img.image_url AS main_image
+            FROM properties p
+            JOIN cities c ON p.id_city = c.id_city
+            LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
+            WHERE c.name = 'Tetouan'
+            AND p.status = 'approved'
+            ORDER BY p.created_at DESC
+            LIMIT 10;
+            `);
 
         // 4. Chefchaouen
         const [chefchaouenRows] = await db.query(`
-        SELECT p.*, c.name AS city_name, img.image_url AS main_image
-        FROM properties p
-        JOIN cities c ON p.id_city = c.id_city
-        LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
-        WHERE c.name = 'Chefchaouen'
-        ORDER BY p.created_at DESC
-        LIMIT 10;
+                SELECT p.*, c.name AS city_name, img.image_url AS main_image
+                FROM properties p
+                JOIN cities c ON p.id_city = c.id_city
+                LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
+                WHERE c.name = 'Chefchaouen'
+                AND p.status = 'approved'
+                ORDER BY p.created_at DESC
+                LIMIT 10;
     `);
 
         // 5. Asilah
         const [asilahRows] = await db.query(`
-        SELECT p.*, c.name AS city_name, img.image_url AS main_image
-        FROM properties p
-        JOIN cities c ON p.id_city = c.id_city
-        LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
-        WHERE c.name = 'Asilah'
-        ORDER BY p.created_at DESC
-        LIMIT 10;
-    `);
+            SELECT p.*, c.name AS city_name, img.image_url AS main_image
+            FROM properties p
+            JOIN cities c ON p.id_city = c.id_city
+            LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
+            WHERE c.name = 'Asilah'
+            AND p.status = 'approved'
+            ORDER BY p.created_at DESC
+            LIMIT 10;
+            `);
 
         // 6. Al Hoceima
         const [alHoceimaRows] = await db.query(`
@@ -434,9 +454,10 @@ app.get('/api/extractHomePageProperties', async (req, res) => {
         JOIN cities c ON p.id_city = c.id_city
         LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
         WHERE c.name = 'Al Hoceima'
+        AND p.status = 'approved'
         ORDER BY p.created_at DESC
         LIMIT 10;
-    `);
+        `);
 
         if (
             latestRows.length === 0 &&
@@ -552,6 +573,7 @@ app.post('/api/propertiesBasedOnParams', async (req, res) => {
                 LEFT JOIN property_images ON properties.id_property = property_images.id_property 
                 AND property_images.is_main = 1
                 WHERE ${whereString}
+                AND properties.status = 'approved'
                 ${orderByClause}
                 LIMIT ? OFFSET ?;
         `;
@@ -602,12 +624,16 @@ app.post('/api/cityForAbout', async (req, res) => {
 // API to extract pending properties
 app.get('/api/pendingProperties', async (req, res) => {
     try {
-        const sql = `select properties.* , c.name as city_name , img.image_url as main_image
-                    from properties 
-                    join cities c on c.id_city = properties.id_city
-                    left join property_images img on properties.id_property = img.id_property
-                    where 
-                    status='pending';`;
+        const sql = `SELECT 
+            p.*, 
+            c.name as city_name, 
+            users.name as host_name,
+            users.email as host_email,
+            (SELECT image_url FROM property_images WHERE id_property = p.id_property ORDER BY is_main DESC LIMIT 1) as main_image
+          FROM properties p
+          JOIN cities c ON c.id_city = p.id_city
+          LEFT JOIN users ON users.id_user = p.id_user
+          WHERE p.status = 'pending';`;
         const [result] = await db.query(sql);
         if (result.length === 0) {
             return res.status(404).json({ message: "No pending properties found" });
@@ -619,6 +645,28 @@ app.get('/api/pendingProperties', async (req, res) => {
         res.status(500).json({ details: error.message });
     }
 })
+
+// API to approve a property
+app.post('/api/admin/approve/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db.execute("UPDATE properties SET status = 'approved' WHERE id_property = ?", [id]);
+        res.status(200).json({ message: "Property approved successfully." });
+    } catch (error) {
+        res.status(500).json({ details: error.message });
+    }
+});
+
+// API to reject a property
+app.post('/api/admin/reject/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db.execute("UPDATE properties SET status = 'rejected' WHERE id_property = ?", [id]);
+        res.status(200).json({ message: "Property rejected successfully." });
+    } catch (error) {
+        res.status(500).json({ details: error.message });
+    }
+});
 
 // ########################## End APIs for Extracting properties System ############################
 
@@ -711,9 +759,11 @@ const AMENITY_NAME_MAP = {
 };
 
 // GET approved properties only
-app.get("/api/houses", async (req, res) => {
+app.get("/api/houses/:id", async (req, res) => {
     try {
-        const [properties] = await db.query(`
+        const { id } = req.params;
+
+        const [rows] = await db.query(`
       SELECT
         p.id_property,
         p.title,
@@ -729,6 +779,7 @@ app.get("/api/houses", async (req, res) => {
         p.property_type,
         p.price_per_day,
         p.guests_total,
+        p.guests_total AS guests,
         p.bedrooms,
         p.bathrooms,
         p.beds,
@@ -737,38 +788,53 @@ app.get("/api/houses", async (req, res) => {
         p.available_from,
         p.available_to,
         p.status,
-        c.name AS city,
-        (
-          SELECT image_url
-          FROM property_images
-          WHERE id_property = p.id_property AND is_main = true
-          LIMIT 1
-        ) AS main_image
+        c.name AS city_name,
+        u.name AS host_name,
+        SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1) AS host_first_name,
+        NULLIF(TRIM(SUBSTRING(COALESCE(u.name, ''), LENGTH(SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1)) + 1)), '') AS host_last_name
       FROM properties p
       LEFT JOIN cities c ON p.id_city = c.id_city
-      WHERE p.status = 'approved'
-      ORDER BY p.created_at DESC
-    `);
+      LEFT JOIN users u ON p.id_user = u.id_user
+      WHERE p.id_property = ? AND p.status = 'approved'
+      LIMIT 1
+    `, [id]);
 
-        for (const property of properties) {
-            const [amenities] = await db.query(
-                `
-        SELECT a.name
-        FROM property_amenities pa
-        JOIN amenities a ON pa.id_amenity = a.id_amenity
-        WHERE pa.id_property = ?
-        `,
-                [property.id_property],
-            );
-
-            property.amenities = amenities.map((a) => a.name);
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Property not found." });
         }
 
-        res.json(properties);
+        const property = rows[0];
+
+        const [images] = await db.query(
+            `
+      SELECT image_url
+      FROM property_images
+      WHERE id_property = ?
+      ORDER BY is_main DESC, id_image ASC
+    `,
+            [property.id_property],
+        );
+
+        property.images = images.map((image) => image.image_url);
+        property.main_image = property.images[0] || null;
+
+        const [amenities] = await db.query(
+            `
+    SELECT a.name
+    FROM property_amenities pa
+    JOIN amenities a ON pa.id_amenity = a.id_amenity
+    WHERE pa.id_property = ?
+    `,
+            [property.id_property],
+        );
+
+        property.amenities = amenities.map((a) => a.name);
+
+        res.status(200).json({ property });
     } catch (error) {
-        console.error("Error fetching properties:", error);
+        console.error("Error fetching property:", error);
         res.status(500).json({
-            message: "A server error occurred while fetching properties.",
+            message: "A server error occurred while fetching the property.",
         });
     }
 });
@@ -788,8 +854,53 @@ app.get("/api/cities", async (req, res) => {
     }
 });
 
+// GET single property by ID (for the PropertyDetails page)
+app.get("/api/properties/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+
+
+        // Fetch the main property info + city + host name
+        const [rows] = await db.query(
+            `SELECT p.*, c.name AS city_name, u.name AS host_name
+             FROM properties p
+             JOIN cities c ON c.id_city = p.id_city
+             LEFT JOIN users u ON u.id_user = p.id_user
+             WHERE p.id_property = ? AND p.status = 'pending'`,
+            [id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Property not found or not yet approved." });
+        }
+
+        const property = rows[0];
+
+        // Fetch all images for this property
+        const [images] = await db.query(
+            `SELECT image_url, is_main FROM property_images WHERE id_property = ? ORDER BY is_main DESC`,
+            [id]
+        );
+        property.images = images.map(img => img.image_url);
+
+        // Fetch amenities for this property
+        const [amenities] = await db.query(
+            `SELECT a.name FROM property_amenities pa
+             JOIN amenities a ON pa.id_amenity = a.id_amenity
+             WHERE pa.id_property = ?`,
+            [id]
+        );
+        property.amenities = amenities.map(a => a.name);
+
+        res.status(200).json({ property });
+    } catch (error) {
+        console.error("Error fetching property details:", error);
+        res.status(500).json({ message: "Server error.", details: error.message });
+    }
+});
+
 // POST new property
-app.post("/api/houses", upload.array("images", 12), async (req, res) => {
+app.post("/api/publishProperty", upload.array("images", 12), async (req, res) => {
     try {
         const {
             title,
@@ -813,6 +924,7 @@ app.post("/api/houses", upload.array("images", 12), async (req, res) => {
             checkOut,
             availableFrom,
             availableTo,
+            idUser,
         } = req.body;
 
         const amenities = JSON.parse(req.body.amenities || "{}");
@@ -902,7 +1014,8 @@ app.post("/api/houses", upload.array("images", 12), async (req, res) => {
                 longitude ? Number(longitude) : null,
                 propertyType || null,
                 id_city,
-                null,
+                idUser,
+                // null,
                 Number(price),
                 Number(guests),
                 Number(bedrooms || 0),
@@ -967,6 +1080,89 @@ app.post("/api/houses", upload.array("images", 12), async (req, res) => {
         });
     }
 });
+
+
+// API for booking system
+app.post("/api/bookingProperty", verifyToken, async (req, res) => {
+    const { id_property, checkIn, checkOut, total_price, id_user } = req.body;
+
+    try {
+        if (!id_property || !checkIn || !checkOut || !total_price || !id_user) {
+            return res.status(400).json({ message: "All fields are required." });
+        }
+
+        if (new Date(checkOut) <= new Date(checkIn)) {
+            return res.status(400).json({ message: "Check-out date must be after check-in date." });
+        }
+
+        const [bookingConflict] = await db.query(
+            `SELECT id_booking FROM bookings 
+             WHERE id_property = ? 
+                AND status IN ('pending', 'confirmed')
+                AND (start_date < ? AND end_date > ?)`,
+            [id_property, checkOut, checkIn]
+        );
+
+        if (bookingConflict.length > 0) {
+            return res.status(400).json({ message: "Property is already booked for these dates." });
+        }
+
+        const sqlInsert = `INSERT INTO bookings 
+            (id_property, id_user, start_date, end_date, total_price, status) 
+            VALUES (?, ?, ?, ?, ?, 'pending')`;
+        
+        await db.query(sqlInsert, [id_property, id_user, checkIn, checkOut, total_price]);
+
+        res.status(201).json({ message: "Booking request submitted successfully!" });
+
+    } catch (error) {
+        console.error("Database Error:", error);
+        res.status(500).json({ message: "Server error while processing your booking." });
+    }
+});
+
+
+
+// API for rental requests
+app.get("/api/rentalRequests", verifyToken, async (req, res) => {
+    const tokenUserId = Number(req.user?.id);
+    const queryUserId = Number(req.query?.id_user);
+    const id_user = Number.isFinite(tokenUserId) && tokenUserId > 0
+        ? tokenUserId
+        : queryUserId;
+    try {   
+        if (!id_user) {
+            return res.status(400).json({ message: "User id is required." });
+        }
+
+        const sql = `
+            SELECT 
+                b.id_booking as id,
+                b.start_date as checkIn,
+                b.end_date as checkOut,
+                b.total_price as totalPrice,
+                b.status as status,
+                p.title AS title,
+                u.name AS guestName, 
+                (SELECT image_url FROM property_images WHERE id_property = p.id_property LIMIT 1) AS image
+            FROM bookings b
+            JOIN properties p ON b.id_property = p.id_property
+            JOIN users u ON b.id_user = u.id_user 
+            WHERE p.id_user = ? 
+            AND b.id_user != ? 
+            ORDER BY b.created_at DESC;
+        `;
+
+
+        const [rentalRequests] = await db.query(sql, [id_user, id_user]);
+
+        res.status(200).json({rentalRequests : rentalRequests});
+    } catch (error) {
+        // console.error("Database Error:", error);
+        res.status(500).json({ message: "Server error while fetching rental requests." });
+    }
+});
+
 
 // 5. START SERVER
 const PORT = process.env.PORT || 5000;

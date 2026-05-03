@@ -53,13 +53,16 @@ export default function Home() {
 
         const extractLimitedHomePageProperties = async (e) => {
             try {
+                
                 const response = await axios.get('http://localhost:5000/api/extractHomePageProperties');
 
                 setHomePageProperties(response.data);
 
+
+
             } catch (error) {
                 if (error.response) {
-                    alert(error.response.message || error.response.details || "Unknown");
+                    console.log(error.response.message || error.response.details || "Unknown");
                 } else if (error.request) {
                     alert("Can't reach the server, please check the server is running on port:5000");
                 } else {

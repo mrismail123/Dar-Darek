@@ -35,6 +35,8 @@ import PermIdentityOutlinedIcon from '@mui/icons-material/PermIdentityOutlined';
 import FavoriteBorderOutlinedIcon from '@mui/icons-material/FavoriteBorderOutlined';
 import BookmarkBorderOutlinedIcon from '@mui/icons-material/BookmarkBorderOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined';
+import HomeWorkOutlinedIcon from '@mui/icons-material/HomeWorkOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import Divider from '@mui/material/Divider';
@@ -147,6 +149,16 @@ export default function Header() {
                 My Bookings
             </MenuItem>
 
+            <MenuItem onClick={() => { handleMenuClose(); navigate('/rental-requests'); }} sx={{ py: 1.2, color: '#374151' }}>
+                <EventNoteOutlinedIcon sx={{ mr: 2, color: '#6B7280', fontSize: '1.3rem' }} />
+                Rental Requests
+            </MenuItem>
+
+            <MenuItem onClick={handleMenuClose} sx={{ py: 1.2, color: '#374151' }}>
+                <HomeWorkOutlinedIcon sx={{ mr: 2, color: '#6B7280', fontSize: '1.3rem' }} />
+                My properties
+            </MenuItem>
+
             <MenuItem onClick={handleMenuClose} sx={{ py: 1.2, color: '#374151' }}>
                 <FavoriteBorderOutlinedIcon sx={{ mr: 2, color: '#6B7280', fontSize: '1.3rem' }} />
                 Saved Favorites
@@ -251,6 +263,7 @@ export default function Header() {
                                             <Button
                                                 component={Link}
                                                 to="/new-listing"
+                                                target='_blank'
                                                 sx={{
                                                     background: themeGlobal.colors.primary,
                                                     display: "flex",
