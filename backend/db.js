@@ -1,4 +1,5 @@
 const mysql = require("mysql2");
+
 require("dotenv").config(); // This line loads the .env file
 
 // Create the connection pool
@@ -16,9 +17,9 @@ const pool = mysql.createPool({
 // Test the connection
 pool.getConnection((err, connection) => {
   if (err) {
-    console.error("❌ Error connecting to Aiven:", err.message);
+    console.error("Error connecting to Aiven:", err.message);
   } else {
-    console.log("✅ Connected to Aiven MySQL successfully!");
+    console.log("Connected to Aiven MySQL successfully!");
     connection.release();
   }
 });

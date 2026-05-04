@@ -41,7 +41,7 @@
   padding: 0;
 }
 
-body {
+.pub-page {
   font-family: "Plus Jakarta Sans", sans-serif;
   color: var(--text-main);
   background:

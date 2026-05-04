@@ -167,22 +167,6 @@ const formatTime = (timeStr, fallback = "") => {
   return String(timeStr);
 };
 
-const parseLocalDate = (dateValue) => {
-  if (!dateValue) return null;
-
-  const [year, month, day] = String(dateValue).split("T")[0].split("-");
-  const parsedDate = new Date(Number(year), Number(month) - 1, Number(day));
-
-  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
-};
-
-const formatPolicyDate = (date) =>
-  new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
-
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-MA", {
     style: "currency",
@@ -1163,32 +1147,10 @@ function ReviewsSection({ property }) {
 
 function LocationSection({ property }) {
   const [mapKey, setMapKey] = useState(0);
-  const [showLocationModal, setShowLocationModal] = useState(false);
-  const previewLength = 170;
-  const fullLocation = [
-    property.address,
-    property.neighborhood,
-    property.city,
-  ]
-    .filter(Boolean)
-    .join(", ");
-  const locationDetails = [
-    property.accessInstructions && {
-      label: "Access details",
-      text: property.accessInstructions,
-    },
-    property.neighborhoodDescription && {
-      label: "About the area",
-      text: property.neighborhoodDescription,
-    },
-  ].filter(Boolean);
-  const hasLongLocationText = locationDetails.some(
-    (detail) => detail.text.length > previewLength,
-  );
-  const getLocationPreview = (text) =>
-    text.length > previewLength
-      ? `${text.slice(0, previewLength).trim()}...`
-      : text;
+  const locationText =
+    property.neighborhoodDescription ||
+    property.accessInstructions ||
+    "Access details will be shared after the booking is confirmed.";
   const mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${
     property.coordinates.lng - 0.01
   }%2C${property.coordinates.lat - 0.01}%2C${
@@ -1201,7 +1163,9 @@ function LocationSection({ property }) {
     <section className="pd-section">
       <div className="pd-section__head">
         <h2 className="pd-section__title">Where you'll be</h2>
-        {fullLocation && <p className="pd-section__hint">{fullLocation}</p>}
+        <p className="pd-section__hint">
+          {property.neighborhood}, {property.city}
+        </p>
       </div>
 
       <div className="pd-location">
@@ -1212,81 +1176,27 @@ function LocationSection({ property }) {
             src={mapSrc}
             loading="lazy"
           />
+        </div>
+
+        <div className="pd-location__address pd-card">
+          <span className="pd-location__addr-icon" aria-hidden="true">
+            🗺️
+          </span>
+
+          <div>
+            <h3>{property.address || "Address not specified"}</h3>
+            <p>{locationText}</p>
+          </div>
+
           <button
             type="button"
             className="pd-location__reset-map"
             onClick={() => setMapKey((currentKey) => currentKey + 1)}
           >
-            <span aria-hidden="true">&#128205;</span>
-            Recenter map
+            📍 Recenter map
           </button>
         </div>
-
-        <div className="pd-location__address pd-card">
-          {locationDetails.length > 0 ? (
-            <>
-              <div className="pd-location__details">
-                {locationDetails.map((detail) => (
-                  <div className="pd-location__detail" key={detail.label}>
-                    <span>{detail.label}</span>
-                    <p>{getLocationPreview(detail.text)}</p>
-                  </div>
-                ))}
-              </div>
-
-              {hasLongLocationText && (
-                <button
-                  type="button"
-                  className="pd-location__read-more"
-                  onClick={() => setShowLocationModal(true)}
-                >
-                  Read more
-                </button>
-              )}
-            </>
-          ) : (
-            <p className="pd-location__fallback">
-              Access details will be shared after the booking is confirmed.
-            </p>
-          )}
-        </div>
       </div>
-
-      {showLocationModal && (
-        <div
-          className="pd-location-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="pd-location-modal-title"
-        >
-          <div
-            className="pd-location-modal__backdrop"
-            onClick={() => setShowLocationModal(false)}
-          />
-          <div className="pd-location-modal__panel">
-            <div className="pd-location-modal__head">
-              <h3 id="pd-location-modal-title">Location details</h3>
-              <button
-                type="button"
-                className="pd-location-modal__close"
-                onClick={() => setShowLocationModal(false)}
-                aria-label="Close location details"
-              >
-                &times;
-              </button>
-            </div>
-
-            <div className="pd-location-modal__content">
-              {locationDetails.map((detail) => (
-                <div className="pd-location-modal__block" key={detail.label}>
-                  <span>{detail.label}</span>
-                  <p>{detail.text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 }
@@ -1517,38 +1427,8 @@ function AvailabilitySection({ property, dates, onDateChange }) {
   );
 }
 
-function AboutPlaceSection({ property, dates }) {
+function AboutPlaceSection({ property }) {
   const safetyItems = getSafetyItems(property.amenities);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const checkInDate =
-    parseLocalDate(dates?.checkIn) || parseLocalDate(property.availableFrom);
-  const cancellationItems = [];
-
-  if (checkInDate) {
-    const daysUntilCheckIn = Math.floor(
-      (checkInDate.getTime() - today.getTime()) / 86400000,
-    );
-    const partialRefundDeadline = new Date(checkInDate);
-    partialRefundDeadline.setDate(partialRefundDeadline.getDate() - 3);
-    const formattedDeadline = formatPolicyDate(partialRefundDeadline);
-
-    if (daysUntilCheckIn >= 7) {
-      cancellationItems.push(
-        "Free cancellation within the first 24 hours after booking.",
-      );
-    }
-
-    if (partialRefundDeadline > today) {
-      cancellationItems.push(`Partial refund before ${formattedDeadline}`);
-      cancellationItems.push(`No refund after ${formattedDeadline}`);
-    } else {
-      cancellationItems.push("No refund applies for this check-in date.");
-    }
-  } else {
-    cancellationItems.push("No refund applies for this check-in date.");
-  }
 
   return (
     <section className="pd-section pd-things-to-know">
@@ -1568,9 +1448,9 @@ function AboutPlaceSection({ property, dates }) {
             <h3>Cancellation</h3>
           </div>
           <ul>
-            {cancellationItems.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
+            <li>Free cancellation within the first 24 hours after booking.</li>
+            <li>Partial refund may apply before the check-in date.</li>
+            <li>No refund applies after check-in begins.</li>
           </ul>
         </article>
 
@@ -1585,6 +1465,9 @@ function AboutPlaceSection({ property, dates }) {
             <li>Check-in: {property.checkInTime}</li>
             <li>Check-out: {property.checkOutTime}</li>
             <li>Maximum guests: {property.guests}</li>
+            <li>Respect the property</li>
+            <li>Respect the neighborhood</li>
+            <li>No unauthorized parties</li>
           </ul>
         </article>
 
@@ -1838,10 +1721,9 @@ export default function PropertyDetails() {
         />
       </section>
 
-      <AboutPlaceSection property={displayProperty} dates={dates} />
+      <AboutPlaceSection property={displayProperty} />
 
       <Footer />
     </main>
   );
 }
-

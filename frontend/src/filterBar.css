@@ -21,17 +21,18 @@
     color: #374151;
     font-size: 0.95rem;
     transition: all 0.2s ease;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .mainFilterBtn:hover {
     border-color: #D1D5DB;
     background-color: #F9FAFB;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
 }
 
 .mainFilterBtn svg {
-    color: #119E92; /* Teal color matching the design */
+    color: #119E92;
+    /* Teal color matching the design */
 }
 
 .filterDropdown {
@@ -45,13 +46,13 @@
     cursor: pointer;
     min-width: 150px;
     transition: all 0.2s ease;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .filterDropdown:hover {
     border-color: #D1D5DB;
     background-color: #F9FAFB;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
 }
 
 .filterText {
@@ -62,16 +63,176 @@
 
 .filterLabel {
     font-size: 0.75rem;
-    color: #111827; /* Darker heading */
+    color: #111827;
+    /* Darker heading */
     font-weight: 600;
     margin-bottom: 2px;
 }
 
 .filterValue {
     font-size: 0.85rem;
-    color: #6B7280; /* Lighter value */
+    color: #6B7280;
+    /* Lighter value */
 }
 
 .sortDropdown {
-    margin-left: auto; /* Pushes the sort dropdown to the right edge */
+}
+
+.filterDropdownWrapper {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 150px;
+}
+
+.filterDropdown.active {
+    border-color: #111827;
+    box-shadow: 0 0 0 1px #111827;
+}
+
+.dropdownMenu {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    background-color: #ffffff;
+    border: 1px solid #E5E7EB;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+    min-width: 320px;
+    cursor: default;
+}
+
+.dropdownMenu h4 {
+    margin: 0 0 15px 0;
+    font-size: 1rem;
+    color: #111827;
+}
+
+/* Price menu specific */
+.priceInputs {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.priceInput {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    padding: 8px 12px;
+}
+
+.priceInput label {
+    font-size: 0.7rem;
+    color: #6B7280;
+}
+
+.priceInput span {
+    font-size: 0.9rem;
+    color: #111827;
+}
+
+/* Guests menu specific */
+.guestRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 1px solid #F3F4F6;
+}
+
+.guestRow:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.guestInfo h4 {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.guestInfo p {
+    margin: 2px 0 0 0;
+    font-size: 0.8rem;
+    color: #6B7280;
+}
+
+.guestControls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.guestControls button {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid #D1D5DB;
+    background: transparent;
+    color: #374151;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.guestControls button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Type menu specific */
+.typeMenu {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 200px;
+}
+
+.checkboxLabel {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: #374151;
+}
+
+.checkboxLabel input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #119E92;
+}
+
+/* Bedrooms menu specific */
+.pillContainer {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.pillBtn {
+    padding: 8px 20px;
+    border-radius: 30px;
+    border: 1px solid #D1D5DB;
+    background: transparent;
+    color: #374151;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pillBtn:hover {
+    border-color: #111827;
+}
+
+.pillBtn.selected {
+    background-color: #111827;
+    color: white;
+    border-color: #111827;
 }

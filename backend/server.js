@@ -1,21 +1,19 @@
-﻿const express = require("express");
+const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
-
-const db = require("./db");
 
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
-
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const { OAuth2Client } = require("google-auth-library");
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
 const nodemailer = require("nodemailer");
 
+const db = require("./db");
+
 const app = express();
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 app.use(cors());
 app.use(express.json());
@@ -27,6 +25,28 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 app.use("/uploads", express.static(uploadDir));
+
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) {
+    return res
+      .status(401)
+      .json({ message: "Access Denied: No Token Provided" });
+  }
+
+  try {
+    const verified = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "your_secret_key",
+    );
+    req.user = verified;
+    next();
+  } catch (error) {
+    return res.status(403).json({ message: "Invalid or Expired Token" });
+  }
+};
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
@@ -97,6 +117,10 @@ const AMENITY_NAME_MAP = {
   safeBox: "safeBox",
 };
 
+/* =========================
+   TEST DB
+========================= */
+
 app.get("/api/test-db", async (req, res) => {
   try {
     const [rows] = await db.query("SELECT 1 + 1 AS result");
@@ -111,7 +135,7 @@ app.get("/api/test-db", async (req, res) => {
 
 /* =========================
    AUTH ROUTES
-   ========================= */
+========================= */
 
 app.post("/api/forgot-password", async (req, res) => {
   const { email } = req.body;
@@ -128,7 +152,7 @@ app.post("/api/forgot-password", async (req, res) => {
       return res.status(400).json({ message: "Email format is not valide" });
     }
 
-    const [rows] = await db.query("SELECT * FROM users WHERE email=?", [
+    const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
       cleanEmail,
     ]);
 
@@ -144,7 +168,7 @@ app.post("/api/forgot-password", async (req, res) => {
       { expiresIn: "15m" },
     );
 
-    const ResetingUrl = `http://localhost:5173/Authentication/reset-password?token=${oneTimeActivationToken}`;
+    const resettingUrl = `http://localhost:5173/Authentication/reset-password?token=${oneTimeActivationToken}`;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -154,23 +178,21 @@ app.post("/api/forgot-password", async (req, res) => {
       },
     });
 
-    const mailOptions = {
+    await transporter.sendMail({
       from: `"Dar Darek Support" <${process.env.EMAIL_USER}>`,
       to: cleanEmail,
-      subject: "Reseting your password",
+      subject: "Resetting your password",
       html: `
-        <h1>Welcome to Dar Darek!</h1>
+        <h1>Dar Darek</h1>
         <p>Click the button below to reset your password:</p>
-        <a href="${ResetingUrl}" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset My Password</a>
+        <a href="${resettingUrl}" style="background:#2563eb;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">Reset My Password</a>
         <p>This link will expire in 15 minutes.</p>
       `,
-    };
+    });
 
-    await transporter.sendMail(mailOptions);
-
-    res
-      .status(200)
-      .json({ message: "Please check your email to reset your password" });
+    res.status(200).json({
+      message: "Please check your email to reset your password",
+    });
   } catch (error) {
     res.status(500).json({
       message: "An error occurred during verifying your account",
@@ -214,7 +236,7 @@ app.post("/api/change-password", async (req, res) => {
 
     try {
       decodedToken = jwt.verify(token, process.env.JWT_SECRET);
-    } catch {
+    } catch (error) {
       return res.status(400).json({
         message: "Reset link is invalid or has expired.",
       });
@@ -222,15 +244,17 @@ app.post("/api/change-password", async (req, res) => {
 
     const email = decodedToken.email;
 
-    const [rows] = await db.query("SELECT * FROM users WHERE email=?", [email]);
+    const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
+      email,
+    ]);
 
     if (rows.length === 0) {
-      return res.status(404).send("User not found");
+      return res.status(404).json({ message: "User not found" });
     }
 
     const hashedPassword = await bcrypt.hash(safePassword, 10);
 
-    await db.execute("UPDATE users SET password=? WHERE email=?", [
+    await db.execute("UPDATE users SET password = ? WHERE email = ?", [
       hashedPassword,
       email,
     ]);
@@ -238,7 +262,7 @@ app.post("/api/change-password", async (req, res) => {
     return res.status(200).json({ message: "Password updated successfully." });
   } catch (error) {
     res.status(500).json({
-      message: "An error occurred during try to change your password",
+      message: "An error occurred while changing your password",
       details: error.message,
     });
   }
@@ -312,11 +336,10 @@ app.post("/api/signup", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(safePassword, 10);
 
-    const query =
-      "INSERT INTO users (name, email, password, phone_number) VALUES (?, ?, ?, ?)";
-    const values = [name, cleanEmail, hashedPassword, cleanPhoneNumber];
-
-    await db.execute(query, values);
+    await db.execute(
+      "INSERT INTO users (name, email, password, phone_number) VALUES (?, ?, ?, ?)",
+      [name, cleanEmail, hashedPassword, cleanPhoneNumber],
+    );
 
     const oneTimeActivationToken = jwt.sign(
       { email: cleanEmail },
@@ -334,19 +357,17 @@ app.post("/api/signup", async (req, res) => {
       },
     });
 
-    const mailOptions = {
+    await transporter.sendMail({
       from: `"Dar Darek Support" <${process.env.EMAIL_USER}>`,
       to: cleanEmail,
       subject: "Activate your Dar Darek Account",
       html: `
         <h1>Welcome to Dar Darek!</h1>
-        <p>Click the button below to verify your email and start hosting or renting apartments:</p>
-        <a href="${activationUrl}" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Activate My Account</a>
+        <p>Click the button below to verify your email:</p>
+        <a href="${activationUrl}" style="background:#2563eb;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">Activate My Account</a>
         <p>This link will expire in 15 minutes.</p>
       `,
-    };
-
-    await transporter.sendMail(mailOptions);
+    });
 
     res.status(201).json({
       message: "Account created! Please check your email to activate it.",
@@ -369,16 +390,14 @@ app.post("/api/signup", async (req, res) => {
 app.get("/api/activate-account", async (req, res) => {
   const { token } = req.query;
 
-  if (!token) {
-    return res.status(400).send("Token is missing!");
-  }
+  if (!token) return res.status(400).send("Token is missing!");
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const email = decoded.email;
 
     const [result] = await db.execute(
-      "UPDATE users SET is_active=1 WHERE email=?",
+      "UPDATE users SET is_active = 1 WHERE email = ?",
       [email],
     );
 
@@ -387,7 +406,7 @@ app.get("/api/activate-account", async (req, res) => {
     }
 
     res.redirect("http://localhost:5173/Authentication");
-  } catch {
+  } catch (error) {
     res.status(400).send("Link expired or invalid. Please sign up again.");
   }
 });
@@ -407,7 +426,7 @@ app.post("/api/login", async (req, res) => {
       return res.status(400).json({ message: "Password is required." });
     }
 
-    const [rows] = await db.query("SELECT * FROM users WHERE email=?", [
+    const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
       cleanEmail,
     ]);
 
@@ -433,14 +452,18 @@ app.post("/api/login", async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, name: user.name, role: user.role },
+      { id: user.id_user, name: user.name, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "1d" },
     );
 
     return res.status(200).json({
       message: "Login successful.",
-      user: { id: user.id, name: user.name, role: user.role },
+      user: {
+        id: user.id_user,
+        name: user.name,
+        role: user.role,
+      },
       token,
     });
   } catch (error) {
@@ -463,7 +486,9 @@ app.post("/api/google-auth", async (req, res) => {
     const payload = ticket.getPayload();
     const { email, name } = payload;
 
-    const [rows] = await db.query("SELECT * FROM users WHERE email=?", [email]);
+    const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
+      email,
+    ]);
 
     let user;
 
@@ -474,7 +499,7 @@ app.post("/api/google-auth", async (req, res) => {
       );
 
       user = {
-        id: result.insertId,
+        id_user: result.insertId,
         name,
         email,
         role: "user",
@@ -484,7 +509,7 @@ app.post("/api/google-auth", async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, name: user.name, role: user.role },
+      { id: user.id_user, name: user.name, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "1d" },
     );
@@ -504,154 +529,7 @@ app.post("/api/google-auth", async (req, res) => {
 
 /* =========================
    PROPERTY ROUTES
-   ========================= */
-
-app.get("/api/houses", async (req, res) => {
-  try {
-    const [properties] = await db.query(`
-      SELECT 
-        p.id_property,
-        p.title,
-        p.description,
-        p.host_description,
-        p.neighborhood_description,
-        p.address,
-        p.neighborhood,
-        p.postal_code,
-        p.access_instructions,
-        p.latitude,
-        p.longitude,
-        p.property_type,
-        p.price_per_day,
-        p.guests_total,
-        p.bedrooms,
-        p.bathrooms,
-        p.beds,
-        p.check_in,
-        p.check_out,
-        p.available_from,
-        p.available_to,
-        p.status,
-        c.name AS city,
-        (
-          SELECT image_url
-          FROM property_images
-          WHERE id_property = p.id_property AND is_main = true
-          LIMIT 1
-        ) AS main_image
-      FROM properties p
-      LEFT JOIN cities c ON p.id_city = c.id_city
-      WHERE p.status IN ('approved', 'pending')
-      ORDER BY p.created_at DESC
-    `);
-
-    for (const property of properties) {
-      const [amenities] = await db.query(
-        `
-        SELECT a.name
-        FROM property_amenities pa
-        JOIN amenities a ON pa.id_amenity = a.id_amenity
-        WHERE pa.id_property = ?
-        `,
-        [property.id_property],
-      );
-
-      property.amenities = amenities.map((a) => a.name);
-    }
-
-    res.json(properties);
-  } catch (error) {
-    console.error("Error fetching properties:", error);
-    res.status(500).json({
-      message: "A server error occurred while fetching properties.",
-    });
-  }
-});
-
-app.get("/api/houses/:id", async (req, res) => {
-  try {
-    const propertyId = Number(req.params.id);
-
-    if (!propertyId) {
-      return res.status(400).json({
-        message: "Invalid property id.",
-      });
-    }
-
-    const [properties] = await db.query(
-      `
-      SELECT 
-        p.id_property,
-        p.title,
-        p.description,
-        p.host_description,
-        p.neighborhood_description,
-        p.address,
-        p.neighborhood,
-        p.postal_code,
-        p.access_instructions,
-        p.latitude,
-        p.longitude,
-        p.property_type,
-        p.price_per_day,
-        p.guests_total,
-        p.bedrooms,
-        p.bathrooms,
-        p.beds,
-        p.check_in,
-        p.check_out,
-        p.available_from,
-        p.available_to,
-        p.status,
-        c.name AS city
-      FROM properties p
-      LEFT JOIN cities c ON p.id_city = c.id_city
-      WHERE p.id_property = ?
-      LIMIT 1
-      `,
-      [propertyId],
-    );
-
-    if (properties.length === 0) {
-      return res.status(404).json({
-        message: "Property not found.",
-      });
-    }
-
-    const property = properties[0];
-
-    const [images] = await db.query(
-      `
-      SELECT image_url, is_main
-      FROM property_images
-      WHERE id_property = ?
-      ORDER BY is_main DESC, id_image ASC
-      `,
-      [propertyId],
-    );
-
-    const [amenities] = await db.query(
-      `
-      SELECT a.name
-      FROM property_amenities pa
-      JOIN amenities a ON pa.id_amenity = a.id_amenity
-      WHERE pa.id_property = ?
-      `,
-      [propertyId],
-    );
-
-    property.images = images.map((image) => image.image_url);
-    property.main_image = property.images[0] || null;
-    property.amenities = amenities.map((amenity) => amenity.name);
-
-    return res.json(property);
-  } catch (error) {
-    console.error("Error fetching property details:", error);
-    return res.status(500).json({
-      message: "A server error occurred while fetching property details.",
-    });
-  }
-});
+========================= */
 
 app.get("/api/cities", async (req, res) => {
   try {
@@ -684,69 +562,177 @@ app.get("/api/extractCities", async (req, res) => {
   }
 });
 
+app.get("/api/houses", async (req, res) => {
+  try {
+    const [properties] = await db.query(`
+      SELECT 
+        p.id_property,
+        p.title,
+        p.description,
+        p.host_description,
+        p.neighborhood_description,
+        p.address,
+        p.neighborhood,
+        p.postal_code,
+        p.access_instructions,
+        p.latitude,
+        p.longitude,
+        p.property_type,
+        p.price_per_day,
+        p.guests_total,
+        p.bedrooms,
+        p.bathrooms,
+        p.beds,
+        p.check_in,
+        p.check_out,
+        p.available_from,
+        p.available_to,
+        p.status,
+        c.name AS city,
+        c.name AS city_name,
+        (
+          SELECT image_url
+          FROM property_images
+          WHERE id_property = p.id_property AND is_main = 1
+          LIMIT 1
+        ) AS main_image
+      FROM properties p
+      LEFT JOIN cities c ON p.id_city = c.id_city
+      WHERE p.status IN ('approved', 'pending')
+      ORDER BY p.created_at DESC
+    `);
+
+    res.json(properties);
+  } catch (error) {
+    console.error("Error fetching properties:", error);
+    res.status(500).json({
+      message: "A server error occurred while fetching properties.",
+    });
+  }
+});
+
+app.get("/api/houses/:id", async (req, res) => {
+  try {
+    const propertyId = Number(req.params.id);
+
+    if (!propertyId) {
+      return res.status(400).json({
+        message: "Invalid property id.",
+      });
+    }
+
+    const [rows] = await db.query(
+      `
+      SELECT
+        p.id_property,
+        p.title,
+        p.description,
+        p.host_description,
+        p.neighborhood_description,
+        p.address,
+        p.neighborhood,
+        p.postal_code,
+        p.access_instructions,
+        p.latitude,
+        p.longitude,
+        p.property_type,
+        p.price_per_day,
+        p.guests_total,
+        p.guests_total AS guests,
+        p.bedrooms,
+        p.bathrooms,
+        p.beds,
+        p.check_in,
+        p.check_out,
+        p.available_from,
+        p.available_to,
+        p.status,
+        c.name AS city,
+        c.name AS city_name,
+        u.name AS host_name,
+        SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1) AS host_first_name,
+        NULLIF(TRIM(SUBSTRING(COALESCE(u.name, ''), LENGTH(SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1)) + 1)), '') AS host_last_name
+      FROM properties p
+      LEFT JOIN cities c ON p.id_city = c.id_city
+      LEFT JOIN users u ON p.id_user = u.id_user
+      WHERE p.id_property = ?
+      LIMIT 1
+      `,
+      [propertyId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Property not found." });
+    }
+
+    const property = rows[0];
+
+    const [images] = await db.query(
+      `
+      SELECT image_url, is_main
+      FROM property_images
+      WHERE id_property = ?
+      ORDER BY is_main DESC, id_image ASC
+      `,
+      [propertyId],
+    );
+
+    const [amenities] = await db.query(
+      `
+      SELECT a.name
+      FROM property_amenities pa
+      JOIN amenities a ON pa.id_amenity = a.id_amenity
+      WHERE pa.id_property = ?
+      `,
+      [propertyId],
+    );
+
+    property.images = images.map((image) => image.image_url);
+    property.main_image = property.images[0] || null;
+    property.amenities = amenities.map((a) => a.name);
+
+    return res.status(200).json({ property });
+  } catch (error) {
+    console.error("Error fetching property details:", error);
+    return res.status(500).json({
+      message: "A server error occurred while fetching property details.",
+    });
+  }
+});
+
+app.get("/api/properties/:id", async (req, res) => {
+  req.url = `/api/houses/${req.params.id}`;
+  return app._router.handle(req, res);
+});
+
 app.get("/api/extractHomePageProperties", async (req, res) => {
   try {
+    const cityQuery = (cityName) => `
+      SELECT p.*, c.name AS city_name, img.image_url AS main_image
+      FROM properties p
+      JOIN cities c ON p.id_city = c.id_city
+      LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
+      WHERE c.name = '${cityName}'
+      AND p.status = 'approved'
+      ORDER BY p.created_at DESC
+      LIMIT 10
+    `;
+
     const [latestRows] = await db.query(`
-      SELECT p.*, c.name AS city_name 
-      FROM properties p 
-      JOIN cities c ON p.id_city = c.id_city 
-      ORDER BY p.created_at DESC 
-      LIMIT 10
-    `);
-
-    const [tangierRows] = await db.query(`
-      SELECT p.*, c.name AS city_name
+      SELECT p.*, c.name AS city_name, img.image_url AS main_image
       FROM properties p
       JOIN cities c ON p.id_city = c.id_city
-      WHERE c.name = 'Tangier'
+      LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
+      WHERE p.status = 'approved'
       ORDER BY p.created_at DESC
       LIMIT 10
     `);
 
-    const [tetouanRows] = await db.query(`
-      SELECT p.*, c.name AS city_name
-      FROM properties p
-      JOIN cities c ON p.id_city = c.id_city
-      WHERE c.name = 'Tetouan'
-      ORDER BY p.created_at DESC
-      LIMIT 10
-    `);
-
-    const [chefchaouenRows] = await db.query(`
-      SELECT p.*, c.name AS city_name
-      FROM properties p
-      JOIN cities c ON p.id_city = c.id_city
-      WHERE c.name = 'Chefchaouen'
-      ORDER BY p.created_at DESC
-      LIMIT 10
-    `);
-
-    const [asilahRows] = await db.query(`
-      SELECT p.*, c.name AS city_name
-      FROM properties p
-      JOIN cities c ON p.id_city = c.id_city
-      WHERE c.name = 'Asilah'
-      ORDER BY p.created_at DESC
-      LIMIT 10
-    `);
-
-    const [alHoceimaRows] = await db.query(`
-      SELECT p.*, c.name AS city_name
-      FROM properties p
-      JOIN cities c ON p.id_city = c.id_city
-      WHERE c.name = 'Al Hoceima'
-      ORDER BY p.created_at DESC
-      LIMIT 10
-    `);
-
-    if (
-      latestRows.length === 0 &&
-      tangierRows.length === 0 &&
-      tetouanRows.length === 0 &&
-      chefchaouenRows.length === 0
-    ) {
-      return res.status(404).json({ message: "No properties found" });
-    }
+    const [tangierRows] = await db.query(cityQuery("Tangier"));
+    const [tetouanRows] = await db.query(cityQuery("Tetouan"));
+    const [chefchaouenRows] = await db.query(cityQuery("Chefchaouen"));
+    const [asilahRows] = await db.query(cityQuery("Asilah"));
+    const [alHoceimaRows] = await db.query(cityQuery("Al Hoceima"));
 
     res.status(200).json({
       message: "Extracted with success",
@@ -765,184 +751,496 @@ app.get("/api/extractHomePageProperties", async (req, res) => {
   }
 });
 
-app.post("/api/houses", upload.array("images", 12), async (req, res) => {
+app.post("/api/propertiesBasedOnParams", async (req, res) => {
+  const {
+    city,
+    checkIn,
+    checkOut,
+    guests,
+    page = 1,
+    minPrice,
+    maxPrice,
+    propertyType,
+    bedrooms,
+    sortBy,
+  } = req.body;
+
+  const limit = 9;
+  const offset = (Number(page) - 1) * limit;
+
   try {
-    const {
-      title,
-      description,
-      hostDescription,
-      neighborhoodDescription,
-      city,
-      address,
-      neighborhood,
-      postalCode,
-      accessInstructions,
-      latitude,
-      longitude,
-      propertyType,
-      guests,
-      bedrooms,
-      bathrooms,
-      beds,
-      price,
-      checkIn,
-      checkOut,
-      availableFrom,
-      availableTo,
-    } = req.body;
+    const queryParams = [];
+    const whereClauses = ["properties.status = 'approved'"];
 
-    const amenities = JSON.parse(req.body.amenities || "{}");
-    const uploadedImages = req.files
-      ? req.files.map((file) => `/uploads/${file.filename}`)
-      : [];
-
-    if (
-      !title ||
-      !description ||
-      !city ||
-      !address ||
-      !price ||
-      !guests ||
-      !availableFrom ||
-      !availableTo
-    ) {
-      return res.status(400).json({
-        message: "Some required fields are missing.",
-      });
+    if (city) {
+      whereClauses.push("cities.name = ?");
+      queryParams.push(city);
     }
 
-    if (availableTo < availableFrom) {
-      return res.status(400).json({
-        message: "The availability end date must be later than the start date.",
-      });
+    if (checkIn && checkOut) {
+      whereClauses.push("available_from <= ?");
+      whereClauses.push("available_to >= ?");
+      queryParams.push(checkIn, checkOut);
     }
 
-    if (uploadedImages.length < 4) {
-      return res.status(400).json({
-        message: "Please upload at least 4 images.",
-      });
+    if (guests) {
+      whereClauses.push("guests_total >= ?");
+      queryParams.push(guests);
     }
 
-    const [cities] = await db.query(
-      "SELECT id_city FROM cities WHERE name = ?",
-      [city.trim()],
-    );
-
-    if (cities.length === 0) {
-      return res.status(400).json({
-        message: "Invalid city. Please choose a valid city.",
-      });
+    if (minPrice && maxPrice) {
+      whereClauses.push("price_per_day >= ?");
+      whereClauses.push("price_per_day <= ?");
+      queryParams.push(minPrice, maxPrice);
     }
 
-    const id_city = cities[0].id_city;
-
-    const [result] = await db.query(
-      `
-      INSERT INTO properties (
-        title,
-        description,
-        host_description,
-        neighborhood_description,
-        address,
-        neighborhood,
-        postal_code,
-        access_instructions,
-        latitude,
-        longitude,
-        property_type,
-        id_city,
-        id_user,
-        price_per_day,
-        guests_total,
-        bedrooms,
-        bathrooms,
-        beds,
-        check_in,
-        check_out,
-        available_from,
-        available_to,
-        status
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      [
-        title?.trim() || null,
-        description?.trim() || null,
-        hostDescription?.trim() || null,
-        neighborhoodDescription?.trim() || null,
-        address?.trim() || null,
-        neighborhood?.trim() || null,
-        postalCode?.trim() || null,
-        accessInstructions?.trim() || null,
-        latitude ? Number(latitude) : null,
-        longitude ? Number(longitude) : null,
-        propertyType || null,
-        id_city,
-        null,
-        Number(price),
-        Number(guests),
-        Number(bedrooms || 0),
-        Number(bathrooms || 0),
-        Number(beds || 0),
-        checkIn || null,
-        checkOut || null,
-        availableFrom || null,
-        availableTo || null,
-        "pending",
-      ],
-    );
-
-    const propertyId = result.insertId;
-
-    for (let i = 0; i < uploadedImages.length; i++) {
-      await db.query(
-        `
-        INSERT INTO property_images (id_property, image_url, is_main)
-        VALUES (?, ?, ?)
-        `,
-        [propertyId, uploadedImages[i], i === 0],
-      );
+    if (propertyType) {
+      const types = propertyType.split(",");
+      const placeholders = types.map(() => "?").join(",");
+      whereClauses.push(`property_type IN (${placeholders})`);
+      queryParams.push(...types);
     }
 
-    const selectedAmenities = Object.keys(amenities).filter(
-      (key) => amenities[key] === true,
-    );
-
-    for (const amenityKey of selectedAmenities) {
-      const dbAmenityName = AMENITY_NAME_MAP[amenityKey] || amenityKey;
-
-      const [amenityRows] = await db.query(
-        "SELECT id_amenity FROM amenities WHERE name = ?",
-        [dbAmenityName],
-      );
-
-      if (amenityRows.length > 0) {
-        await db.query(
-          `
-          INSERT INTO property_amenities (id_property, id_amenity)
-          VALUES (?, ?)
-          `,
-          [propertyId, amenityRows[0].id_amenity],
-        );
+    if (bedrooms) {
+      if (bedrooms === "4+") {
+        whereClauses.push("bedrooms >= ?");
+        queryParams.push(4);
+      } else {
+        whereClauses.push("bedrooms = ?");
+        queryParams.push(bedrooms);
       }
     }
 
-    res.status(201).json({
-      message:
-        "Your listing has been submitted successfully and is now awaiting approval.",
-      propertyId,
+    let orderByClause = "ORDER BY properties.created_at DESC";
+
+    if (sortBy === "Price: Low to High") {
+      orderByClause = "ORDER BY price_per_day ASC";
+    } else if (sortBy === "Price: High to Low") {
+      orderByClause = "ORDER BY price_per_day DESC";
+    } else if (sortBy === "Newest") {
+      orderByClause = "ORDER BY properties.created_at DESC";
+    }
+
+    const whereString = whereClauses.join(" AND ");
+
+    const propertiesQuery = `
+      SELECT
+        properties.*, 
+        cities.name AS city_name, 
+        cities.description AS city_description,
+        property_images.image_url AS main_image
+      FROM properties 
+      JOIN cities ON properties.id_city = cities.id_city
+      LEFT JOIN property_images 
+        ON properties.id_property = property_images.id_property 
+        AND property_images.is_main = 1
+      WHERE ${whereString}
+      ${orderByClause}
+      LIMIT ? OFFSET ?
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) AS total 
+      FROM properties 
+      JOIN cities ON properties.id_city = cities.id_city
+      WHERE ${whereString}
+    `;
+
+    const [properties] = await db.query(propertiesQuery, [
+      ...queryParams,
+      limit,
+      offset,
+    ]);
+
+    const [totalCount] = await db.query(countQuery, queryParams);
+
+    const totalPages = Math.ceil(totalCount[0].total / limit);
+
+    return res.status(200).json({
+      properties,
+      totalPages,
     });
   } catch (error) {
-    console.error("Error adding property:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/cityForAbout", async (req, res) => {
+  const { city } = req.body;
+
+  try {
+    const [result] = await db.query("SELECT * FROM cities WHERE name = ?", [
+      city,
+    ]);
+
+    if (result.length === 0) {
+      return res.status(404).json({ message: "No city found with that name!" });
+    }
+
+    res.status(200).json({
+      cityName: result[0].name,
+      cityDescription: result[0].description,
+    });
+  } catch (error) {
     res.status(500).json({
-      message: "A server error occurred while creating the listing.",
+      message: "Error occured",
+      details: error.message,
+    });
+  }
+});
+
+app.post(
+  "/api/publishProperty",
+  upload.array("images", 12),
+  async (req, res) => {
+    try {
+      const {
+        title,
+        description,
+        hostDescription,
+        neighborhoodDescription,
+        city,
+        address,
+        neighborhood,
+        postalCode,
+        accessInstructions,
+        latitude,
+        longitude,
+        propertyType,
+        guests,
+        bedrooms,
+        bathrooms,
+        beds,
+        price,
+        checkIn,
+        checkOut,
+        availableFrom,
+        availableTo,
+        idUser,
+      } = req.body;
+
+      const amenities = JSON.parse(req.body.amenities || "{}");
+      const uploadedImages = req.files
+        ? req.files.map((file) => `/uploads/${file.filename}`)
+        : [];
+
+      if (
+        !title ||
+        !description ||
+        !city ||
+        !address ||
+        !price ||
+        !guests ||
+        !availableFrom ||
+        !availableTo
+      ) {
+        return res.status(400).json({
+          message: "Some required fields are missing.",
+        });
+      }
+
+      if (availableTo < availableFrom) {
+        return res.status(400).json({
+          message:
+            "The availability end date must be later than the start date.",
+        });
+      }
+
+      if (uploadedImages.length < 4) {
+        return res.status(400).json({
+          message: "Please upload at least 4 images.",
+        });
+      }
+
+      const [cities] = await db.query(
+        "SELECT id_city FROM cities WHERE name = ?",
+        [city.trim()],
+      );
+
+      if (cities.length === 0) {
+        return res.status(400).json({
+          message: "Invalid city. Please choose a valid city.",
+        });
+      }
+
+      const id_city = cities[0].id_city;
+
+      const [result] = await db.query(
+        `
+        INSERT INTO properties (
+          title,
+          description,
+          host_description,
+          neighborhood_description,
+          address,
+          neighborhood,
+          postal_code,
+          access_instructions,
+          latitude,
+          longitude,
+          property_type,
+          id_city,
+          id_user,
+          price_per_day,
+          guests_total,
+          bedrooms,
+          bathrooms,
+          beds,
+          check_in,
+          check_out,
+          available_from,
+          available_to,
+          status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          title?.trim() || null,
+          description?.trim() || null,
+          hostDescription?.trim() || null,
+          neighborhoodDescription?.trim() || null,
+          address?.trim() || null,
+          neighborhood?.trim() || null,
+          postalCode?.trim() || null,
+          accessInstructions?.trim() || null,
+          latitude ? Number(latitude) : null,
+          longitude ? Number(longitude) : null,
+          propertyType || null,
+          id_city,
+          idUser || null,
+          Number(price),
+          Number(guests),
+          Number(bedrooms || 0),
+          Number(bathrooms || 0),
+          Number(beds || 0),
+          checkIn || null,
+          checkOut || null,
+          availableFrom || null,
+          availableTo || null,
+          "pending",
+        ],
+      );
+
+      const propertyId = result.insertId;
+
+      for (let i = 0; i < uploadedImages.length; i++) {
+        await db.query(
+          `
+          INSERT INTO property_images (id_property, image_url, is_main)
+          VALUES (?, ?, ?)
+          `,
+          [propertyId, uploadedImages[i], i === 0],
+        );
+      }
+
+      const selectedAmenities = Object.keys(amenities).filter(
+        (key) => amenities[key] === true,
+      );
+
+      for (const amenityKey of selectedAmenities) {
+        const dbAmenityName = AMENITY_NAME_MAP[amenityKey] || amenityKey;
+
+        const [amenityRows] = await db.query(
+          "SELECT id_amenity FROM amenities WHERE name = ?",
+          [dbAmenityName],
+        );
+
+        if (amenityRows.length > 0) {
+          await db.query(
+            `
+            INSERT INTO property_amenities (id_property, id_amenity)
+            VALUES (?, ?)
+            `,
+            [propertyId, amenityRows[0].id_amenity],
+          );
+        }
+      }
+
+      res.status(201).json({
+        message:
+          "Your listing has been submitted successfully and is now awaiting approval.",
+        propertyId,
+      });
+    } catch (error) {
+      console.error("Error adding property:", error);
+      res.status(500).json({
+        message: "A server error occurred while creating the listing.",
+      });
+    }
+  },
+);
+
+app.post("/api/houses", upload.array("images", 12), async (req, res) => {
+  req.url = "/api/publishProperty";
+  return app._router.handle(req, res);
+});
+
+/* =========================
+   ADMIN ROUTES
+========================= */
+
+app.get("/api/pendingProperties", async (req, res) => {
+  try {
+    const [result] = await db.query(`
+      SELECT 
+        p.*, 
+        c.name AS city_name, 
+        users.name AS host_name,
+        users.email AS host_email,
+        (
+          SELECT image_url 
+          FROM property_images 
+          WHERE id_property = p.id_property 
+          ORDER BY is_main DESC 
+          LIMIT 1
+        ) AS main_image
+      FROM properties p
+      JOIN cities c ON c.id_city = p.id_city
+      LEFT JOIN users ON users.id_user = p.id_user
+      WHERE p.status = 'pending'
+    `);
+
+    if (result.length === 0) {
+      return res.status(404).json({ message: "No pending properties found" });
+    }
+
+    res.status(200).json({
+      pendingProperties: result,
+    });
+  } catch (error) {
+    res.status(500).json({ details: error.message });
+  }
+});
+
+app.post("/api/admin/approve/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.execute(
+      "UPDATE properties SET status = 'approved' WHERE id_property = ?",
+      [id],
+    );
+    res.status(200).json({ message: "Property approved successfully." });
+  } catch (error) {
+    res.status(500).json({ details: error.message });
+  }
+});
+
+app.post("/api/admin/reject/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.execute(
+      "UPDATE properties SET status = 'rejected' WHERE id_property = ?",
+      [id],
+    );
+    res.status(200).json({ message: "Property rejected successfully." });
+  } catch (error) {
+    res.status(500).json({ details: error.message });
+  }
+});
+
+/* =========================
+   BOOKING ROUTES
+========================= */
+
+app.post("/api/bookingProperty", verifyToken, async (req, res) => {
+  const { id_property, checkIn, checkOut, total_price, id_user } = req.body;
+
+  try {
+    if (!id_property || !checkIn || !checkOut || !total_price || !id_user) {
+      return res.status(400).json({ message: "All fields are required." });
+    }
+
+    if (new Date(checkOut) <= new Date(checkIn)) {
+      return res.status(400).json({
+        message: "Check-out date must be after check-in date.",
+      });
+    }
+
+    const [bookingConflict] = await db.query(
+      `
+      SELECT id_booking 
+      FROM bookings 
+      WHERE id_property = ? 
+      AND status IN ('pending', 'confirmed')
+      AND (start_date < ? AND end_date > ?)
+      `,
+      [id_property, checkOut, checkIn],
+    );
+
+    if (bookingConflict.length > 0) {
+      return res.status(400).json({
+        message: "Property is already booked for these dates.",
+      });
+    }
+
+    await db.query(
+      `
+      INSERT INTO bookings 
+      (id_property, id_user, start_date, end_date, total_price, status) 
+      VALUES (?, ?, ?, ?, ?, 'pending')
+      `,
+      [id_property, id_user, checkIn, checkOut, total_price],
+    );
+
+    res.status(201).json({
+      message: "Booking request submitted successfully!",
+    });
+  } catch (error) {
+    console.error("Database Error:", error);
+    res.status(500).json({
+      message: "Server error while processing your booking.",
+    });
+  }
+});
+
+app.get("/api/rentalRequests", verifyToken, async (req, res) => {
+  const tokenUserId = Number(req.user?.id);
+  const queryUserId = Number(req.query?.id_user);
+  const id_user =
+    Number.isFinite(tokenUserId) && tokenUserId > 0 ? tokenUserId : queryUserId;
+
+  try {
+    if (!id_user) {
+      return res.status(400).json({ message: "User id is required." });
+    }
+
+    const [rentalRequests] = await db.query(
+      `
+      SELECT 
+        b.id_booking AS id,
+        b.start_date AS checkIn,
+        b.end_date AS checkOut,
+        b.total_price AS totalPrice,
+        b.status AS status,
+        p.title AS title,
+        u.name AS guestName,
+        (
+          SELECT image_url 
+          FROM property_images 
+          WHERE id_property = p.id_property 
+          LIMIT 1
+        ) AS image
+      FROM bookings b
+      JOIN properties p ON b.id_property = p.id_property
+      JOIN users u ON b.id_user = u.id_user
+      WHERE p.id_user = ? 
+      AND b.id_user != ?
+      ORDER BY b.created_at DESC
+      `,
+      [id_user, id_user],
+    );
+
+    res.status(200).json({ rentalRequests });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while fetching rental requests.",
     });
   }
 });
 
 /* =========================
    START SERVER
-   ========================= */
+========================= */
 
 const PORT = process.env.PORT || 5000;
 

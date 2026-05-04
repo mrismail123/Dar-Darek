@@ -10,8 +10,10 @@ import VerifyAccountPage from "./VerifyAccountPage";
 import ForgotPassword from "./ForgotPassword";
 import ResetPassword from "./ResetPassword";
 import PropertiesPage from "./PropertiesPage";
+import AdminDashboard from "./AdminDashboard";
 import PropertyDetails from "./pages/PropertyDetails";
 import Publish from "./pages/Publish";
+import RentalRequests from "./RentalRequests";
 
 import { useToken } from "./Contexts/TokenContext";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
@@ -55,9 +57,37 @@ function App() {
           element={<VerifyAccountPage />}
         />
         <Route path="/properties" element={<PropertiesPage />} />
-        <Route path="/publish" element={<Publish />} />
+
         <Route path="/property-details/:id" element={<PropertyDetails />} />
-        <Route path="/Create-New-Property" element={<ProtectedRoute />} />
+
+        <Route path="/publish" element={<Publish />} />
+        <Route
+          path="/new-listing"
+          element={
+            <ProtectedRoute>
+              <Publish />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/rental-requests"
+          element={
+            <ProtectedRoute>
+              <RentalRequests />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/Authentication/forgot-password"
           element={<ForgotPassword />}
