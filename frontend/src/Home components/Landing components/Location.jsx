@@ -4,6 +4,7 @@ import KeyboardArrowDownOutlinedIcon from '@mui/icons-material/KeyboardArrowDown
 import { useThemeGlobal } from '../../Contexts/ThemeContext';
 import { useBrowse } from '../../Contexts/BrowseContext';
 import axios from 'axios';
+import { buildApiUrl } from '/src/lib/api';
 
 export default function Location() {
 
@@ -23,8 +24,8 @@ export default function Location() {
 
     // use Effect function to bring those citites
     useEffect(() => {
-        const bringCitites = async (e) => {
-            const response = await axios.get('http://localhost:5000/api/extractCities');
+        const bringCitites = async () => {
+            const response = await axios.get(buildApiUrl('/api/extractCities'));
             const citiesList = response.data;
             setCities(citiesList);
         }

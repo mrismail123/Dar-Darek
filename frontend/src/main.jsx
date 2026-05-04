@@ -11,12 +11,13 @@ import App from "./App.jsx";
 import { ThemeProvider } from "./Contexts/ThemeContext.jsx";
 import { BrowseProvider } from "./Contexts/BrowseContext.jsx";
 import { TokenProvider } from "./Contexts/TokenContext.jsx";
+import { GOOGLE_CLIENT_ID } from "./lib/api.js";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <ThemeProvider>
       <BrowserRouter>
-        <GoogleOAuthProvider clientId="1053795619331-gldssns0qs9dol9j9rrfouf8ajkqkmj6.apps.googleusercontent.com">
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
           <TokenProvider>
             <BrowseProvider>
               <App />

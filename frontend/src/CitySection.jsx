@@ -17,7 +17,7 @@ import BedIcon from '@mui/icons-material/Bed';
 import StarIcon from '@mui/icons-material/Star';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { replace, useNavigate } from "react-router-dom";
+import { buildApiUrl } from "./lib/api";
 
 export default function CitySection({ title, properties, message }) {
     // theme state
@@ -25,9 +25,6 @@ export default function CitySection({ title, properties, message }) {
 
     // ref
     const sliderRef = React.useRef(null);
-
-    // navigation
-    const navigate = useNavigate();
 
     const scrollCards = (direction) => {
         if (!sliderRef.current) {
@@ -41,14 +38,7 @@ export default function CitySection({ title, properties, message }) {
         });
     };
 
-    const BaseUrl = "http://localhost:5000";
-
     const propertiesSlide = properties?.map((property) => {
-        const dateFrom = new Date(property.available_from);
-        const dateTo = new Date(property.available_to);
-        const diffMil = dateTo - dateFrom;
-        const nights = diffMil / (1000 * 60 * 60 * 24);
-        // steps for the image
         let imagePath = property.main_image;
         if (imagePath) {
             imagePath = imagePath.replace(/\\/g, '/'); // Convert Windows backslashes to forward slashes
@@ -57,9 +47,7 @@ export default function CitySection({ title, properties, message }) {
             }
         }
 
-        const imageUrl = imagePath ?
-            `${BaseUrl}${imagePath}` :
-            tangier;
+        const imageUrl = imagePath ? buildApiUrl(imagePath) : tangier;
         return (
             <Box
                 key={property.id_property}

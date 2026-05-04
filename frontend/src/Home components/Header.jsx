@@ -1,5 +1,5 @@
 // Importing the logo
-import Logo from '../assets/logo.png'
+import Logo from '../assets/dardarek-logo.png'
 // Importing the css file 
 import '../Home.css'
 // Importing theme

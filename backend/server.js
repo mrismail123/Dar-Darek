@@ -13,7 +13,12 @@ const nodemailer = require("nodemailer");
 const db = require("./db");
 
 const app = express();
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const GOOGLE_CLIENT_ID =
+  process.env.GOOGLE_CLIENT_ID ||
+  "1053795619331-gldssns0qs9dol9j9rrfouf8ajkqkmj6.apps.googleusercontent.com";
+const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 app.use(cors());
 app.use(express.json());
@@ -46,6 +51,14 @@ const verifyToken = (req, res, next) => {
   } catch (error) {
     return res.status(403).json({ message: "Invalid or Expired Token" });
   }
+};
+
+const verifyAdmin = (req, res, next) => {
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ message: "Admin access required." });
+  }
+
+  next();
 };
 
 const storage = multer.diskStorage({
@@ -168,7 +181,7 @@ app.post("/api/forgot-password", async (req, res) => {
       { expiresIn: "15m" },
     );
 
-    const resettingUrl = `http://localhost:5173/Authentication/reset-password?token=${oneTimeActivationToken}`;
+    const resettingUrl = `${FRONTEND_URL}/Authentication/reset-password?token=${oneTimeActivationToken}`;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -347,7 +360,7 @@ app.post("/api/signup", async (req, res) => {
       { expiresIn: "15m" },
     );
 
-    const activationUrl = `http://localhost:5000/api/activate-account?token=${oneTimeActivationToken}`;
+    const activationUrl = `${BACKEND_URL}/api/activate-account?token=${oneTimeActivationToken}`;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -405,7 +418,7 @@ app.get("/api/activate-account", async (req, res) => {
       return res.status(404).send("User not found.");
     }
 
-    res.redirect("http://localhost:5173/Authentication");
+    res.redirect(`${FRONTEND_URL}/Authentication`);
   } catch (error) {
     res.status(400).send("Link expired or invalid. Please sign up again.");
   }
@@ -480,7 +493,7 @@ app.post("/api/google-auth", async (req, res) => {
   try {
     const ticket = await client.verifyIdToken({
       idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: GOOGLE_CLIENT_ID,
     });
 
     const payload = ticket.getPayload();
@@ -1080,7 +1093,7 @@ app.post("/api/houses", upload.array("images", 12), async (req, res) => {
    ADMIN ROUTES
 ========================= */
 
-app.get("/api/pendingProperties", async (req, res) => {
+app.get("/api/pendingProperties", verifyToken, verifyAdmin, async (req, res) => {
     try {
       const [result] = await db.query(`
         SELECT 
@@ -1136,7 +1149,7 @@ app.get("/api/pendingProperties", async (req, res) => {
     }
   });
 
-app.post("/api/admin/approve/:id", async (req, res) => {
+app.post("/api/admin/approve/:id", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await db.execute(
@@ -1149,7 +1162,7 @@ app.post("/api/admin/approve/:id", async (req, res) => {
   }
 });
 
-app.post("/api/admin/reject/:id", async (req, res) => {
+app.post("/api/admin/reject/:id", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await db.execute(

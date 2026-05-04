@@ -5,6 +5,7 @@ import "./App.css";
 import "./Authentication.css";
 import { useState } from "react";
 import axios from "axios";
+import { buildApiUrl } from "./lib/api";
 
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -70,7 +71,7 @@ export default function ResetPassword() {
         try {
             setResetLoading(true);
             setResetError("");
-            const response = await axios.post("http://localhost:5000/api/change-password" , changePasswordInfo);
+            const response = await axios.post(buildApiUrl("/api/change-password") , changePasswordInfo);
             alert(response.data.message || "Password updated successfully.");
             navigate("/Authentication", { replace: true });
 

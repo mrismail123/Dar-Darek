@@ -26,8 +26,7 @@ import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useThemeGlobal } from './Contexts/ThemeContext';
 import PropertiesMap from './PropertiesMap';
-
-const BaseUrl = "http://localhost:5000";
+import { buildApiUrl } from './lib/api';
 
 export default function PropertiesPage() {
 
@@ -53,10 +52,10 @@ export default function PropertiesPage() {
     const [cityDescription, setCityDescription] = useState(null);
 
     useEffect(() => {
-        const cityNameAndDescripion = async (req, res) => {
+        const cityNameAndDescripion = async () => {
 
             try {
-                const response = await axios.post('http://localhost:5000/api/cityForAbout', {
+                const response = await axios.post(buildApiUrl('/api/cityForAbout'), {
                     city: searchParams.get("city")
                 })
                 setCityName(response.data.cityName);
@@ -168,7 +167,7 @@ export default function PropertiesPage() {
 
                 console.log(payload);
 
-                const response = await axios.post("http://localhost:5000/api/propertiesBasedOnParams", payload);
+                const response = await axios.post(buildApiUrl("/api/propertiesBasedOnParams"), payload);
                 // localStorage.setItem('properties', JSON.stringify(response.data.properties))
                 const nextTotalPages = response.data.totalPages;
 
@@ -313,11 +312,6 @@ export default function PropertiesPage() {
     };
 
     const propertiesSlide = properties?.map((property) => {
-        const dateFrom = new Date(property.available_from);
-        const dateTo = new Date(property.available_to);
-        const diffMil = dateTo - dateFrom;
-        const nights = diffMil / (1000 * 60 * 60 * 24);
-
         let imagePath = property.main_image;
         if (imagePath) {
             imagePath = imagePath.replace(/\\/g, '/');
@@ -325,7 +319,7 @@ export default function PropertiesPage() {
                 imagePath = '/' + imagePath;
             }
         }
-        const imageUrl = imagePath ? `${BaseUrl}${imagePath}` : beach;
+        const imageUrl = imagePath ? buildApiUrl(imagePath) : beach;
 
         return (
             <Box

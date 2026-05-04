@@ -5,6 +5,7 @@ import "./App.css";
 import "./Authentication.css";
 import { useState } from "react";
 import axios from "axios";
+import { buildApiUrl } from "./lib/api";
 
 export default function ForgotPassword() {
     // theme context
@@ -40,7 +41,7 @@ export default function ForgotPassword() {
         try {
             setForgotLoading(true);
             setEmailSearch("");
-            const response = await axios.post("http://localhost:5000/api/forgot-password" , {
+            const response = await axios.post(buildApiUrl("/api/forgot-password") , {
                 email: trimmedEmail
             });
             alert(response.data.message || "Please check your email to reset your password.");

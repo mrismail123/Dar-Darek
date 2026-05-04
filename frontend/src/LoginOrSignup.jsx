@@ -26,6 +26,7 @@ import axios from 'axios'
 import { useToken } from "./Contexts/TokenContext";
 
 import { jwtDecode } from "jwt-decode";
+import { buildApiUrl } from "./lib/api";
 
 
 export default function LoginOrSignup() {
@@ -121,7 +122,7 @@ export default function LoginOrSignup() {
         }
         try {
             setSignupLoading(true);
-            const request = await axios.post('http://localhost:5000/api/signup', {
+            const request = await axios.post(buildApiUrl('/api/signup'), {
                 ...signUpInfo,
                 firstName: trimmedFirstName,
                 lastName: trimmedLastName,
@@ -168,7 +169,7 @@ export default function LoginOrSignup() {
         setLoginLoading(true);
         try {
             // Searching the user in the database and store its data
-            const request = await axios.post('http://localhost:5000/api/login', {
+            const request = await axios.post(buildApiUrl('/api/login'), {
                 ...loginInfo,
                 email: trimmedEmail
             });
@@ -276,7 +277,7 @@ export default function LoginOrSignup() {
                                 <GoogleLogin
                                     onSuccess={async credentialResponse => {
                                         try {
-                                            const response = await axios.post("http://localhost:5000/api/google-auth", {
+                                            const response = await axios.post(buildApiUrl("/api/google-auth"), {
                                                 idToken: credentialResponse.credential
                                             });
 

@@ -1,9 +1,5 @@
-// Importing the logo
-import Logo from './assets/logo.png'
 // Importing the css file 
 import './Home.css'
-// Importing theme
-import { useThemeGlobal } from './Contexts/ThemeContext';
 
 
 // Importing Components ######################
@@ -25,26 +21,16 @@ import axios from 'axios';
 
 // Material UI
 import * as React from 'react';
-import Button from '@mui/material/Button';
 import Landing from './Home components/Landing';
-// Material UI Icons
-
-// Token & Browse context
-import { useBrowse } from './Contexts/BrowseContext';
-import { useToken } from './Contexts/TokenContext';
 import SectionDivider from './SectionDivider';
 import { Container } from '@mui/material';
+import { buildApiUrl } from './lib/api';
 
 // End MUI #############################
 
 
 
 export default function Home() {
-    // theme
-    const themeGlobal = useThemeGlobal();
-
-    const { token, setToken, user, setUser } = useToken();
-
     // states
     const [homePageProperties, setHomePageProperties] = React.useState(null);
 
@@ -53,10 +39,10 @@ export default function Home() {
     // Extracting Limited properties
     React.useEffect(() => {
 
-        const extractLimitedHomePageProperties = async (e) => {
+        const extractLimitedHomePageProperties = async () => {
             try {
                 
-                const response = await axios.get('http://localhost:5000/api/extractHomePageProperties');
+                const response = await axios.get(buildApiUrl('/api/extractHomePageProperties'));
 
                 setHomePageProperties(response.data);
 

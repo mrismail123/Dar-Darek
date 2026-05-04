@@ -34,9 +34,9 @@ import PeopleIcon from '@mui/icons-material/People';
 import NightlightIcon from '@mui/icons-material/Nightlight';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import { useThemeGlobal } from '../Contexts/ThemeContext';
+import { useToken } from '../Contexts/TokenContext';
 import axios from 'axios';
-
-const BASE_URL = 'http://localhost:5000';
+import { buildApiUrl, createAuthConfig } from '../lib/api';
 
 const normalizeImageUrl = (path) => {
     if (!path || typeof path !== 'string') return '';
@@ -46,7 +46,7 @@ const normalizeImageUrl = (path) => {
 
     return clean.startsWith('http')
         ? clean
-        : `${BASE_URL}${clean.startsWith('/') ? '' : '/'}${clean}`;
+        : buildApiUrl(clean);
 };
 
 const normalizePropertyImages = (property) => {
@@ -190,6 +190,7 @@ function ImageGallery({ images }) {
 // --- Main Component ---
 export default function PendingPropertiesTable() {
     const themeGlobal = useThemeGlobal();
+    const { token } = useToken();
 
     // Table data state
     const [pendingPropertiesFromServer, setPendingPropertiesFromServer] = useState([]);
@@ -208,8 +209,15 @@ export default function PendingPropertiesTable() {
     // Fetch pending properties for the table
     useEffect(() => {
         const extractPendingProperties = async () => {
+            if (!token) {
+                return;
+            }
+
             try {
-                const response = await axios.get(`${BASE_URL}/api/pendingProperties`);
+                const response = await axios.get(
+                    buildApiUrl('/api/pendingProperties'),
+                    createAuthConfig(token),
+                );
                 const fetchedProperties = response.data.pendingProperties;
                 setPendingPropertiesFromServer(fetchedProperties);
                 setPropertySummary(response.data.summary || {
@@ -228,7 +236,7 @@ export default function PendingPropertiesTable() {
             }
         };
         extractPendingProperties();
-    }, []);
+    }, [token]);
 
     // Open modal: fetch full property detail including all images
     const handleOpenModal = async (property) => {
@@ -236,7 +244,7 @@ export default function PendingPropertiesTable() {
         setModalLoading(true);
         setModalData(null);
         try {
-            const response = await axios.get(`${BASE_URL}/api/houses/${property.id_property}`);
+            const response = await axios.get(buildApiUrl(`/api/houses/${property.id_property}`));
             // Merge the host_email from the table row since /api/properties/:id doesn't return it separately
             const normalizedProperty = response.data?.property || {};
 
@@ -265,7 +273,11 @@ export default function PendingPropertiesTable() {
     const handleApprove = async (id) => {
         console.log(`Approving property with ID: ${id}`);
         try {
-            await axios.post(`${BASE_URL}/api/admin/approve/${id}`);
+            await axios.post(
+                buildApiUrl(`/api/admin/approve/${id}`),
+                {},
+                createAuthConfig(token),
+            );
             // Remove from state
             const updatedProperties = pendingPropertiesFromServer.filter(p => p.id_property !== id);
             setPendingPropertiesFromServer(updatedProperties);
@@ -286,7 +298,11 @@ export default function PendingPropertiesTable() {
     const handleReject = async (id) => {
         console.log(`Rejecting property with ID: ${id}`);
         try {
-            await axios.post(`${BASE_URL}/api/admin/reject/${id}`);
+            await axios.post(
+                buildApiUrl(`/api/admin/reject/${id}`),
+                {},
+                createAuthConfig(token),
+            );
             // Remove from state
             const updatedProperties = pendingPropertiesFromServer.filter(p => p.id_property !== id);
             setPendingPropertiesFromServer(updatedProperties);

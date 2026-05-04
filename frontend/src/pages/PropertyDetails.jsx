@@ -10,6 +10,7 @@ import tetouanImage from "../assets/tetouan-hero.jpg";
 import Header from "../Home components/Header";
 import Footer from "../Footer";
 import { useThemeGlobal } from "../Contexts/ThemeContext";
+import { buildApiUrl } from "../lib/api";
 
 const mockProperty = {
   brand: "Dar Darek",
@@ -242,9 +243,7 @@ const normalizeImages = (images) => {
         return image?.url || image?.path || image?.src || "";
       }
 
-      return image.startsWith("/uploads")
-        ? `http://localhost:5000${image}`
-        : image;
+      return image.startsWith("/uploads") ? buildApiUrl(image) : image;
     })
     .filter(Boolean);
 
@@ -885,7 +884,7 @@ function BookingCard({ property, dates, guests, onDateChange, onGuestChange }) {
       };
 
       const response = await axios.post(
-        `http://localhost:5000/api/bookingProperty`,
+        buildApiUrl("/api/bookingProperty"),
         reservationData,
         config,
       );
@@ -1650,7 +1649,7 @@ export default function PropertyDetails() {
         setLoading(true);
         setError("");
 
-        const response = await fetch(`http://localhost:5000/api/houses/${id}`, {
+        const response = await fetch(buildApiUrl(`/api/houses/${id}`), {
           signal: controller.signal,
         });
         const data = await response.json().catch(() => null);

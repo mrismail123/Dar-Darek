@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 import "./Publish.css";
 import SuccessAlert from "../SuccessAlert";
 import { useLocation, useNavigate } from "react-router-dom";
+import { buildApiUrl } from "../lib/api";
 
 
 import logoImage from "../assets/dardarek-logo.png";
@@ -758,7 +759,7 @@ export default function Publish() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("http://localhost:5000/api/publishProperty", {
+      const response = await fetch(buildApiUrl("/api/publishProperty"), {
         method: "POST",
         body: formPayload,
       });
@@ -791,7 +792,7 @@ export default function Publish() {
   };
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/cities")
+    fetch(buildApiUrl("/api/cities"))
       .then((r) => r.json())
       .then((d) => {
         const apiNames = d.map((city) => city.name);

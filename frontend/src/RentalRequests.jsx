@@ -26,6 +26,7 @@ import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 import Header from "./Home components/Header";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
 import axios from "axios";
+import { buildApiUrl } from "./lib/api";
 
 const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-GB", {
@@ -53,7 +54,7 @@ const getImageUrl = (imagePath) => {
     }
 
     const normalizedPath = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
-    return `http://localhost:5000${normalizedPath}`;
+    return buildApiUrl(normalizedPath);
 };
 
 const getNightsCount = (checkIn, checkOut) => {
@@ -93,7 +94,7 @@ export default function RentalRequests() {
                 };
 
                 console.log(currentUser.id);
-                const response = await axios.get('http://localhost:5000/api/rentalRequests', config);
+                const response = await axios.get(buildApiUrl('/api/rentalRequests'), config);
 
                 console.log(response.data);                
                 if(response.data && response.data.rentalRequests){
