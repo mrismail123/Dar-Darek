@@ -56,7 +56,7 @@ function App() {
         />
         <Route path="/properties" element={<PropertiesPage />} />
         <Route path="/publish" element={<Publish />} />
-        <Route path="/property-details" element={<PropertyDetails />} />
+        <Route path="/property-details/:id" element={<PropertyDetails />} />
         <Route path="/Create-New-Property" element={<ProtectedRoute />} />
         <Route
           path="/Authentication/forgot-password"

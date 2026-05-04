@@ -568,6 +568,91 @@ app.get("/api/houses", async (req, res) => {
   }
 });
 
+app.get("/api/houses/:id", async (req, res) => {
+  try {
+    const propertyId = Number(req.params.id);
+
+    if (!propertyId) {
+      return res.status(400).json({
+        message: "Invalid property id.",
+      });
+    }
+
+    const [properties] = await db.query(
+      `
+      SELECT 
+        p.id_property,
+        p.title,
+        p.description,
+        p.host_description,
+        p.neighborhood_description,
+        p.address,
+        p.neighborhood,
+        p.postal_code,
+        p.access_instructions,
+        p.latitude,
+        p.longitude,
+        p.property_type,
+        p.price_per_day,
+        p.guests_total,
+        p.bedrooms,
+        p.bathrooms,
+        p.beds,
+        p.check_in,
+        p.check_out,
+        p.available_from,
+        p.available_to,
+        p.status,
+        c.name AS city
+      FROM properties p
+      LEFT JOIN cities c ON p.id_city = c.id_city
+      WHERE p.id_property = ?
+      LIMIT 1
+      `,
+      [propertyId],
+    );
+
+    if (properties.length === 0) {
+      return res.status(404).json({
+        message: "Property not found.",
+      });
+    }
+
+    const property = properties[0];
+
+    const [images] = await db.query(
+      `
+      SELECT image_url, is_main
+      FROM property_images
+      WHERE id_property = ?
+      ORDER BY is_main DESC, id_image ASC
+      `,
+      [propertyId],
+    );
+
+    const [amenities] = await db.query(
+      `
+      SELECT a.name
+      FROM property_amenities pa
+      JOIN amenities a ON pa.id_amenity = a.id_amenity
+      WHERE pa.id_property = ?
+      `,
+      [propertyId],
+    );
+
+    property.images = images.map((image) => image.image_url);
+    property.main_image = property.images[0] || null;
+    property.amenities = amenities.map((amenity) => amenity.name);
+
+    return res.json(property);
+  } catch (error) {
+    console.error("Error fetching property details:", error);
+    return res.status(500).json({
+      message: "A server error occurred while fetching property details.",
+    });
+  }
+});
+
 app.get("/api/cities", async (req, res) => {
   try {
     const [cities] = await db.query(
