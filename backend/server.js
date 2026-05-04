@@ -758,6 +758,7 @@ app.post("/api/propertiesBasedOnParams", async (req, res) => {
     checkOut,
     guests,
     page = 1,
+    limit: requestedLimit,
     minPrice,
     maxPrice,
     propertyType,
@@ -765,7 +766,7 @@ app.post("/api/propertiesBasedOnParams", async (req, res) => {
     sortBy,
   } = req.body;
 
-  const limit = 9;
+  const limit = Math.max(1, Math.min(Number(requestedLimit) || 9, 24));
   const offset = (Number(page) - 1) * limit;
 
   try {
@@ -1080,10 +1081,10 @@ app.post("/api/houses", upload.array("images", 12), async (req, res) => {
 ========================= */
 
 app.get("/api/pendingProperties", async (req, res) => {
-  try {
-    const [result] = await db.query(`
-      SELECT 
-        p.*, 
+    try {
+      const [result] = await db.query(`
+        SELECT 
+          p.*, 
         c.name AS city_name, 
         users.name AS host_name,
         users.email AS host_email,
@@ -1097,20 +1098,43 @@ app.get("/api/pendingProperties", async (req, res) => {
       FROM properties p
       JOIN cities c ON c.id_city = p.id_city
       LEFT JOIN users ON users.id_user = p.id_user
-      WHERE p.status = 'pending'
-    `);
+        WHERE p.status = 'pending'
+      `);
 
-    if (result.length === 0) {
-      return res.status(404).json({ message: "No pending properties found" });
+      const [statusCounts] = await db.query(`
+        SELECT status, COUNT(*) AS total
+        FROM properties
+        GROUP BY status
+      `);
+
+      const summary = statusCounts.reduce(
+        (acc, row) => {
+          const safeStatus = String(row.status || "").toLowerCase();
+          const total = Number(row.total) || 0;
+
+          acc.all += total;
+
+          if (safeStatus === "approved") {
+            acc.approved += total;
+          } else if (safeStatus === "rejected") {
+            acc.rejected += total;
+          } else if (safeStatus === "pending") {
+            acc.pending += total;
+          }
+
+          return acc;
+        },
+        { all: 0, pending: 0, approved: 0, rejected: 0 },
+      );
+  
+      res.status(200).json({
+        pendingProperties: result,
+        summary,
+      });
+    } catch (error) {
+      res.status(500).json({ details: error.message });
     }
-
-    res.status(200).json({
-      pendingProperties: result,
-    });
-  } catch (error) {
-    res.status(500).json({ details: error.message });
-  }
-});
+  });
 
 app.post("/api/admin/approve/:id", async (req, res) => {
   try {

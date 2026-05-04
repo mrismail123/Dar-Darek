@@ -56,30 +56,26 @@ export default function Landing() {
     }
     return (
         <Container className='landing' sx={{
-            padding: "40px",
+            padding: { xs: "28px 18px", sm: "34px 28px", md: "40px" },
             display: "flex",
             alignItems: "flex-start",
             flexDirection: "column",
-            gap: "50px",
+            gap: { xs: "28px", md: "50px" },
         }}>
-            <div style={{ maxWidth: "100%", width: "50%" }} className='titling'>
+            <div className='titling landing__titling'>
                 <p className='landingEyebrow'>Welcome to Dar Darek</p>
-                <h1 style={{ fontSize: "3.7rem", fontWeight: "bold" }} className='font-luxury titleLanding'>Feel at home</h1>
+                <h1 style={{ fontWeight: "bold" }} className='font-luxury titleLanding'>Feel at home</h1>
                 <p style={{ color: themeGlobal.colors.gray }} className='landingLead'>Find your place in northern Morocco with stays that feel local, warm, and easy to trust.</p>
             </div>
             <div style={{ background: themeGlobal.colors.background }} className="searchBar">
-                <form style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center"
-                }} onSubmit={handleBrowseFormSubmit} className='browseForm' action="">
+                <form onSubmit={handleBrowseFormSubmit} className='browseForm' action="">
                     <Location />
                     <Calendar />
                     <Guests />
-                    <Button type='submit' sx={{ padding: "10px", background: themeGlobal.colors.primary, color: "white" }} variant='filled'>Browse stays</Button>
+                    <Button type='submit' className='browseForm__submit' sx={{padding: "10px", background: themeGlobal.colors.primary, color: "white" }} variant='filled'>Browse stays</Button>
                 </form>
             </div>
-            <div className="about">
+            <div className="about landing__about">
                 <div>
                     <VerifiedUserOutlinedIcon sx={{ color: themeGlobal.colors.lineSeparetor }} />
                     <div>

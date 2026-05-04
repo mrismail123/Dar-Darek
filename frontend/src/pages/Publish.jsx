@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./Publish.css";
+import SuccessAlert from "../SuccessAlert";
+import { useLocation, useNavigate } from "react-router-dom";
+
 
 import logoImage from "../assets/dardarek-logo.png";
 import {
@@ -347,6 +350,11 @@ function LocationMapView({ position }) {
 }
 
 export default function Publish() {
+  // a state for a success alert
+  const [showSuccess, setShowSuccess] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cities, setCities] = useState([]);
@@ -691,6 +699,16 @@ export default function Publish() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+
+    const currentToken = localStorage.getItem("token");
+
+    if (!currentToken) {
+      alert("Please sign in first...");
+
+      navigate("/Authentication", { state: { from: location.pathname } });
+      return;
+    }
+
     const newErrors = validateForm();
     setErrors(newErrors);
 
@@ -750,7 +768,8 @@ export default function Publish() {
       }
 
       const data = await response.json();
-      alert(data.message);
+      // alert(data.message);
+      setShowSuccess(true);
 
       imagePreviews.forEach((url) => URL.revokeObjectURL(url));
       setImagePreviews([]);
@@ -765,6 +784,10 @@ export default function Publish() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleGoBack = () => {
+    navigate('/', {replace:true});
   };
 
   useEffect(() => {
@@ -794,11 +817,22 @@ export default function Publish() {
   const mapPosition = [formData.latitude, formData.longitude];
 
   return (
-    <div className="pub-page">
-      <header className="pub-hero">
-        <div className="pub-hero__container">
-          <div className="pub-hero__content">
-            <span className="pub-hero__eyebrow">Dar Darek Host Area</span>
+
+      <>
+          <div className="pub-page">
+        <header className="pub-hero">
+          <div className="pub-hero__container">
+            <div className="pub-hero__content">
+              <button
+                type="button"
+                className="pub-back-btn"
+                onClick={handleGoBack}
+              >
+                <span aria-hidden="true">←</span>
+                Back
+              </button>
+
+              <span className="pub-hero__eyebrow">Dar Darek Host Area</span>
 
             <h1 className="pub-hero__title">
               Create a truly unique <br />
@@ -814,12 +848,12 @@ export default function Publish() {
 
           <div className="pub-hero__visual">
             <div className="pub-hero__brand">
-              <img
+              {/* <img
                 src={logoImage}
                 alt="Dar Darek logo"
                 className="pub-hero__logo-image"
-              />
-              <h2 className="pub-hero__brand-name">Dar Darek</h2>
+              /> */}
+              {/* <h2 className="pub-hero__brand-name">Dar Darek</h2> */}
             </div>
           </div>
         </div>
@@ -1578,5 +1612,16 @@ export default function Publish() {
         </form>
       </main>
     </div>
+    {
+      showSuccess && (
+        <SuccessAlert
+          message="Property listed successfully!" 
+          subMessage="Your listing has been submitted successfully and is now awaiting approval."
+          onClose={() => setShowSuccess(false)}
+        />
+      )
+    }
+    </>
+
   );
 }

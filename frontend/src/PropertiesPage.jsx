@@ -9,7 +9,7 @@ import { useSearchParams } from 'react-router-dom';
 
 import FilterBar from './FilterBar';
 import Footer from './Footer';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import React from 'react';
 import axios from 'axios';
 
@@ -32,6 +32,8 @@ const BaseUrl = "http://localhost:5000";
 export default function PropertiesPage() {
 
     const themeGlobal = useThemeGlobal();
+    const propertiesSectionRef = useRef(null);
+    const propertiesGridRef = useRef(null);
     // params
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -44,6 +46,7 @@ export default function PropertiesPage() {
     // page number and total pages
     const [currentPage, setCurrentPage] = useState(Number(searchParams.get("page")) || 1);
     const [totalPages, setTotalPages] = useState(0);
+    const [pageSize, setPageSize] = useState(9);
 
     // city name & description
     const [cityName, setCityName] = useState(null);
@@ -71,6 +74,49 @@ export default function PropertiesPage() {
         }
         cityNameAndDescripion();
     }, [])
+
+    useEffect(() => {
+        const pageFromParams = Number(searchParams.get("page")) || 1;
+        setCurrentPage(pageFromParams);
+    }, [searchParams]);
+
+    useEffect(() => {
+        const updatePageSize = () => {
+            if (!propertiesGridRef.current) {
+                return;
+            }
+
+            const gridWidth = propertiesGridRef.current.offsetWidth;
+            const minCardWidth = 200;
+            const columnGap = 16;
+            const estimatedColumns = Math.max(
+                1,
+                Math.floor((gridWidth + columnGap) / (minCardWidth + columnGap))
+            );
+            const nextPageSize = estimatedColumns * 3;
+
+            setPageSize((currentPageSize) =>
+                currentPageSize === nextPageSize ? currentPageSize : nextPageSize
+            );
+        };
+
+        updatePageSize();
+
+        const resizeObserver = new ResizeObserver(() => {
+            updatePageSize();
+        });
+
+        if (propertiesGridRef.current) {
+            resizeObserver.observe(propertiesGridRef.current);
+        }
+
+        window.addEventListener("resize", updatePageSize);
+
+        return () => {
+            resizeObserver.disconnect();
+            window.removeEventListener("resize", updatePageSize);
+        };
+    }, []);
 
 
     useEffect(() => {
@@ -117,14 +163,22 @@ export default function PropertiesPage() {
                 }
                 // add current page
                 payload.page = currentPage;
+                payload.limit = pageSize;
 
 
                 console.log(payload);
 
                 const response = await axios.post("http://localhost:5000/api/propertiesBasedOnParams", payload);
                 // localStorage.setItem('properties', JSON.stringify(response.data.properties))
+                const nextTotalPages = response.data.totalPages;
+
+                if (nextTotalPages > 0 && currentPage > nextTotalPages) {
+                    handlePageChange(nextTotalPages);
+                    return;
+                }
+
                 setProperties(response.data.properties);
-                setTotalPages(response.data.totalPages);
+                setTotalPages(nextTotalPages);
 
             } catch (error) {
                 console.error("Error occured", error);
@@ -136,7 +190,7 @@ export default function PropertiesPage() {
 
         fetchProperties();
 
-    }, [searchParams, currentPage]);
+    }, [searchParams, currentPage, pageSize]);
 
 
     const handleFilterOptions = (newFilters) => {
@@ -161,36 +215,101 @@ export default function PropertiesPage() {
             newParams.set("bedrooms", newFilters.bedrooms);
         }
         newParams.set("sortBy", newFilters.sortBy);
+        newParams.set("page", "1");
+        setCurrentPage(1);
         setSearchParams(newParams);
     }
 
+    const handlePageChange = (pageNumber) => {
+        if (pageNumber < 1 || pageNumber > totalPages || pageNumber === currentPage) {
+            return;
+        }
+
+        setCurrentPage(pageNumber);
+        const newParams = new URLSearchParams(searchParams);
+        newParams.set("page", pageNumber.toString());
+        setSearchParams(newParams);
+
+        propertiesSectionRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    };
+
+    const buildPaginationItems = () => {
+        if (totalPages <= 1) {
+            return [];
+        }
+
+        const items = [];
+        const siblingCount = 1;
+
+        items.push(1);
+
+        const leftSibling = Math.max(2, currentPage - siblingCount);
+        const rightSibling = Math.min(totalPages - 1, currentPage + siblingCount);
+
+        if (leftSibling > 2) {
+            items.push("start-ellipsis");
+        }
+
+        for (let page = leftSibling; page <= rightSibling; page++) {
+            items.push(page);
+        }
+
+        if (rightSibling < totalPages - 1) {
+            items.push("end-ellipsis");
+        }
+
+        if (totalPages > 1) {
+            items.push(totalPages);
+        }
+
+        return items;
+    };
 
     const paginationButtons = () => {
-        let pages = [];
-        for (let i = 1; i <= totalPages; i++) {
-            pages.push(
+        const pageItems = buildPaginationItems();
+
+        return (
+            <div className="pagination-container">
                 <Button
-                    style={{
-                        background: themeGlobal.colors.primary,
-                        color: "white",
-                        // padding: "0",
-                        padding: "6px",
-                        marginRight: "10px"
-                    }}
-                    key={i}
-                    onClick={() => {
-                        setCurrentPage(i);
-                        const newParams = new URLSearchParams(searchParams);
-                        newParams.set("page", i);
-                        setSearchParams(newParams);
-                    }}
-                    className={currentPage === i ? "active-page" : ""}
+                    className="pagination-button pagination-arrow"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
                 >
-                    {i}
+                    Prev
                 </Button>
-            );
-        }
-        return <div className="pagination-container">{pages}</div>;
+
+                {pageItems.map((item, index) => {
+                    if (typeof item !== "number") {
+                        return (
+                            <span key={`${item}-${index}`} className="pagination-ellipsis">
+                                ...
+                            </span>
+                        );
+                    }
+
+                    return (
+                        <Button
+                            key={item}
+                            onClick={() => handlePageChange(item)}
+                            className={`pagination-button ${currentPage === item ? "active-page" : ""}`}
+                        >
+                            {item}
+                        </Button>
+                    );
+                })}
+
+                <Button
+                    className="pagination-button pagination-arrow"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                >
+                    Next
+                </Button>
+            </div>
+        );
     };
 
     const propertiesSlide = properties?.map((property) => {
@@ -314,14 +433,14 @@ export default function PropertiesPage() {
             </div>
             <div style={{ background: themeGlobal.colors.white }}>
                 <div className="showProperties">
-                    <div className='propertiesAndFilter'>
+                    <div className='propertiesAndFilter' ref={propertiesSectionRef}>
                         <FilterBar onFilterApply={handleFilterOptions} />
                         {isLoading ? (
                             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px', width: '100%' }}>
                                 <CircularProgress sx={{ color: themeGlobal.colors.primary }} />
                             </div>
                         ) : (
-                            <div className='properties'>
+                            <div className='properties' ref={propertiesGridRef}>
                                 {propertiesSlide?.length > 0 ? propertiesSlide : (
                                     <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '50px', color: '#6B7280' }}>
                                         <h3>No properties found matching your filters.</h3>

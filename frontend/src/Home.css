@@ -57,6 +57,17 @@ div.landing > * {
 
 div.landing .titleLanding {
     color: rgb(3, 38, 95);
+    font-size: clamp(2.5rem, 6vw, 3.7rem);
+    line-height: 1.05;
+}
+
+.landing__titling {
+    width: min(100%, 640px);
+}
+
+.landingLead {
+    max-width: 60ch;
+    line-height: 1.7;
 }
 
 
@@ -65,6 +76,8 @@ div.landing .titleLanding {
     border-radius: 10px;
     padding: 10px;
     background-color: white !important;
+    width: min(100%, 1080px);
+    box-shadow: 0 18px 34px rgba(21, 39, 67, 0.08);
 }
 
 
@@ -73,7 +86,7 @@ div.landing .titleLanding {
     justify-content: center;
     align-items: center;
     gap: 10px;
-    margin-right: 25px;
+    margin-right: 0;
 }
 
 .asjustmentFlexing p {
@@ -240,6 +253,12 @@ div.aboutSection {
 }
 
 @media (max-width:750px){
+    div.landing {
+        min-height: auto;
+        margin: 18px auto;
+        border-radius: 16px;
+    }
+
     div.aboutSection {
         flex-direction: column;
         gap: 20px;
@@ -253,6 +272,10 @@ div.aboutSection {
         display: flex;
         justify-content: center;
         align-itemskll: center;
+    }
+
+    .landing__about {
+        width: 100%;
     }
 }
 
@@ -422,6 +445,112 @@ div.aboutSection .picture img {
 
 .browseForm * p {
     text-align: start;
+}
+
+.browseForm {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.browseForm .landingField,
+.browseForm .locationField {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    transition: background-color 0.2s ease;
+}
+
+.browseForm .landingField:hover,
+.browseForm .locationField:hover {
+    background-color: rgba(247, 244, 235, 0.9);
+}
+
+.browseForm .landingField > div,
+.browseForm .locationField > div {
+    min-width: 0;
+}
+
+.browseForm .landingField p,
+.browseForm .locationField p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.browseForm__submit {
+    flex: 0 0 auto;
+    min-width: 150px;
+    height: 48px;
+    border-radius: 10px !important;
+    white-space: nowrap;
+}
+
+.landing__about {
+    width: min(100%, 980px);
+    justify-content: space-between;
+    align-items: stretch;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.landing__about > div {
+    flex: 1 1 220px;
+    min-width: 0;
+    align-items: flex-start;
+    padding: 12px 0;
+}
+
+@media (max-width: 1024px) {
+    .browseForm {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .browseForm .landingField,
+    .browseForm .locationField {
+        flex: 1 1 calc(50% - 6px);
+    }
+
+    .browseForm__submit {
+        width: 100%;
+    }
+}
+
+@media (max-width: 640px) {
+    .searchBar {
+        padding: 12px;
+    }
+
+    .browseForm {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .browseForm .landingField,
+    .browseForm .locationField {
+        width: 100%;
+        flex: 1 1 100%;
+        justify-content: flex-start;
+        padding: 12px 10px;
+    }
+
+    .browseForm__submit {
+        min-width: 0;
+    }
+
+    .locationDropdown {
+        left: 0;
+        width: min(100%, 340px);
+        transform-origin: top left;
+    }
+
+    .guestsDropdown {
+        right: auto !important;
+        left: 0 !important;
+    }
 }
 
 

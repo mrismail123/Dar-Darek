@@ -24,6 +24,10 @@ import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import CloseIcon from '@mui/icons-material/Close';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
+import AccessTimeOutlinedIcon from '@mui/icons-material/AccessTimeOutlined';
+import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import BedIcon from '@mui/icons-material/Bed';
 import BathtubIcon from '@mui/icons-material/Bathtub';
 import PeopleIcon from '@mui/icons-material/People';
@@ -34,9 +38,66 @@ import axios from 'axios';
 
 const BASE_URL = 'http://localhost:5000';
 
+const normalizeImageUrl = (path) => {
+    if (!path || typeof path !== 'string') return '';
+
+    const clean = path.replace(/\\/g, '/').trim();
+    if (!clean) return '';
+
+    return clean.startsWith('http')
+        ? clean
+        : `${BASE_URL}${clean.startsWith('/') ? '' : '/'}${clean}`;
+};
+
+const normalizePropertyImages = (property) => {
+    const rawImages = [];
+
+    if (Array.isArray(property?.images)) {
+        rawImages.push(...property.images);
+    } else if (typeof property?.images === 'string' && property.images.trim()) {
+        try {
+            const parsedImages = JSON.parse(property.images);
+            if (Array.isArray(parsedImages)) {
+                rawImages.push(...parsedImages);
+            } else {
+                rawImages.push(property.images);
+            }
+        } catch {
+            rawImages.push(property.images);
+        }
+    }
+
+    if (Array.isArray(property?.property_images)) {
+        rawImages.push(...property.property_images);
+    }
+
+    if (property?.main_image) {
+        rawImages.unshift(property.main_image);
+    }
+
+    return [...new Set(
+        rawImages
+            .map((image) => {
+                if (typeof image === 'string') {
+                    return normalizeImageUrl(image);
+                }
+
+                return normalizeImageUrl(
+                    image?.image_url || image?.url || image?.path || image?.src || ''
+                );
+            })
+            .filter(Boolean)
+    )];
+};
+
 // --- Image Gallery inside the modal ---
 function ImageGallery({ images }) {
     const [current, setCurrent] = useState(0);
+
+    useEffect(() => {
+        setCurrent(0);
+    }, [images]);
+
     if (!images || images.length === 0) {
         return (
             <Box sx={{
@@ -49,12 +110,6 @@ function ImageGallery({ images }) {
         );
     }
 
-    const normalizeUrl = (path) => {
-        if (!path) return '';
-        const clean = path.replace(/\\/g, '/');
-        return clean.startsWith('http') ? clean : `${BASE_URL}${clean.startsWith('/') ? '' : '/'}${clean}`;
-    };
-
     const prev = () => setCurrent((c) => (c - 1 + images.length) % images.length);
     const next = () => setCurrent((c) => (c + 1) % images.length);
 
@@ -63,7 +118,7 @@ function ImageGallery({ images }) {
             {/* Main large image */}
             <Box sx={{ position: 'relative', width: '100%', height: 340, backgroundColor: '#0f172a', overflow: 'hidden' }}>
                 <img
-                    src={normalizeUrl(images[current])}
+                    src={images[current]}
                     alt={`Photo ${current + 1}`}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.95 }}
                     onError={(e) => { e.target.style.opacity = 0; }}
@@ -120,7 +175,7 @@ function ImageGallery({ images }) {
                             }}
                         >
                             <img
-                                src={normalizeUrl(img)}
+                                src={img}
                                 alt={`thumb-${i}`}
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             />
@@ -138,6 +193,12 @@ export default function PendingPropertiesTable() {
 
     // Table data state
     const [pendingPropertiesFromServer, setPendingPropertiesFromServer] = useState([]);
+    const [propertySummary, setPropertySummary] = useState({
+        all: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+    });
 
     // Modal state
     const [modalOpen, setModalOpen] = useState(false);
@@ -151,6 +212,12 @@ export default function PendingPropertiesTable() {
                 const response = await axios.get(`${BASE_URL}/api/pendingProperties`);
                 const fetchedProperties = response.data.pendingProperties;
                 setPendingPropertiesFromServer(fetchedProperties);
+                setPropertySummary(response.data.summary || {
+                    all: fetchedProperties.length,
+                    pending: fetchedProperties.length,
+                    approved: 0,
+                    rejected: 0,
+                });
                 localStorage.setItem('howManyPending', JSON.stringify(fetchedProperties.length));
             } catch (error) {
                 if (error.response) {
@@ -169,12 +236,22 @@ export default function PendingPropertiesTable() {
         setModalLoading(true);
         setModalData(null);
         try {
-            const response = await axios.get(`${BASE_URL}/api/properties/${property.id_property}`);
+            const response = await axios.get(`${BASE_URL}/api/houses/${property.id_property}`);
             // Merge the host_email from the table row since /api/properties/:id doesn't return it separately
-            setModalData({ ...response.data.property, host_email: property.host_email });
+            const normalizedProperty = response.data?.property || {};
+
+            setModalData({
+                ...normalizedProperty,
+                ...property,
+                host_email: property.host_email,
+                images: normalizePropertyImages(normalizedProperty),
+            });
         } catch {
             // Fallback: use the table row data (no full images)
-            setModalData({ ...property, images: property.main_image ? [property.main_image] : [] });
+            setModalData({
+                ...property,
+                images: normalizePropertyImages(property),
+            });
         } finally {
             setModalLoading(false);
         }
@@ -192,6 +269,11 @@ export default function PendingPropertiesTable() {
             // Remove from state
             const updatedProperties = pendingPropertiesFromServer.filter(p => p.id_property !== id);
             setPendingPropertiesFromServer(updatedProperties);
+            setPropertySummary((currentSummary) => ({
+                ...currentSummary,
+                pending: Math.max(0, currentSummary.pending - 1),
+                approved: currentSummary.approved + 1,
+            }));
             localStorage.setItem('howManyPending', JSON.stringify(updatedProperties.length));
             // Trigger a storage event to update AdminDashboard badge immediately
             window.dispatchEvent(new Event('storage'));
@@ -208,6 +290,11 @@ export default function PendingPropertiesTable() {
             // Remove from state
             const updatedProperties = pendingPropertiesFromServer.filter(p => p.id_property !== id);
             setPendingPropertiesFromServer(updatedProperties);
+            setPropertySummary((currentSummary) => ({
+                ...currentSummary,
+                pending: Math.max(0, currentSummary.pending - 1),
+                rejected: currentSummary.rejected + 1,
+            }));
             localStorage.setItem('howManyPending', JSON.stringify(updatedProperties.length));
             // Trigger a storage event to update AdminDashboard badge immediately
             window.dispatchEvent(new Event('storage'));
@@ -217,8 +304,107 @@ export default function PendingPropertiesTable() {
         }
     };
 
+    console.log(modalData);
+
+    const summaryCards = [
+        {
+            label: 'All Properties',
+            value: propertySummary.all,
+            icon: <InboxOutlinedIcon sx={{ color: '#11acc8', fontSize: '1.15rem' }} />,
+            iconBg: 'rgba(17, 172, 200, 0.09)',
+            valueColor: '#11acc8',
+        },
+        {
+            label: 'Pending',
+            value: propertySummary.pending,
+            icon: <AccessTimeOutlinedIcon sx={{ color: '#f59e0b', fontSize: '1.15rem' }} />,
+            iconBg: 'rgba(245, 158, 11, 0.1)',
+            valueColor: '#f59e0b',
+        },
+        {
+            label: 'Accepted',
+            value: propertySummary.approved,
+            icon: <CheckCircleOutlineOutlinedIcon sx={{ color: '#5aa65a', fontSize: '1.15rem' }} />,
+            iconBg: 'rgba(90, 166, 90, 0.11)',
+            valueColor: '#5aa65a',
+        },
+        {
+            label: 'Rejected',
+            value: propertySummary.rejected,
+            icon: <CancelOutlinedIcon sx={{ color: '#ef4444', fontSize: '1.15rem' }} />,
+            iconBg: 'rgba(239, 68, 68, 0.09)',
+            valueColor: '#ef4444',
+        },
+    ];
+
     return (
         <>
+            <Box
+                sx={{
+                    display: 'grid',
+                    gridTemplateColumns: {
+                        xs: '1fr',
+                        sm: 'repeat(2, minmax(0, 1fr))',
+                        xl: 'repeat(4, minmax(0, 1fr))',
+                    },
+                    gap: 2,
+                    mb: 3,
+                }}
+            >
+                {summaryCards.map((card) => (
+                    <Box
+                        key={card.label}
+                        sx={{
+                            backgroundColor: '#ffffff',
+                            borderRadius: '16px',
+                            border: '1px solid rgba(226,232,240,0.85)',
+                            boxShadow: '0 10px 24px rgba(148, 163, 184, 0.08)',
+                            padding: '16px 18px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1.6,
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: card.iconBg,
+                                flexShrink: 0,
+                            }}
+                        >
+                            {card.icon}
+                        </Box>
+                        <Box>
+                            <Typography
+                                sx={{
+                                    color: card.valueColor,
+                                    fontSize: '1.7rem',
+                                    fontWeight: 700,
+                                    lineHeight: 1,
+                                    mb: 0.45,
+                                }}
+                            >
+                                {card.value}
+                            </Typography>
+                            <Typography
+                                sx={{
+                                    color: '#344054',
+                                    fontSize: '0.82rem',
+                                    lineHeight: 1.35,
+                                }}
+                            >
+                                {card.label}
+                            </Typography>
+                        </Box>
+                    </Box>
+                ))}
+            </Box>
+
             {/* ---- TABLE ---- */}
             <TableContainer
                 component={Paper}
@@ -279,7 +465,7 @@ export default function PendingPropertiesTable() {
                                             >
                                                 {property.main_image ? (
                                                     <img
-                                                        src={`${BASE_URL}${property.main_image}`}
+                                                        src={normalizeImageUrl(property.main_image)}
                                                         alt={property.title}
                                                         style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                                                     />
@@ -459,12 +645,36 @@ export default function PendingPropertiesTable() {
                                     ))}
                                 </Box>
 
+                                {/* Address */}
+                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', mb: 1 }}>
+                                    Address
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: '#475569', lineHeight: 1.75, mb: 3 }}>
+                                    {modalData.address || 'No address provided by the host.'}
+                                </Typography>
+
                                 {/* Description */}
                                 <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', mb: 1 }}>
                                     Description
                                 </Typography>
                                 <Typography variant="body2" sx={{ color: '#475569', lineHeight: 1.75, mb: 3 }}>
                                     {modalData.description || 'No description provided by the host.'}
+                                </Typography>
+
+                                {/* Access details */}
+                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', mb: 1 }}>
+                                    Acess Details
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: '#475569', lineHeight: 1.75, mb: 3 }}>
+                                    {modalData.access_instructions || 'No access instructions provided by the host.'}
+                                </Typography>
+
+                                {/* neighborhood details */}
+                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', mb: 1 }}>
+                                    Neighborhood Details
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: '#475569', lineHeight: 1.75, mb: 3 }}>
+                                    {modalData.neighborhood_description || 'No neighborhood information provided by the host.'}
                                 </Typography>
 
                                 {/* Amenities */}

@@ -6,9 +6,10 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 import chaouenImage from "../assets/chaouen-bg.jpg";
-import tetouanImage from "../assets/tetouan-hero.webp";
+import tetouanImage from "../assets/tetouan-hero.jpg";
 import Header from "../Home components/Header";
 import Footer from "../Footer";
+import { useThemeGlobal } from "../Contexts/ThemeContext";
 
 const mockProperty = {
   brand: "Dar Darek",
@@ -865,7 +866,7 @@ function BookingCard({ property, dates, guests, onDateChange, onGuestChange }) {
       id_property: id,
       checkIn: dates.checkIn,
       checkOut: dates.checkOut,
-      total_price: total,
+      total_price: nightsTotal,
       id_user: localStorage.getItem("user")
         ? JSON.parse(localStorage.getItem("user")).id
         : null,
@@ -884,7 +885,7 @@ function BookingCard({ property, dates, guests, onDateChange, onGuestChange }) {
       };
 
       const response = await axios.post(
-        `${BASE_URL}/api/bookingProperty`,
+        `http://localhost:5000/api/bookingProperty`,
         reservationData,
         config,
       );
@@ -991,11 +992,12 @@ function BookingCard({ property, dates, guests, onDateChange, onGuestChange }) {
         </div>
 
         <button
-          type="button"
+          // type="button"
           className="pd-primary-btn"
-          disabled={!isBookingValid}
+          onClick={handleReserveFunction}
+          // disabled={!isBookingValid}
         >
-          {!isBookingValid ? "Select valid dates" : "Reserve"}
+          Reserve
         </button>
 
         <div className="pd-booking__total">
@@ -1622,6 +1624,9 @@ function AboutPlaceSection({ property, dates }) {
 }
 
 export default function PropertyDetails() {
+
+  // theme 
+  const themeGlobal = useThemeGlobal();
   const { id } = useParams();
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1634,6 +1639,8 @@ export default function PropertyDetails() {
   const displayProperty = normalizeProperty(property);
   const displayHostName = getHostName(displayProperty.host);
   const displayHostSubline = getHostSubline(displayProperty.host);
+
+
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1735,10 +1742,11 @@ export default function PropertyDetails() {
   }
 
   return (
-    <main className="pd-page">
-      <Header />
+    <>
+    <Header />
+    <main style={{background:themeGlobal.colors.white}} className="pd-page">
 
-      <section className="pd-section pd-title-card">
+      <section style={{border:"none" , boxShadow:"none" , padding:"0"}} className="pd-section pd-title-card">
         <h1>{displayProperty.title}</h1>
         <p className="pd-title-card__location">
           {displayProperty.neighborhood}, {displayProperty.city}
@@ -1840,8 +1848,9 @@ export default function PropertyDetails() {
 
       <AboutPlaceSection property={displayProperty} dates={dates} />
 
-      <Footer />
     </main>
+    <Footer />
+    </>
   );
 }
 

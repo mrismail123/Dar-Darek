@@ -61,7 +61,7 @@ export default function Calndar() {
     return (
         <div
             ref={dropdownRef}
-            className='asjustmentFlexing'
+            className='asjustmentFlexing landingField landingField--calendar'
             style={{ position: 'relative' }}
         >
             {/* Check-in Trigger */}
@@ -102,6 +102,7 @@ export default function Calndar() {
 
             {/* Dropdown Picker Panel with Animations */}
             <div
+                className='calendarDropdown'
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     position: 'absolute',
@@ -119,7 +120,8 @@ export default function Calndar() {
                     transition: 'opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.3s',
                     border: '1px solid #ebebeb',
                     cursor: 'default',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    width: 'min(92vw, 380px)'
                 }}
             >
                 {/* The global CSS might reset some styles, but DateRange should bring its own */}

@@ -1,6 +1,12 @@
 import { useState , useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+    AccessTimeOutlined,
+    CheckCircleOutlineOutlined,
+    InboxOutlined,
+    CancelOutlined,
+} from "@mui/icons-material";
+import {
     Box,
     Button,
     Chip,
@@ -92,6 +98,7 @@ export default function RentalRequests() {
                 console.log(response.data);                
                 if(response.data && response.data.rentalRequests){
                     setRequests(response.data.rentalRequests);
+                    console.log(requests);
                 }
 
                 // setRequests(response.data.rentalRequests);
@@ -159,6 +166,56 @@ export default function RentalRequests() {
         };
     };
 
+    const requestStats = requests.reduce(
+        (totals, request) => {
+            const safeStatus = String(request.status || "").toLowerCase();
+
+            totals.all += 1;
+
+            if (safeStatus === "approved" || safeStatus === "accepted" || safeStatus === "confirmed") {
+                totals.accepted += 1;
+            } else if (safeStatus === "rejected" || safeStatus === "cancelled") {
+                totals.rejected += 1;
+            } else {
+                totals.pending += 1;
+            }
+
+            return totals;
+        },
+        { all: 0, pending: 0, accepted: 0, rejected: 0 }
+    );
+
+    const statsCards = [
+        {
+            label: "All Requests",
+            value: requestStats.all,
+            icon: <InboxOutlined sx={{ color: "#11acc8", fontSize: "1.15rem" }} />,
+            iconBg: "rgba(17, 172, 200, 0.09)",
+            valueColor: "#11acc8",
+        },
+        {
+            label: "Pending",
+            value: requestStats.pending,
+            icon: <AccessTimeOutlined sx={{ color: "#f59e0b", fontSize: "1.15rem" }} />,
+            iconBg: "rgba(245, 158, 11, 0.1)",
+            valueColor: "#f59e0b",
+        },
+        {
+            label: "Accepted",
+            value: requestStats.accepted,
+            icon: <CheckCircleOutlineOutlined sx={{ color: "#5aa65a", fontSize: "1.15rem" }} />,
+            iconBg: "rgba(90, 166, 90, 0.11)",
+            valueColor: "#5aa65a",
+        },
+        {
+            label: "Rejected",
+            value: requestStats.rejected,
+            icon: <CancelOutlined sx={{ color: "#ef4444", fontSize: "1.15rem" }} />,
+            iconBg: "rgba(239, 68, 68, 0.09)",
+            valueColor: "#ef4444",
+        },
+    ];
+
     return (
         <>
             <Header />
@@ -166,7 +223,7 @@ export default function RentalRequests() {
             <Box
                 sx={{
                     minHeight: "calc(100vh - 66px)",
-                    background: themeGlobal.colors.background,
+                    background: themeGlobal.colors.white,
                     padding: { xs: "24px 14px 42px", md: "34px 28px 54px" },
                 }}
             >
@@ -195,65 +252,96 @@ export default function RentalRequests() {
                     >
                         Back
                     </Button>
-
-                    <Paper
-                        elevation={0}
-                        sx={{
-                            borderRadius: "24px",
-                            padding: { xs: 2.25, md: 3.5 },
-                            background:
-                                "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(255,253,248,0.98) 100%)",
-                            border: "1px solid rgba(211, 197, 169, 0.42)",
-                            boxShadow: "0 16px 40px rgba(73, 55, 28, 0.08)",
-                        }}
-                    >
-                        <Box
+                    <Box sx={{marginBottom:"20px"}}>
+                        <Typography
+                            className="font-luxury"
                             sx={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: { xs: "flex-start", md: "center" },
-                                flexDirection: { xs: "column", md: "row" },
-                                gap: 1.5,
-                                mb: 3,
+                                color: "#1f2937",
+                                fontSize: { xs: "2rem", md: "2.45rem" },
+                                lineHeight: 1.08,
+                                mb: 1,
                             }}
                         >
-                            <Box>
-                                <Typography
-                                    className="font-luxury"
-                                    sx={{
-                                        color: "#1f2937",
-                                        fontSize: { xs: "2rem", md: "2.45rem" },
-                                        lineHeight: 1.08,
-                                        mb: 1,
-                                    }}
-                                >
-                                    Rental requests
-                                </Typography>
-                                <Typography
-                                    sx={{
-                                        color: "#667085",
-                                        maxWidth: "640px",
-                                        lineHeight: 1.7,
-                                        fontSize: "0.96rem",
-                                    }}
-                                >
-                                    Review incoming stays, keep an eye on guest details,
-                                    and manage each booking request from one place.
-                                </Typography>
-                            </Box>
-
-                            <Chip
-                                label={`${requests.length} request${requests.length === 1 ? "" : "s"}`}
+                            Rental requests
+                        </Typography>
+                        <Typography
+                            sx={{
+                                color: "#667085",
+                                maxWidth: "640px",
+                                lineHeight: 1.7,
+                                fontSize: "0.96rem",
+                            }}
+                        >
+                            Review and respond to guest rental requests
+                            {/* Review incoming stays, keep an eye on guest details,
+                            and manage each booking request from one place. */}
+                        </Typography>
+                    </Box>
+                    <Box
+                        sx={{
+                            display: "grid",
+                            gridTemplateColumns: {
+                                xs: "1fr",
+                                sm: "repeat(2, minmax(0, 1fr))",
+                                lg: "repeat(4, minmax(0, 1fr))",
+                            },
+                            gap: 2,
+                            mb: 3,
+                        }}
+                    >
+                        {statsCards.map((card) => (
+                            <Box
+                                key={card.label}
                                 sx={{
-                                    height: "38px",
-                                    fontWeight: 700,
-                                    color: "#065f67",
-                                    backgroundColor: "rgba(0, 169, 181, 0.12)",
-                                    borderRadius: "999px",
+                                    backgroundColor: "#ffffff",
+                                    borderRadius: "16px",
+                                    border: "1px solid rgba(226,232,240,0.85)",
+                                    boxShadow: "0 10px 24px rgba(148, 163, 184, 0.08)",
+                                    padding: "16px 18px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 1.6,
                                 }}
-                            />
-                        </Box>
-
+                            >
+                                <Box
+                                    sx={{
+                                        width: 40,
+                                        height: 40,
+                                        borderRadius: "50%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        backgroundColor: card.iconBg,
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    {card.icon}
+                                </Box>
+                                <Box>
+                                    <Typography
+                                        sx={{
+                                            color: card.valueColor,
+                                            fontSize: "1.7rem",
+                                            fontWeight: 700,
+                                            lineHeight: 1,
+                                            mb: 0.45,
+                                        }}
+                                    >
+                                        {card.value}
+                                    </Typography>
+                                    <Typography
+                                        sx={{
+                                            color: "#344054",
+                                            fontSize: "0.82rem",
+                                            lineHeight: 1.35,
+                                        }}
+                                    >
+                                        {card.label}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        ))}
+                    </Box>
                         {requests.length === 0 ? (
                             <Box
                                 sx={{
@@ -626,7 +714,6 @@ export default function RentalRequests() {
                                 </Table>
                             </TableContainer>
                         )}
-                    </Paper>
                 </Box>
             </Box>
         </>
