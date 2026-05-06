@@ -1324,8 +1324,8 @@ function PreferenceDropdown({
     value === "" || value === null || value === undefined
       ? placeholder
       : typeof selectedOption === "string"
-      ? selectedOption
-      : getOptionLabel(selectedOption);
+        ? selectedOption
+        : getOptionLabel(selectedOption);
 
   return (
     <div
@@ -1444,7 +1444,9 @@ export default function AccountSettings() {
     name: rawUser.name || "",
     email: rawUser.email || "",
     phone: rawUser.phone_number || rawUser.phone || "",
-    dateOfBirth: normalizeAccountDate(rawUser.date_of_birth || rawUser.dateOfBirth),
+    dateOfBirth: normalizeAccountDate(
+      rawUser.date_of_birth || rawUser.dateOfBirth,
+    ),
     nationality: rawUser.nationality || "",
     languages: parseAccountLanguages(rawUser.languages),
     contactMethod: rawUser.preferred_contact || "Email",
@@ -1643,7 +1645,9 @@ export default function AccountSettings() {
 
     setAccountRole(accountUser.role || "user");
     setHasPassword(Boolean(accountUser.has_password));
-    setHosting({ hostMode: accountUser.role === "host" || accountUser.role === "admin" });
+    setHosting({
+      hostMode: accountUser.role === "host" || accountUser.role === "admin",
+    });
 
     const profilePictureUrl = normalizeProfilePictureUrl(
       accountUser.profile_picture,
@@ -1955,7 +1959,10 @@ export default function AccountSettings() {
               : "Profile detail updated.",
       );
     } catch (error) {
-      showToast(error.message || "Could not update account settings.", "warning");
+      showToast(
+        error.message || "Could not update account settings.",
+        "warning",
+      );
     }
   };
 
@@ -2364,1074 +2371,1118 @@ export default function AccountSettings() {
               </section>
             ) : (
               <>
-            {activeSection === "profile" && (
-              <section className="settings-section">
-                <div className="settings-section__head">
-                  <h3 className="settings-section-title">Profile</h3>
-                  <p className="settings-section-subtitle">
-                    The information guests and hosts use to know you.
-                  </p>
-                </div>
+                {activeSection === "profile" && (
+                  <section className="settings-section">
+                    <div className="settings-section__head">
+                      <h3 className="settings-section-title">Profile</h3>
+                      <p className="settings-section-subtitle">
+                        The information guests and hosts use to know you.
+                      </p>
+                    </div>
 
-                <div className="settings-card settings-profile-list">
-                  <ProfileRow
-                    title="Full name"
-                    description="Use your legal name for smoother verification."
-                    value={profile.name}
-                    actionLabel="Edit"
-                    onAction={() => openProfileModal("name")}
-                  />
-                  <ProfileRow
-                    title="Email"
-                    description="Used for bookings, receipts, and security alerts."
-                    value={profile.email}
-                    actionLabel="Edit"
-                    onAction={() => openProfileModal("email")}
-                  />
-                  <ProfileRow
-                    title="Phone number"
-                    description="Used for communication between confirmed guests and hosts."
-                    value={profile.phone}
-                    actionLabel="Edit"
-                    onAction={() => openProfileModal("phone")}
-                  />
-                  <ProfileRow
-                    title="Date of birth"
-                    description="Used for trust, safety, and future identity verification."
-                    value={formatDateOfBirth(profile.dateOfBirth)}
-                    actionLabel={profile.dateOfBirth ? "Edit" : "Add"}
-                    onAction={() => openProfileModal("dateOfBirth")}
-                  />
-                </div>
+                    <div className="settings-card settings-profile-list">
+                      <ProfileRow
+                        title="Full name"
+                        description="Use your legal name for smoother verification."
+                        value={profile.name}
+                        actionLabel="Edit"
+                        onAction={() => openProfileModal("name")}
+                      />
+                      <ProfileRow
+                        title="Email"
+                        description="Used for bookings, receipts, and security alerts."
+                        value={profile.email}
+                        actionLabel="Edit"
+                        onAction={() => openProfileModal("email")}
+                      />
+                      <ProfileRow
+                        title="Phone number"
+                        description="Used for communication between confirmed guests and hosts."
+                        value={profile.phone}
+                        actionLabel="Edit"
+                        onAction={() => openProfileModal("phone")}
+                      />
+                      <ProfileRow
+                        title="Date of birth"
+                        description="Used for trust, safety, and future identity verification."
+                        value={formatDateOfBirth(profile.dateOfBirth)}
+                        actionLabel={profile.dateOfBirth ? "Edit" : "Add"}
+                        onAction={() => openProfileModal("dateOfBirth")}
+                      />
+                    </div>
 
-                <div className="settings-card settings-profile-direct-card">
-                  <div className="settings-profile-direct-grid">
-                    <ProfileFieldCard
-                      title="Nationality"
-                      description="Select the nationality shown on your profile."
-                    >
-                      <div className="settings-combobox">
-                        <input
-                          className="settings-input"
-                          value={profile.nationality}
-                          onFocus={() => setNationalityFocused(true)}
-                          onBlur={() => setNationalityFocused(false)}
-                          onChange={(event) =>
-                            setProfile({
-                              ...profile,
-                              nationality: event.target.value,
-                            })
-                          }
-                          placeholder="Search nationality"
-                        />
-                        {nationalityFocused && (
-                          <SuggestionList
-                            suggestions={nationalitySuggestions}
-                            onSelect={(nationality) => {
-                              setProfile({ ...profile, nationality });
-                              setNationalityFocused(false);
-                            }}
-                          />
-                        )}
-                      </div>
-                    </ProfileFieldCard>
-
-                    <ProfileFieldCard
-                      title="Languages spoken"
-                      description="Add languages guests and hosts can use with you."
-                    >
-                      <div className="settings-chip-picker">
-                        <div className="settings-chip-list">
-                          {profile.languages.map((language) => (
-                            <span className="settings-chip" key={language}>
-                              {language}
-                              <button
-                                type="button"
-                                onClick={() => removeLanguage(language)}
-                                aria-label={`Remove ${language}`}
-                              >
-                                <FiX aria-hidden="true" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                        <div className="settings-combobox">
-                          <input
-                            className="settings-input"
-                            value={languageQuery}
-                            onFocus={() => setLanguageFocused(true)}
-                            onBlur={() => setLanguageFocused(false)}
-                            onChange={(event) =>
-                              setLanguageQuery(event.target.value)
-                            }
-                            onKeyDown={(event) => {
-                              if (
-                                event.key === "Enter" &&
-                                languageSuggestions[0]
-                              ) {
-                                event.preventDefault();
-                                addLanguage(languageSuggestions[0]);
-                              }
-                            }}
-                            placeholder="Search languages"
-                          />
-                          {languageFocused && (
-                            <SuggestionList
-                              suggestions={languageSuggestions}
-                              onSelect={addLanguage}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </ProfileFieldCard>
-
-                    <ProfileFieldCard
-                      title="Preferred contact"
-                      description="Choose how DarDarek should reach you first."
-                    >
-                      <div
-                        className="settings-segmented"
-                        role="radiogroup"
-                        aria-label="Preferred contact"
-                      >
-                        {CONTACT_OPTIONS.map((option) => (
-                          <button
-                            key={option}
-                            type="button"
-                            className={
-                              profile.contactMethod === option
-                                ? "settings-segmented__option settings-segmented__option--active"
-                                : "settings-segmented__option"
-                            }
-                            role="radio"
-                            aria-checked={profile.contactMethod === option}
-                            onClick={() =>
-                              setProfile({
-                                ...profile,
-                                contactMethod: option,
-                              })
-                            }
-                          >
-                            {option}
-                          </button>
-                        ))}
-                      </div>
-                    </ProfileFieldCard>
-
-                    <ProfileFieldCard
-                      title="Emergency contact"
-                      description="Used only for urgent booking or safety situations."
-                    >
-                      <div className="settings-emergency-contact">
-                        <div className="settings-emergency-contact__row">
-                          <input
-                            className={`settings-input ${
-                              emergencyContactError ||
-                              (emergencyVerification.error &&
-                                emergencyVerification.step === "idle")
-                                ? "settings-input--error"
-                                : ""
-                            }`}
-                            type="tel"
-                            value={profile.emergencyContact}
-                            onChange={(event) => {
-                              setProfile({
-                                ...profile,
-                                emergencyContact: sanitizePhoneInput(
-                                  event.target.value,
-                                ),
-                              });
-                              setEmergencyVerification({
-                                step: "idle",
-                                code: "",
-                                verified: false,
-                                error: "",
-                              });
-                            }}
-                            placeholder="+212 600 000 000"
-                          />
-                          <button
-                            className="settings-btn settings-btn--ghost settings-emergency-contact__verify"
-                            type="button"
-                            onClick={startEmergencyVerification}
-                          >
-                            Verify
-                          </button>
-                        </div>
-                        {emergencyVerification.step === "code" && (
-                          <div className="settings-emergency-code">
+                    <div className="settings-card settings-profile-direct-card">
+                      <div className="settings-profile-direct-grid">
+                        <ProfileFieldCard
+                          title="Nationality"
+                          description="Select the nationality shown on your profile."
+                        >
+                          <div className="settings-combobox">
                             <input
-                              className={`settings-input ${emergencyVerification.error ? "settings-input--error" : ""}`}
-                              inputMode="numeric"
-                              maxLength={6}
-                              value={emergencyVerification.code}
+                              className="settings-input"
+                              value={profile.nationality}
+                              onFocus={() => setNationalityFocused(true)}
+                              onBlur={() => setNationalityFocused(false)}
                               onChange={(event) =>
-                                setEmergencyVerification((current) => ({
-                                  ...current,
-                                  code: event.target.value
-                                    .replace(/\D/g, "")
-                                    .slice(0, 6),
-                                  error: "",
-                                }))
+                                setProfile({
+                                  ...profile,
+                                  nationality: event.target.value,
+                                })
                               }
-                              placeholder="123456"
+                              placeholder="Search nationality"
                             />
-                            <button
-                              className="settings-btn settings-btn--primary"
-                              type="button"
-                              onClick={verifyEmergencyContact}
-                            >
-                              Confirm
-                            </button>
+                            {nationalityFocused && (
+                              <SuggestionList
+                                suggestions={nationalitySuggestions}
+                                onSelect={(nationality) => {
+                                  setProfile({ ...profile, nationality });
+                                  setNationalityFocused(false);
+                                }}
+                              />
+                            )}
                           </div>
-                        )}
-                        {emergencyVerification.verified && (
-                          <span className="settings-verified-badge">
-                            <FiCheck aria-hidden="true" />
-                            Verified
-                          </span>
-                        )}
-                      </div>
-                      <span className="settings-helper">
-                        Used only for urgent booking or safety situations.
-                      </span>
-                      <span className="settings-helper">
-                        For preview mode, use code 123456.
-                      </span>
-                      {(emergencyContactError ||
-                        emergencyVerification.error) && (
-                        <span className="settings-error">
-                          {emergencyVerification.error ||
-                            "Enter a valid emergency phone number."}
-                        </span>
-                      )}
-                    </ProfileFieldCard>
+                        </ProfileFieldCard>
 
-                    <ProfileFieldCard
-                      title="Bio"
-                      description="A short introduction for hosts and guests."
-                      fullWidth
-                    >
-                      <textarea
-                        className="settings-input settings-textarea"
-                        value={profile.bio}
-                        maxLength={250}
-                        onChange={(event) =>
-                          setProfile({ ...profile, bio: event.target.value })
-                        }
-                        placeholder="Tell hosts and guests a little about yourself."
-                        rows={4}
-                      />
-                      <span className="settings-character-count">
-                        {profile.bio.length} / 250
-                      </span>
-                    </ProfileFieldCard>
-                  </div>
-                  <div className="settings-actions">
-                    <button
-                      className="settings-btn settings-btn--primary"
-                      type="button"
-                      onClick={saveProfileDetails}
-                    >
-                      Save profile details
-                    </button>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {activeSection === "security" && (
-              <section className="settings-section">
-                <div className="settings-section__head">
-                  <h3 className="settings-section-title">Security</h3>
-                  <p className="settings-section-subtitle">
-                    Review account protections and preview security controls.
-                  </p>
-                </div>
-
-                <div className="settings-card settings-security-status-card">
-                  <div className="settings-card__head">
-                    <div className="settings-card__icon">
-                      <FiShield aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h4 className="settings-card-title">Security status</h4>
-                      <p className="settings-helper">
-                        Based on the profile details available in preview mode.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="settings-security-status-list">
-                    {securityStatusRows.map((row) => (
-                      <div
-                        className="settings-security-status-row"
-                        key={row.label}
-                      >
-                        <span>{row.label}</span>
-                        <strong
-                          className={`settings-status-badge settings-status-badge--${row.tone}`}
+                        <ProfileFieldCard
+                          title="Languages spoken"
+                          description="Add languages guests and hosts can use with you."
                         >
-                          {row.status}
-                        </strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="settings-card">
-                  <div className="settings-card__head">
-                    <div className="settings-card__icon">
-                      <FiLock aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h4 className="settings-card-title">
-                        {hasPassword ? "Change password" : "Create password"}
-                      </h4>
-                      <p className="settings-helper">
-                        {hasPassword
-                          ? "Use at least 8 characters with a mix of letters, numbers, or symbols."
-                          : "Your account was created with Google. Add a password if you also want to sign in with email and password."}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="settings-field-grid">
-                    {hasPassword &&
-                      renderPasswordField("currentPassword", "Current password")}
-                    {renderPasswordField("newPassword", "New password")}
-                    {renderPasswordField("confirmPassword", "Confirm password")}
-                  </div>
-                  <div className="settings-actions">
-                    <button
-                      className="settings-btn settings-btn--primary"
-                      type="button"
-                      onClick={savePassword}
-                      disabled={!isPasswordReady}
-                    >
-                      {hasPassword ? "Update password" : "Create password"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="settings-card">
-                  <div className="settings-card__head">
-                    <div className="settings-card__icon">
-                      <FiMonitor aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h4 className="settings-card-title">Login devices</h4>
-                      <p className="settings-helper">
-                        Recent sessions connected to your DarDarek account.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="settings-device-list">
-                    <div className="settings-device-row settings-device-row--current">
-                      <FiMonitor aria-hidden="true" />
-                      <div>
-                        <strong>Current session</strong>
-                        <span>Current browser</span>
-                        <span>Location: Morocco</span>
-                      </div>
-                      <em>Status: Active now</em>
-                    </div>
-                    <p className="settings-integration-note">
-                      Other trusted devices will appear here after backend
-                      integration.
-                    </p>
-                    <div className="settings-actions">
-                      <button
-                        className="settings-btn settings-btn--ghost"
-                        type="button"
-                        onClick={() =>
-                          showToast(
-                            "Device management will be available after backend integration.",
-                            "warning",
-                          )
-                        }
-                      >
-                        Sign out of other devices
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="settings-card settings-card--warning">
-                  <div>
-                    <h4 className="settings-card-title">Deactivate account</h4>
-                    <p className="settings-helper">
-                      Your profile and listings will be hidden until you sign
-                      back in. No data is deleted in this preview.
-                    </p>
-                  </div>
-                  <button
-                    className="settings-btn settings-btn--warning"
-                    type="button"
-                    onClick={() => setDeactivateModalOpen(true)}
-                  >
-                    Deactivate account
-                  </button>
-                </div>
-              </section>
-            )}
-
-            {activeSection === "notifications" && (
-              <section className="settings-section">
-                <div className="settings-section__head">
-                  <h3 className="settings-section-title">Notifications</h3>
-                  <p className="settings-section-subtitle">
-                    Choose the updates DarDarek can send in preview mode.
-                  </p>
-                </div>
-
-                <div className="settings-card settings-intro-card">
-                  <div className="settings-card__head">
-                    <div className="settings-card__icon">
-                      <FiBell aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h4 className="settings-card-title">
-                        Notification preferences
-                      </h4>
-                      <p className="settings-helper">
-                        Choose how DarDarek keeps you updated about bookings,
-                        messages, rental requests, and account activity.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="settings-notification-list">
-                  {notificationCategories.map(
-                    ({ key, label, description, Icon }) => (
-                      <div
-                        className="settings-card settings-notification-row"
-                        key={key}
-                      >
-                        <div className="settings-notification-mark">
-                          {createElement(Icon, { "aria-hidden": "true" })}
-                        </div>
-                        <div>
-                          <strong>{label}</strong>
-                          <p>{description}</p>
-                        </div>
-                        <Toggle
-                          checked={notifications.categories[key]}
-                          onChange={(value) =>
-                            updateNotificationCategory(key, value)
-                          }
-                          label={`Toggle ${label}`}
-                        />
-                      </div>
-                    ),
-                  )}
-                </div>
-
-                <div className="settings-card settings-delivery-card">
-                  <div>
-                    <h4 className="settings-card-title">Delivery channels</h4>
-                    <p className="settings-helper">
-                      Choose where enabled notifications should appear.
-                    </p>
-                  </div>
-                  <div className="settings-delivery-grid">
-                    {notificationChannels.map(
-                      ({ key, label, description, Icon }) => (
-                        <div className="settings-delivery-option" key={key}>
-                          <div className="settings-delivery-option__icon">
-                            {createElement(Icon, { "aria-hidden": "true" })}
-                          </div>
-                          <div>
-                            <strong>{label}</strong>
-                            <p>{description}</p>
-                          </div>
-                          <Toggle
-                            checked={notifications.channels[key]}
-                            onChange={(value) =>
-                              updateNotificationChannel(key, value)
-                            }
-                            label={`Toggle ${label}`}
-                          />
-                        </div>
-                      ),
-                    )}
-                  </div>
-                  <div className="settings-actions">
-                    <button
-                      className="settings-btn settings-btn--primary"
-                      type="button"
-                      onClick={saveNotificationPreferences}
-                    >
-                      Save notification preferences
-                    </button>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {activeSection === "hosting" && (
-              <section className="settings-section">
-                <div className="settings-section__head">
-                  <h3 className="settings-section-title">Hosting</h3>
-                  <p className="settings-section-subtitle">
-                    Prepare your account for future DarDarek hosting tools.
-                  </p>
-                </div>
-
-                <div className="settings-host-grid">
-                  <div
-                    className={`settings-card settings-host-card ${
-                      hostModeActive ? "settings-host-card--active" : ""
-                    }`}
-                  >
-                    {hostModeActive ? (
-                      <>
-                        <div className="settings-card__head">
-                          <div className="settings-card__icon">
-                            <FiHome aria-hidden="true" />
-                          </div>
-                          <div>
-                            <span className="settings-host-eyebrow">
-                              Host account active
-                            </span>
-                            <h4 className="settings-card-title">
-                              Your host account is active
-                            </h4>
-                            <p className="settings-helper">
-                              You can now create listings and prepare your
-                              property for guests.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="settings-host-status-grid">
-                          {hostActiveItems.map((item) => (
-                            <div className="settings-host-status" key={item}>
-                              <FiCheck aria-hidden="true" />
-                              <span>{item}</span>
+                          <div className="settings-chip-picker">
+                            <div className="settings-chip-list">
+                              {profile.languages.map((language) => (
+                                <span className="settings-chip" key={language}>
+                                  {language}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeLanguage(language)}
+                                    aria-label={`Remove ${language}`}
+                                  >
+                                    <FiX aria-hidden="true" />
+                                  </button>
+                                </span>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-
-                        <div className="settings-host-note">
-                          Backend verification and approval will be connected
-                          later.
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="settings-card__head">
-                          <div className="settings-card__icon">
-                            <FiHome aria-hidden="true" />
-                          </div>
-                          <div>
-                            <h4 className="settings-card-title">
-                              Become a host on DarDarek
-                            </h4>
-                            <p className="settings-helper">
-                              Share your apartment, studio, riad, or villa with
-                              travelers discovering Northern Morocco.
-                            </p>
-                          </div>
-                        </div>
-                        <p className="settings-host-lede">
-                          Start with your space, add the details that make it
-                          special, and welcome your first guests when you are
-                          ready.
-                        </p>
-
-                        <div className="settings-host-steps">
-                          {hostingSteps.map((step, index) => (
-                            <div
-                              className="settings-host-step"
-                              key={step.title}
-                            >
-                              <span className="settings-host-step__number">
-                                {index + 1}
-                              </span>
-                              <div>
-                                <strong>{step.title}</strong>
-                                <p>{step.description}</p>
-                              </div>
+                            <div className="settings-combobox">
+                              <input
+                                className="settings-input"
+                                value={languageQuery}
+                                onFocus={() => setLanguageFocused(true)}
+                                onBlur={() => setLanguageFocused(false)}
+                                onChange={(event) =>
+                                  setLanguageQuery(event.target.value)
+                                }
+                                onKeyDown={(event) => {
+                                  if (
+                                    event.key === "Enter" &&
+                                    languageSuggestions[0]
+                                  ) {
+                                    event.preventDefault();
+                                    addLanguage(languageSuggestions[0]);
+                                  }
+                                }}
+                                placeholder="Search languages"
+                              />
+                              {languageFocused && (
+                                <SuggestionList
+                                  suggestions={languageSuggestions}
+                                  onSelect={addLanguage}
+                                />
+                              )}
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        </ProfileFieldCard>
 
-                        <button
-                          className="settings-btn settings-btn--primary settings-btn--fit"
-                          type="button"
-                          onClick={() => setStartHostingModalOpen(true)}
+                        <ProfileFieldCard
+                          title="Preferred contact"
+                          description="Choose how DarDarek should reach you first."
                         >
-                          Start hosting
-                        </button>
-                      </>
-                    )}
-                  </div>
-
-                  {hostModeActive && (
-                    <div className="settings-card settings-card--publish">
-                      <div className="settings-card__head">
-                        <div className="settings-card__icon">
-                          <FiBriefcase aria-hidden="true" />
-                        </div>
-                        <div>
-                          <h4 className="settings-card-title">
-                            Ready to publish your property?
-                          </h4>
-                          <p className="settings-helper">
-                            Create a listing for your apartment, riad, studio,
-                            or villa in Northern Morocco.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="settings-publish-checklist">
-                        {publishChecklist.map((item) => (
-                          <div className="settings-publish-check" key={item}>
-                            <FiCheck aria-hidden="true" />
-                            <span>{item}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <a
-                        className="settings-btn settings-btn--accent settings-btn--fit"
-                        href="/new-listing"
-                      >
-                        List your property
-                      </a>
-                    </div>
-                  )}
-
-                  <div className="settings-card settings-host-process-card">
-                    <div>
-                      <h4 className="settings-card-title">How hosting works</h4>
-                      <p className="settings-helper">
-                        DarDarek keeps hosting simple: create your listing,
-                        review requests, and welcome guests when everything is
-                        ready.
-                      </p>
-                    </div>
-                    <div className="settings-host-process-list">
-                      {hostingWorksItems.map((item, index) => (
-                        <div className="settings-host-process-item" key={item}>
-                          <span>{index + 1}</span>
-                          <strong>{item}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {activeSection === "preferences" && (
-              <section className="settings-section">
-                <div className="settings-section__head">
-                  <h3 className="settings-section-title">Preferences</h3>
-                  <p className="settings-section-subtitle">
-                    Set simple defaults for future searches and bookings.
-                  </p>
-                </div>
-
-                <div className="settings-card settings-preferences-summary">
-                  <div className="settings-card__head">
-                    <div className="settings-card__icon">
-                      <FiSettings aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h4 className="settings-card-title">
-                        Personalize your DarDarek experience
-                      </h4>
-                      <p className="settings-helper">
-                        These preferences help DarDarek tailor destinations,
-                        stay styles, language, and currency to your account.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="settings-card settings-preferences-card settings-preferences-core-card">
-                  <div className="settings-preferences-grid settings-preferences-grid--four">
-                    <div className="settings-field settings-preference-field">
-                      <span className="settings-label">Preferred language</span>
-                      <PreferenceDropdown
-                        value={preferences.language}
-                        options={preferenceLanguageOptions}
-                        open={openPreferenceDropdown === "language"}
-                        onToggle={() =>
-                          setOpenPreferenceDropdown((current) =>
-                            current === "language" ? null : "language",
-                          )
-                        }
-                        onClose={() => setOpenPreferenceDropdown(null)}
-                        onSelect={(language) => {
-                          setPreferences({
-                            ...preferences,
-                            language,
-                          });
-                          setOpenPreferenceDropdown(null);
-                        }}
-                      />
-                      <span className="settings-preference-note">
-                        Language switching will be connected later.
-                      </span>
-                    </div>
-
-                    <div className="settings-field settings-preference-field">
-                      <span className="settings-label">Currency</span>
-                      <PreferenceDropdown
-                        value={preferences.currency}
-                        options={preferenceCurrencyOptions}
-                        open={openPreferenceDropdown === "currency"}
-                        onToggle={() =>
-                          setOpenPreferenceDropdown((current) =>
-                            current === "currency" ? null : "currency",
-                          )
-                        }
-                        onClose={() => setOpenPreferenceDropdown(null)}
-                        onSelect={(currency) => {
-                          setPreferences({
-                            ...preferences,
-                            currency,
-                          });
-                          setOpenPreferenceDropdown(null);
-                        }}
-                        getOptionValue={(option) => option.value}
-                        getOptionLabel={(option) =>
-                          `${option.value} — ${option.label}`
-                        }
-                      />
-                      <span className="settings-preference-note">
-                        Currency conversion will be connected later.
-                      </span>
-                    </div>
-
-                    <div className="settings-field settings-preference-field settings-city-combobox">
-                      <span className="settings-label">
-                        Preferred travel city
-                      </span>
-                      <p className="settings-preference-note">
-                        Search and select your favorite Northern Morocco
-                        destination.
-                      </p>
-
-                      <div
-                        className="settings-combobox"
-                        onBlur={(event) => {
-                          if (
-                            !event.currentTarget.contains(event.relatedTarget)
-                          ) {
-                            setCityFocused(false);
-                            setCitySearch("");
-                          }
-                        }}
-                      >
-                        <input
-                          className="settings-input settings-city-search"
-                          type="search"
-                          value={
-                            cityFocused ? citySearch : preferences.preferredCity
-                          }
-                          onFocus={() => {
-                            setCityFocused(true);
-                            setCitySearch("");
-                          }}
-                          onChange={(event) => {
-                            setCityFocused(true);
-                            setCitySearch(event.target.value);
-                          }}
-                          placeholder="Search Northern Morocco"
-                        />
-
-                        {cityFocused && (
                           <div
-                            className="settings-suggestions settings-city-suggestions"
-                            role="listbox"
+                            className="settings-segmented"
+                            role="radiogroup"
+                            aria-label="Preferred contact"
                           >
-                            {filteredPreferenceCities.length ? (
-                              filteredPreferenceCities.map((city) => (
-                                <button
-                                  className={
-                                    preferences.preferredCity === city
-                                      ? "settings-suggestion--active"
-                                      : ""
-                                  }
-                                  key={city}
-                                  type="button"
-                                  role="option"
-                                  aria-selected={
-                                    preferences.preferredCity === city
-                                  }
-                                  onMouseDown={(event) =>
-                                    event.preventDefault()
-                                  }
-                                  onClick={() => {
-                                    setPreferences((current) => ({
+                            {CONTACT_OPTIONS.map((option) => (
+                              <button
+                                key={option}
+                                type="button"
+                                className={
+                                  profile.contactMethod === option
+                                    ? "settings-segmented__option settings-segmented__option--active"
+                                    : "settings-segmented__option"
+                                }
+                                role="radio"
+                                aria-checked={profile.contactMethod === option}
+                                onClick={() =>
+                                  setProfile({
+                                    ...profile,
+                                    contactMethod: option,
+                                  })
+                                }
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+                        </ProfileFieldCard>
+
+                        <ProfileFieldCard
+                          title="Emergency contact"
+                          description="Used only for urgent booking or safety situations."
+                        >
+                          <div className="settings-emergency-contact">
+                            <div className="settings-emergency-contact__row">
+                              <input
+                                className={`settings-input ${
+                                  emergencyContactError ||
+                                  (emergencyVerification.error &&
+                                    emergencyVerification.step === "idle")
+                                    ? "settings-input--error"
+                                    : ""
+                                }`}
+                                type="tel"
+                                value={profile.emergencyContact}
+                                onChange={(event) => {
+                                  setProfile({
+                                    ...profile,
+                                    emergencyContact: sanitizePhoneInput(
+                                      event.target.value,
+                                    ),
+                                  });
+                                  setEmergencyVerification({
+                                    step: "idle",
+                                    code: "",
+                                    verified: false,
+                                    error: "",
+                                  });
+                                }}
+                                placeholder="+212 600 000 000"
+                              />
+                              <button
+                                className="settings-btn settings-btn--ghost settings-emergency-contact__verify"
+                                type="button"
+                                onClick={startEmergencyVerification}
+                              >
+                                Verify
+                              </button>
+                            </div>
+                            {emergencyVerification.step === "code" && (
+                              <div className="settings-emergency-code">
+                                <input
+                                  className={`settings-input ${emergencyVerification.error ? "settings-input--error" : ""}`}
+                                  inputMode="numeric"
+                                  maxLength={6}
+                                  value={emergencyVerification.code}
+                                  onChange={(event) =>
+                                    setEmergencyVerification((current) => ({
                                       ...current,
-                                      preferredCity: city,
-                                    }));
-                                    setCityFocused(false);
-                                    setCitySearch("");
-                                  }}
+                                      code: event.target.value
+                                        .replace(/\D/g, "")
+                                        .slice(0, 6),
+                                      error: "",
+                                    }))
+                                  }
+                                  placeholder="123456"
+                                />
+                                <button
+                                  className="settings-btn settings-btn--primary"
+                                  type="button"
+                                  onClick={verifyEmergencyContact}
                                 >
-                                  {city}
+                                  Confirm
                                 </button>
-                              ))
-                            ) : (
-                              <span className="settings-city-empty">
-                                No Northern Morocco city matches your search.
+                              </div>
+                            )}
+                            {emergencyVerification.verified && (
+                              <span className="settings-verified-badge">
+                                <FiCheck aria-hidden="true" />
+                                Verified
                               </span>
                             )}
                           </div>
+                          <span className="settings-helper">
+                            Used only for urgent booking or safety situations.
+                          </span>
+                          <span className="settings-helper">
+                            For preview mode, use code 123456.
+                          </span>
+                          {(emergencyContactError ||
+                            emergencyVerification.error) && (
+                            <span className="settings-error">
+                              {emergencyVerification.error ||
+                                "Enter a valid emergency phone number."}
+                            </span>
+                          )}
+                        </ProfileFieldCard>
+
+                        <ProfileFieldCard
+                          title="Bio"
+                          description="A short introduction for hosts and guests."
+                          fullWidth
+                        >
+                          <textarea
+                            className="settings-input settings-textarea"
+                            value={profile.bio}
+                            maxLength={250}
+                            onChange={(event) =>
+                              setProfile({
+                                ...profile,
+                                bio: event.target.value,
+                              })
+                            }
+                            placeholder="Tell hosts and guests a little about yourself."
+                            rows={4}
+                          />
+                          <span className="settings-character-count">
+                            {profile.bio.length} / 250
+                          </span>
+                        </ProfileFieldCard>
+                      </div>
+                      <div className="settings-actions">
+                        <button
+                          className="settings-btn settings-btn--primary"
+                          type="button"
+                          onClick={saveProfileDetails}
+                        >
+                          Save profile details
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {activeSection === "security" && (
+                  <section className="settings-section">
+                    <div className="settings-section__head">
+                      <h3 className="settings-section-title">Security</h3>
+                      <p className="settings-section-subtitle">
+                        Review account protections and preview security
+                        controls.
+                      </p>
+                    </div>
+
+                    <div className="settings-card settings-security-status-card">
+                      <div className="settings-card__head">
+                        <div className="settings-card__icon">
+                          <FiShield aria-hidden="true" />
+                        </div>
+                        <div>
+                          <h4 className="settings-card-title">
+                            Security status
+                          </h4>
+                          <p className="settings-helper">
+                            Based on the profile details available in preview
+                            mode.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="settings-security-status-list">
+                        {securityStatusRows.map((row) => (
+                          <div
+                            className="settings-security-status-row"
+                            key={row.label}
+                          >
+                            <span>{row.label}</span>
+                            <strong
+                              className={`settings-status-badge settings-status-badge--${row.tone}`}
+                            >
+                              {row.status}
+                            </strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="settings-card">
+                      <div className="settings-card__head">
+                        <div className="settings-card__icon">
+                          <FiLock aria-hidden="true" />
+                        </div>
+                        <div>
+                          <h4 className="settings-card-title">
+                            {hasPassword
+                              ? "Change password"
+                              : "Create password"}
+                          </h4>
+                          <p className="settings-helper">
+                            {hasPassword
+                              ? "Use at least 8 characters with a mix of letters, numbers, or symbols."
+                              : "Your account was created with Google. Add a password if you also want to sign in with email and password."}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="settings-field-grid">
+                        {hasPassword &&
+                          renderPasswordField(
+                            "currentPassword",
+                            "Current password",
+                          )}
+                        {renderPasswordField("newPassword", "New password")}
+                        {renderPasswordField(
+                          "confirmPassword",
+                          "Confirm password",
                         )}
                       </div>
-                    </div>
-
-                    <div className="settings-field settings-preference-field">
-                      <span className="settings-label">
-                        Preferred stay type
-                      </span>
-                      <p className="settings-preference-note">
-                        Pick the stay style you usually want to see first.
-                      </p>
-
-                      <PreferenceDropdown
-                        value={preferences.stayType}
-                        options={preferenceStayTypes}
-                        open={openPreferenceDropdown === "stayType"}
-                        onToggle={() =>
-                          setOpenPreferenceDropdown((current) =>
-                            current === "stayType" ? null : "stayType",
-                          )
-                        }
-                        onClose={() => setOpenPreferenceDropdown(null)}
-                        onSelect={(stayType) => {
-                          setPreferences({
-                            ...preferences,
-                            stayType,
-                          });
-                          setOpenPreferenceDropdown(null);
-                        }}
-                        getOptionValue={(option) => option.value}
-                        getOptionLabel={(option) =>
-                          `${option.icon} ${option.value}`
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="settings-preferences-actions">
-                  <button
-                    className="settings-btn settings-btn--primary"
-                    type="button"
-                    onClick={savePreferences}
-                  >
-                    Save preferences
-                  </button>
-                </div>
-              </section>
-            )}
-
-            {activeSection === "payments" && (
-              <section className="settings-section">
-                <div className="settings-section__head">
-                  <h3 className="settings-section-title">Payments</h3>
-                  <p className="settings-section-subtitle">
-                    Manage how you pay for bookings and how hosting payouts will
-                    be handled.
-                  </p>
-                  <div className="settings-payment-trust-note">
-                    Payment features are prepared for future backend and payment
-                    provider integration.
-                  </div>
-                </div>
-
-                <div className="settings-payment-grid">
-                  <div className="settings-card settings-payment-method-card">
-                    <div className="settings-card__head">
-                      <div className="settings-card__icon">
-                        <FiCreditCard aria-hidden="true" />
+                      <div className="settings-actions">
+                        <button
+                          className="settings-btn settings-btn--primary"
+                          type="button"
+                          onClick={savePassword}
+                          disabled={!isPasswordReady}
+                        >
+                          {hasPassword ? "Update password" : "Create password"}
+                        </button>
                       </div>
-                      <div>
-                        <h4 className="settings-card-title">Payment methods</h4>
-                        <p className="settings-helper">
-                          Add a payment method to make future bookings faster
-                          and easier.
+                    </div>
+
+                    <div className="settings-card">
+                      <div className="settings-card__head">
+                        <div className="settings-card__icon">
+                          <FiMonitor aria-hidden="true" />
+                        </div>
+                        <div>
+                          <h4 className="settings-card-title">Login devices</h4>
+                          <p className="settings-helper">
+                            Recent sessions connected to your DarDarek account.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="settings-device-list">
+                        <div className="settings-device-row settings-device-row--current">
+                          <FiMonitor aria-hidden="true" />
+                          <div>
+                            <strong>Current session</strong>
+                            <span>Current browser</span>
+                            <span>Location: Morocco</span>
+                          </div>
+                          <em>Status: Active now</em>
+                        </div>
+                        <p className="settings-integration-note">
+                          Other trusted devices will appear here after backend
+                          integration.
                         </p>
+                        <div className="settings-actions">
+                          <button
+                            className="settings-btn settings-btn--ghost"
+                            type="button"
+                            onClick={() =>
+                              showToast(
+                                "Device management will be available after backend integration.",
+                                "warning",
+                              )
+                            }
+                          >
+                            Sign out of other devices
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <div className="settings-empty-state">
-                      <strong>No payment method added yet.</strong>
-                      <span>Online checkout will be connected later.</span>
-                    </div>
-                    <button
-                      className="settings-btn settings-btn--primary settings-btn--fit"
-                      type="button"
-                      onClick={() => setPaymentPreviewOpen(true)}
-                    >
-                      Add payment method
-                    </button>
-                  </div>
-                  <div className="settings-card settings-payout-card">
-                    <div className="settings-card__head">
-                      <div className="settings-card__icon">
-                        <FiBriefcase aria-hidden="true" />
-                      </div>
-                      <div>
-                        <h4 className="settings-card-title">Payout methods</h4>
-                        <p className="settings-helper">
-                          Hosts will be able to choose how they receive payouts
-                          for confirmed bookings.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="settings-coming-soon-row">
-                      <strong>No payout method added yet.</strong>
-                      <span className="settings-status-badge settings-status-badge--pending">
-                        Backend required
-                      </span>
-                    </div>
-                    <button
-                      className="settings-btn settings-btn--ghost settings-btn--fit"
-                      type="button"
-                      onClick={() => setPayoutPreviewOpen(true)}
-                    >
-                      Set up payout method
-                    </button>
-                  </div>
-                  <div className="settings-card settings-billing-card">
-                    <div className="settings-card__head">
-                      <div className="settings-card__icon">
-                        <FiGlobe aria-hidden="true" />
-                      </div>
+
+                    <div className="settings-card settings-card--warning">
                       <div>
                         <h4 className="settings-card-title">
-                          Billing information
+                          Deactivate account
                         </h4>
                         <p className="settings-helper">
-                          Used for receipts, invoices, and account records.
+                          Your profile and listings will be hidden until you
+                          sign back in. No data is deleted in this preview.
                         </p>
                       </div>
+                      <button
+                        className="settings-btn settings-btn--warning"
+                        type="button"
+                        onClick={() => setDeactivateModalOpen(true)}
+                      >
+                        Deactivate account
+                      </button>
                     </div>
-                    <div className="settings-billing-grid">
-                      <label className="settings-field">
-                        <span className="settings-label">Billing name</span>
-                        <input
-                          className="settings-input"
-                          value={billing.billingName}
-                          onChange={(event) =>
-                            setBilling({
-                              ...billing,
-                              billingName: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label className="settings-field">
-                        <span className="settings-label">Address</span>
-                        <input
-                          className="settings-input"
-                          value={billing.address}
-                          onChange={(event) =>
-                            setBilling({
-                              ...billing,
-                              address: event.target.value,
-                            })
-                          }
-                          placeholder="Street and building"
-                        />
-                      </label>
-                      <label className="settings-field">
-                        <span className="settings-label">City</span>
-                        <input
-                          className="settings-input"
-                          value={billing.city}
-                          onChange={(event) =>
-                            setBilling({
-                              ...billing,
-                              city: event.target.value,
-                            })
-                          }
-                          placeholder="Tangier"
-                        />
-                      </label>
-                      <label className="settings-field">
-                        <span className="settings-label">Postal code</span>
-                        <input
-                          className="settings-input"
-                          value={billing.postalCode}
-                          onChange={(event) =>
-                            setBilling({
-                              ...billing,
-                              postalCode: event.target.value,
-                            })
-                          }
-                          placeholder="90000"
-                        />
-                      </label>
-                      <div className="settings-field settings-field--full">
-                        <span className="settings-label">Country</span>
-                        <PreferenceDropdown
-                          value={billing.country}
-                          options={billingCountryOptions}
-                          open={openPreferenceDropdown === "billingCountry"}
-                          onToggle={() =>
-                            setOpenPreferenceDropdown((current) =>
-                              current === "billingCountry"
-                                ? null
-                                : "billingCountry",
-                            )
-                          }
-                          onClose={() => setOpenPreferenceDropdown(null)}
-                          onSelect={(country) => {
-                            setBilling({
-                              ...billing,
-                              country,
-                            });
-                            setOpenPreferenceDropdown(null);
-                          }}
-                        />
+                  </section>
+                )}
+
+                {activeSection === "notifications" && (
+                  <section className="settings-section">
+                    <div className="settings-section__head">
+                      <h3 className="settings-section-title">Notifications</h3>
+                      <p className="settings-section-subtitle">
+                        Choose the updates DarDarek can send in preview mode.
+                      </p>
+                    </div>
+
+                    <div className="settings-card settings-intro-card">
+                      <div className="settings-card__head">
+                        <div className="settings-card__icon">
+                          <FiBell aria-hidden="true" />
+                        </div>
+                        <div>
+                          <h4 className="settings-card-title">
+                            Notification preferences
+                          </h4>
+                          <p className="settings-helper">
+                            Choose how DarDarek keeps you updated about
+                            bookings, messages, rental requests, and account
+                            activity.
+                          </p>
+                        </div>
                       </div>
                     </div>
-                    <div className="settings-actions">
+
+                    <div className="settings-notification-list">
+                      {notificationCategories.map(
+                        ({ key, label, description, Icon }) => (
+                          <div
+                            className="settings-card settings-notification-row"
+                            key={key}
+                          >
+                            <div className="settings-notification-mark">
+                              {createElement(Icon, { "aria-hidden": "true" })}
+                            </div>
+                            <div>
+                              <strong>{label}</strong>
+                              <p>{description}</p>
+                            </div>
+                            <Toggle
+                              checked={notifications.categories[key]}
+                              onChange={(value) =>
+                                updateNotificationCategory(key, value)
+                              }
+                              label={`Toggle ${label}`}
+                            />
+                          </div>
+                        ),
+                      )}
+                    </div>
+
+                    <div className="settings-card settings-delivery-card">
+                      <div>
+                        <h4 className="settings-card-title">
+                          Delivery channels
+                        </h4>
+                        <p className="settings-helper">
+                          Choose where enabled notifications should appear.
+                        </p>
+                      </div>
+                      <div className="settings-delivery-grid">
+                        {notificationChannels.map(
+                          ({ key, label, description, Icon }) => (
+                            <div className="settings-delivery-option" key={key}>
+                              <div className="settings-delivery-option__icon">
+                                {createElement(Icon, { "aria-hidden": "true" })}
+                              </div>
+                              <div>
+                                <strong>{label}</strong>
+                                <p>{description}</p>
+                              </div>
+                              <Toggle
+                                checked={notifications.channels[key]}
+                                onChange={(value) =>
+                                  updateNotificationChannel(key, value)
+                                }
+                                label={`Toggle ${label}`}
+                              />
+                            </div>
+                          ),
+                        )}
+                      </div>
+                      <div className="settings-actions">
+                        <button
+                          className="settings-btn settings-btn--primary"
+                          type="button"
+                          onClick={saveNotificationPreferences}
+                        >
+                          Save notification preferences
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {activeSection === "hosting" && (
+                  <section className="settings-section">
+                    <div className="settings-section__head">
+                      <h3 className="settings-section-title">Hosting</h3>
+                      <p className="settings-section-subtitle">
+                        Prepare your account for future DarDarek hosting tools.
+                      </p>
+                    </div>
+
+                    <div className="settings-host-grid">
+                      <div
+                        className={`settings-card settings-host-card ${
+                          hostModeActive ? "settings-host-card--active" : ""
+                        }`}
+                      >
+                        {hostModeActive ? (
+                          <>
+                            <div className="settings-card__head">
+                              <div className="settings-card__icon">
+                                <FiHome aria-hidden="true" />
+                              </div>
+                              <div>
+                                <span className="settings-host-eyebrow">
+                                  Host account active
+                                </span>
+                                <h4 className="settings-card-title">
+                                  Your host account is active
+                                </h4>
+                                <p className="settings-helper">
+                                  You can now create listings and prepare your
+                                  property for guests.
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="settings-host-status-grid">
+                              {hostActiveItems.map((item) => (
+                                <div
+                                  className="settings-host-status"
+                                  key={item}
+                                >
+                                  <FiCheck aria-hidden="true" />
+                                  <span>{item}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="settings-host-note">
+                              Backend verification and approval will be
+                              connected later.
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="settings-card__head">
+                              <div className="settings-card__icon">
+                                <FiHome aria-hidden="true" />
+                              </div>
+                              <div>
+                                <h4 className="settings-card-title">
+                                  Become a host on DarDarek
+                                </h4>
+                                <p className="settings-helper">
+                                  Share your apartment, studio, riad, or villa
+                                  with travelers discovering Northern Morocco.
+                                </p>
+                              </div>
+                            </div>
+                            <p className="settings-host-lede">
+                              Start with your space, add the details that make
+                              it special, and welcome your first guests when you
+                              are ready.
+                            </p>
+
+                            <div className="settings-host-steps">
+                              {hostingSteps.map((step, index) => (
+                                <div
+                                  className="settings-host-step"
+                                  key={step.title}
+                                >
+                                  <span className="settings-host-step__number">
+                                    {index + 1}
+                                  </span>
+                                  <div>
+                                    <strong>{step.title}</strong>
+                                    <p>{step.description}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            <button
+                              className="settings-btn settings-btn--primary settings-btn--fit"
+                              type="button"
+                              onClick={() => setStartHostingModalOpen(true)}
+                            >
+                              Start hosting
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      {hostModeActive && (
+                        <div className="settings-card settings-card--publish">
+                          <div className="settings-card__head">
+                            <div className="settings-card__icon">
+                              <FiBriefcase aria-hidden="true" />
+                            </div>
+                            <div>
+                              <h4 className="settings-card-title">
+                                Ready to publish your property?
+                              </h4>
+                              <p className="settings-helper">
+                                Create a listing for your apartment, riad,
+                                studio, or villa in Northern Morocco.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="settings-publish-checklist">
+                            {publishChecklist.map((item) => (
+                              <div
+                                className="settings-publish-check"
+                                key={item}
+                              >
+                                <FiCheck aria-hidden="true" />
+                                <span>{item}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <a
+                            className="settings-btn settings-btn--accent settings-btn--fit"
+                            href="/new-listing"
+                          >
+                            List your property
+                          </a>
+                        </div>
+                      )}
+
+                      <div className="settings-card settings-host-process-card">
+                        <div>
+                          <h4 className="settings-card-title">
+                            How hosting works
+                          </h4>
+                          <p className="settings-helper">
+                            DarDarek keeps hosting simple: create your listing,
+                            review requests, and welcome guests when everything
+                            is ready.
+                          </p>
+                        </div>
+                        <div className="settings-host-process-list">
+                          {hostingWorksItems.map((item, index) => (
+                            <div
+                              className="settings-host-process-item"
+                              key={item}
+                            >
+                              <span>{index + 1}</span>
+                              <strong>{item}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {activeSection === "preferences" && (
+                  <section className="settings-section">
+                    <div className="settings-section__head">
+                      <h3 className="settings-section-title">Preferences</h3>
+                      <p className="settings-section-subtitle">
+                        Set simple defaults for future searches and bookings.
+                      </p>
+                    </div>
+
+                    <div className="settings-card settings-preferences-summary">
+                      <div className="settings-card__head">
+                        <div className="settings-card__icon">
+                          <FiSettings aria-hidden="true" />
+                        </div>
+                        <div>
+                          <h4 className="settings-card-title">
+                            Personalize your DarDarek experience
+                          </h4>
+                          <p className="settings-helper">
+                            These preferences help DarDarek tailor destinations,
+                            stay styles, language, and currency to your account.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="settings-card settings-preferences-card settings-preferences-core-card">
+                      <div className="settings-preferences-grid settings-preferences-grid--four">
+                        <div className="settings-field settings-preference-field">
+                          <span className="settings-label">
+                            Preferred language
+                          </span>
+                          <PreferenceDropdown
+                            value={preferences.language}
+                            options={preferenceLanguageOptions}
+                            open={openPreferenceDropdown === "language"}
+                            onToggle={() =>
+                              setOpenPreferenceDropdown((current) =>
+                                current === "language" ? null : "language",
+                              )
+                            }
+                            onClose={() => setOpenPreferenceDropdown(null)}
+                            onSelect={(language) => {
+                              setPreferences({
+                                ...preferences,
+                                language,
+                              });
+                              setOpenPreferenceDropdown(null);
+                            }}
+                          />
+                          <span className="settings-preference-note">
+                            Language switching will be connected later.
+                          </span>
+                        </div>
+
+                        <div className="settings-field settings-preference-field">
+                          <span className="settings-label">Currency</span>
+                          <PreferenceDropdown
+                            value={preferences.currency}
+                            options={preferenceCurrencyOptions}
+                            open={openPreferenceDropdown === "currency"}
+                            onToggle={() =>
+                              setOpenPreferenceDropdown((current) =>
+                                current === "currency" ? null : "currency",
+                              )
+                            }
+                            onClose={() => setOpenPreferenceDropdown(null)}
+                            onSelect={(currency) => {
+                              setPreferences({
+                                ...preferences,
+                                currency,
+                              });
+                              setOpenPreferenceDropdown(null);
+                            }}
+                            getOptionValue={(option) => option.value}
+                            getOptionLabel={(option) =>
+                              `${option.value} — ${option.label}`
+                            }
+                          />
+                          <span className="settings-preference-note">
+                            Currency conversion will be connected later.
+                          </span>
+                        </div>
+
+                        <div className="settings-field settings-preference-field settings-city-combobox">
+                          <span className="settings-label">
+                            Preferred travel city
+                          </span>
+                          <p className="settings-preference-note">
+                            Search and select your favorite Northern Morocco
+                            destination.
+                          </p>
+
+                          <div
+                            className="settings-combobox"
+                            onBlur={(event) => {
+                              if (
+                                !event.currentTarget.contains(
+                                  event.relatedTarget,
+                                )
+                              ) {
+                                setCityFocused(false);
+                                setCitySearch("");
+                              }
+                            }}
+                          >
+                            <input
+                              className="settings-input settings-city-search"
+                              type="search"
+                              value={
+                                cityFocused
+                                  ? citySearch
+                                  : preferences.preferredCity
+                              }
+                              onFocus={() => {
+                                setCityFocused(true);
+                                setCitySearch("");
+                              }}
+                              onChange={(event) => {
+                                setCityFocused(true);
+                                setCitySearch(event.target.value);
+                              }}
+                              placeholder="Search Northern Morocco"
+                            />
+
+                            {cityFocused && (
+                              <div
+                                className="settings-suggestions settings-city-suggestions"
+                                role="listbox"
+                              >
+                                {filteredPreferenceCities.length ? (
+                                  filteredPreferenceCities.map((city) => (
+                                    <button
+                                      className={
+                                        preferences.preferredCity === city
+                                          ? "settings-suggestion--active"
+                                          : ""
+                                      }
+                                      key={city}
+                                      type="button"
+                                      role="option"
+                                      aria-selected={
+                                        preferences.preferredCity === city
+                                      }
+                                      onMouseDown={(event) =>
+                                        event.preventDefault()
+                                      }
+                                      onClick={() => {
+                                        setPreferences((current) => ({
+                                          ...current,
+                                          preferredCity: city,
+                                        }));
+                                        setCityFocused(false);
+                                        setCitySearch("");
+                                      }}
+                                    >
+                                      {city}
+                                    </button>
+                                  ))
+                                ) : (
+                                  <span className="settings-city-empty">
+                                    No Northern Morocco city matches your
+                                    search.
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="settings-field settings-preference-field">
+                          <span className="settings-label">
+                            Preferred stay type
+                          </span>
+                          <p className="settings-preference-note">
+                            Pick the stay style you usually want to see first.
+                          </p>
+
+                          <PreferenceDropdown
+                            value={preferences.stayType}
+                            options={preferenceStayTypes}
+                            open={openPreferenceDropdown === "stayType"}
+                            onToggle={() =>
+                              setOpenPreferenceDropdown((current) =>
+                                current === "stayType" ? null : "stayType",
+                              )
+                            }
+                            onClose={() => setOpenPreferenceDropdown(null)}
+                            onSelect={(stayType) => {
+                              setPreferences({
+                                ...preferences,
+                                stayType,
+                              });
+                              setOpenPreferenceDropdown(null);
+                            }}
+                            getOptionValue={(option) => option.value}
+                            getOptionLabel={(option) =>
+                              `${option.icon} ${option.value}`
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="settings-preferences-actions">
                       <button
                         className="settings-btn settings-btn--primary"
                         type="button"
-                        onClick={saveBillingInformation}
+                        onClick={savePreferences}
                       >
-                        Save billing information
+                        Save preferences
                       </button>
                     </div>
-                  </div>
-                  <div className="settings-card settings-payment-safety-card">
-                    <div className="settings-card__head">
-                      <div className="settings-card__icon">
-                        <FiShield aria-hidden="true" />
-                      </div>
-                      <div>
-                        <h4 className="settings-card-title">Payment safety</h4>
-                        <p className="settings-helper">
-                          DarDarek should never store raw card numbers directly.
-                          Real payments should be handled by a secure payment
-                          provider such as Stripe, PayPal, or a bank payment
-                          gateway.
-                        </p>
+                  </section>
+                )}
+
+                {activeSection === "payments" && (
+                  <section className="settings-section">
+                    <div className="settings-section__head">
+                      <h3 className="settings-section-title">Payments</h3>
+                      <p className="settings-section-subtitle">
+                        Manage how you pay for bookings and how hosting payouts
+                        will be handled.
+                      </p>
+                      <div className="settings-payment-trust-note">
+                        Payment features are prepared for future backend and
+                        payment provider integration.
                       </div>
                     </div>
-                    <div className="settings-payment-safety-list">
-                      {paymentSafetyPoints.map((point) => (
-                        <div
-                          className="settings-payment-safety-item"
-                          key={point}
-                        >
-                          <FiCheck aria-hidden="true" />
-                          <span>{point}</span>
+
+                    <div className="settings-payment-grid">
+                      <div className="settings-card settings-payment-method-card">
+                        <div className="settings-card__head">
+                          <div className="settings-card__icon">
+                            <FiCreditCard aria-hidden="true" />
+                          </div>
+                          <div>
+                            <h4 className="settings-card-title">
+                              Payment methods
+                            </h4>
+                            <p className="settings-helper">
+                              Add a payment method to make future bookings
+                              faster and easier.
+                            </p>
+                          </div>
                         </div>
-                      ))}
+                        <div className="settings-empty-state">
+                          <strong>No payment method added yet.</strong>
+                          <span>Online checkout will be connected later.</span>
+                        </div>
+                        <button
+                          className="settings-btn settings-btn--primary settings-btn--fit"
+                          type="button"
+                          onClick={() => setPaymentPreviewOpen(true)}
+                        >
+                          Add payment method
+                        </button>
+                      </div>
+                      <div className="settings-card settings-payout-card">
+                        <div className="settings-card__head">
+                          <div className="settings-card__icon">
+                            <FiBriefcase aria-hidden="true" />
+                          </div>
+                          <div>
+                            <h4 className="settings-card-title">
+                              Payout methods
+                            </h4>
+                            <p className="settings-helper">
+                              Hosts will be able to choose how they receive
+                              payouts for confirmed bookings.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="settings-coming-soon-row">
+                          <strong>No payout method added yet.</strong>
+                          <span className="settings-status-badge settings-status-badge--pending">
+                            Backend required
+                          </span>
+                        </div>
+                        <button
+                          className="settings-btn settings-btn--ghost settings-btn--fit"
+                          type="button"
+                          onClick={() => setPayoutPreviewOpen(true)}
+                        >
+                          Set up payout method
+                        </button>
+                      </div>
+                      <div className="settings-card settings-billing-card">
+                        <div className="settings-card__head">
+                          <div className="settings-card__icon">
+                            <FiGlobe aria-hidden="true" />
+                          </div>
+                          <div>
+                            <h4 className="settings-card-title">
+                              Billing information
+                            </h4>
+                            <p className="settings-helper">
+                              Used for receipts, invoices, and account records.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="settings-billing-grid">
+                          <label className="settings-field">
+                            <span className="settings-label">Billing name</span>
+                            <input
+                              className="settings-input"
+                              value={billing.billingName}
+                              onChange={(event) =>
+                                setBilling({
+                                  ...billing,
+                                  billingName: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="settings-field">
+                            <span className="settings-label">Address</span>
+                            <input
+                              className="settings-input"
+                              value={billing.address}
+                              onChange={(event) =>
+                                setBilling({
+                                  ...billing,
+                                  address: event.target.value,
+                                })
+                              }
+                              placeholder="Street and building"
+                            />
+                          </label>
+                          <label className="settings-field">
+                            <span className="settings-label">City</span>
+                            <input
+                              className="settings-input"
+                              value={billing.city}
+                              onChange={(event) =>
+                                setBilling({
+                                  ...billing,
+                                  city: event.target.value,
+                                })
+                              }
+                              placeholder="Tangier"
+                            />
+                          </label>
+                          <label className="settings-field">
+                            <span className="settings-label">Postal code</span>
+                            <input
+                              className="settings-input"
+                              value={billing.postalCode}
+                              onChange={(event) =>
+                                setBilling({
+                                  ...billing,
+                                  postalCode: event.target.value,
+                                })
+                              }
+                              placeholder="90000"
+                            />
+                          </label>
+                          <div className="settings-field settings-field--full">
+                            <span className="settings-label">Country</span>
+                            <PreferenceDropdown
+                              value={billing.country}
+                              options={billingCountryOptions}
+                              open={openPreferenceDropdown === "billingCountry"}
+                              onToggle={() =>
+                                setOpenPreferenceDropdown((current) =>
+                                  current === "billingCountry"
+                                    ? null
+                                    : "billingCountry",
+                                )
+                              }
+                              onClose={() => setOpenPreferenceDropdown(null)}
+                              onSelect={(country) => {
+                                setBilling({
+                                  ...billing,
+                                  country,
+                                });
+                                setOpenPreferenceDropdown(null);
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div className="settings-actions">
+                          <button
+                            className="settings-btn settings-btn--primary"
+                            type="button"
+                            onClick={saveBillingInformation}
+                          >
+                            Save billing information
+                          </button>
+                        </div>
+                      </div>
+                      <div className="settings-card settings-payment-safety-card">
+                        <div className="settings-card__head">
+                          <div className="settings-card__icon">
+                            <FiShield aria-hidden="true" />
+                          </div>
+                          <div>
+                            <h4 className="settings-card-title">
+                              Payment safety
+                            </h4>
+                            <p className="settings-helper">
+                              DarDarek should never store raw card numbers
+                              directly. Real payments should be handled by a
+                              secure payment provider such as Stripe, PayPal, or
+                              a bank payment gateway.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="settings-payment-safety-list">
+                          {paymentSafetyPoints.map((point) => (
+                            <div
+                              className="settings-payment-safety-item"
+                              key={point}
+                            >
+                              <FiCheck aria-hidden="true" />
+                              <span>{point}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </section>
-            )}
+                  </section>
+                )}
               </>
             )}
           </main>

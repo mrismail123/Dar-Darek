@@ -458,6 +458,13 @@
   font-size: 0.82rem;
   font-weight: 800;
   box-shadow: 0 6px 14px rgba(11, 33, 54, 0.11);
+  overflow: hidden;
+}
+
+.pd-summary__host-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .pd-summary__host-copy {
@@ -1532,6 +1539,13 @@ button.pd-calendar__day:hover:not(:disabled) {
   font-size: 1.1rem;
   font-weight: 800;
   box-shadow: 0 10px 24px rgba(11, 33, 54, 0.18);
+  overflow: hidden;
+}
+
+.pd-host__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .pd-host__verified-badge {

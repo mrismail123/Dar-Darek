@@ -1135,8 +1135,10 @@ app.get("/api/houses/:id", async (req, res) => {
         p.status,
         c.name AS city,
         c.name AS city_name,
-        u.name AS host_name,
+        COALESCE(u.name, 'Dar Darek Host') AS host_name,
         u.profile_picture AS host_profile_picture,
+        u.bio AS host_bio,
+        COALESCE(u.role, 'host') AS host_role,
         SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1) AS host_first_name,
         NULLIF(TRIM(SUBSTRING(COALESCE(u.name, ''), LENGTH(SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1)) + 1)), '') AS host_last_name
       FROM properties p
@@ -1378,6 +1380,7 @@ app.post("/api/cityForAbout", async (req, res) => {
 
 app.post(
   "/api/publishProperty",
+  verifyToken,
   upload.array("images", 12),
   async (req, res) => {
     try {
@@ -1403,8 +1406,15 @@ app.post(
         checkOut,
         availableFrom,
         availableTo,
-        idUser,
       } = req.body;
+
+      const userId = getUserIdFromRequest(req);
+
+      if (!userId) {
+        return res.status(401).json({
+          message: "Invalid authenticated user.",
+        });
+      }
 
       const amenities = JSON.parse(req.body.amenities || "{}");
       const uploadedImages = req.files
@@ -1494,7 +1504,7 @@ app.post(
           longitude ? Number(longitude) : null,
           propertyType || null,
           id_city,
-          idUser || null,
+          userId,
           Number(price),
           Number(guests),
           Number(bedrooms || 0),

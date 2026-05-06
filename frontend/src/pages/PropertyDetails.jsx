@@ -543,7 +543,30 @@ const getHostSubline = (host) => {
     return `${yearsHosting} ${yearsHosting > 1 ? "years" : "year"} hosting`;
   }
 
+  if (host?.role === "admin") {
+    return "Dar Darek admin host";
+  }
+
+  if (host?.role === "host") {
+    return "Dar Darek host";
+  }
+
   return "Dar Darek verified host";
+};
+
+const getInitials = (name = "") =>
+  name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+const normalizePublicImageUrl = (image) => {
+  if (!image || typeof image !== "string") return "";
+  return image.startsWith("/uploads") ? `http://localhost:5000${image}` : image;
 };
 
 const scrollToHost = () => {
@@ -722,21 +745,29 @@ const normalizeProperty = (property) => {
       "No unauthorized parties",
     ],
     host: {
+      profilePicture: normalizePublicImageUrl(
+        property.host?.profilePicture ||
+          property.host?.profile_picture ||
+          property.host_profile_picture,
+      ),
       name: withFallback(
         property.host?.name || property.host_name || property.owner_name,
         "Hôte Dar Darek",
       ),
       avatarInitials: withFallback(
-        property.host?.avatarInitials || property.host_initials,
+        property.host?.avatarInitials ||
+          property.host_initials ||
+          getInitials(property.host?.name || property.host_name || ""),
         "DD",
       ),
+      role: property.host?.role || property.host_role || null,
       verified: true,
       rating: null,
       reviews: 0,
       responseRate: null,
       responseTime: null,
       yearsHosting: null,
-      bio: null,
+      bio: property.host?.bio || property.host_bio || null,
     },
   };
 };
@@ -1293,6 +1324,7 @@ function LocationSection({ property }) {
 
 function HostSection({ host }) {
   const hostName = getHostName(host);
+  const hostSubline = getHostSubline(host);
 
   return (
     <section className="pd-section" id="host-section">
@@ -1306,14 +1338,22 @@ function HostSection({ host }) {
       <div className="pd-host pd-card">
         <div className="pd-host__profile">
           <div className="pd-host__avatar-wrap">
-            <span className="pd-host__avatar">{host.avatarInitials}</span>
+            <span className="pd-host__avatar">
+              {host.profilePicture ? (
+                <img src={host.profilePicture} alt={hostName} />
+              ) : (
+                host.avatarInitials
+              )}
+            </span>
           </div>
 
-          <div>
+          <div className="pd-host__profile-info">
             <h3>{hostName}</h3>
-            <p>Verified host</p>
+            <p>{hostSubline}</p>
           </div>
         </div>
+
+        {host.bio && <p className="pd-host__bio">{host.bio}</p>}
 
         <button type="button" className="pd-primary-btn">
           Contact host
@@ -1793,7 +1833,14 @@ export default function PropertyDetails() {
                 onClick={scrollToHost}
               >
                 <span className="pd-summary__host-avatar" aria-hidden="true">
-                  {displayProperty.host.avatarInitials}
+                  {displayProperty.host.profilePicture ? (
+                    <img
+                      src={displayProperty.host.profilePicture}
+                      alt=""
+                    />
+                  ) : (
+                    displayProperty.host.avatarInitials
+                  )}
                 </span>
                 <span className="pd-summary__host-copy">
                   <strong>Hosted by {displayHostName}</strong>
