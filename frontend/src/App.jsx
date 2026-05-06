@@ -14,6 +14,7 @@ import AdminDashboard from "./AdminDashboard";
 import PropertyDetails from "./pages/PropertyDetails";
 import Publish from "./pages/Publish";
 import RentalRequests from "./RentalRequests";
+import AccountSettings from "./pages/AccountSettings";
 
 import { useToken } from "./Contexts/TokenContext";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
@@ -84,6 +85,15 @@ function App() {
           element={
             <ProtectedRoute>
               <RentalRequests />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/account-settings"
+          element={
+            <ProtectedRoute>
+              <AccountSettings />
             </ProtectedRoute>
           }
         />
