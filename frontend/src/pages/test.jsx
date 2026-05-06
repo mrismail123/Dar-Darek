@@ -303,44 +303,6 @@ function formatValue(value) {
   return value && String(value).trim() ? value : "Not provided yet";
 }
 
-function formatDateOfBirth(value) {
-  if (!value) return "Not provided yet";
-
-  const [year, month, day] = value.split("-");
-  if (!year || !month || !day) return "Not provided yet";
-
-  const date = new Date(Number(year), Number(month) - 1, Number(day));
-
-  return date.toLocaleDateString("en", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
-
-const birthDayOptions = Array.from({ length: 31 }, (_, index) =>
-  String(index + 1).padStart(2, "0"),
-);
-
-const birthMonthOptions = [
-  { value: "01", label: "January" },
-  { value: "02", label: "February" },
-  { value: "03", label: "March" },
-  { value: "04", label: "April" },
-  { value: "05", label: "May" },
-  { value: "06", label: "June" },
-  { value: "07", label: "July" },
-  { value: "08", label: "August" },
-  { value: "09", label: "September" },
-  { value: "10", label: "October" },
-  { value: "11", label: "November" },
-  { value: "12", label: "December" },
-];
-
-const birthYearOptions = Array.from({ length: 100 }, (_, index) =>
-  String(new Date().getFullYear() - 18 - index),
-);
-
 function Toggle({ checked, onChange, label }) {
   return (
     <button
@@ -391,11 +353,6 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
         modal.draft.step === 2
           ? "We sent a 6-digit verification code to your phone number."
           : "Enter a phone number and verify it before saving.",
-    },
-    dateOfBirth: {
-      title: "Edit date of birth",
-      guidance:
-        "Your date of birth helps DarDarek support trust and account safety. It will not be shown publicly.",
     },
   }[modal.type];
 
@@ -459,86 +416,6 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
                 <span className="settings-error">{errors.lastName}</span>
               )}
             </label>
-          </div>
-        )}
-
-        {modal.type === "dateOfBirth" && (
-          <div className="settings-birth-modal">
-            <div className="settings-birth-picker">
-              <label className="settings-field">
-                <span className="settings-label">Day</span>
-                <select
-                  className={`settings-input settings-birth-select ${
-                    errors.day ? "settings-input--error" : ""
-                  }`}
-                  value={modal.draft.day}
-                  onChange={(event) =>
-                    onChange({ ...modal.draft, day: event.target.value })
-                  }
-                >
-                  <option value="">Day</option>
-                  {birthDayOptions.map((day) => (
-                    <option key={day} value={day}>
-                      {day}
-                    </option>
-                  ))}
-                </select>
-                {errors.day && (
-                  <span className="settings-error">{errors.day}</span>
-                )}
-              </label>
-
-              <label className="settings-field">
-                <span className="settings-label">Month</span>
-                <select
-                  className={`settings-input settings-birth-select ${
-                    errors.month ? "settings-input--error" : ""
-                  }`}
-                  value={modal.draft.month}
-                  onChange={(event) =>
-                    onChange({ ...modal.draft, month: event.target.value })
-                  }
-                >
-                  <option value="">Month</option>
-                  {birthMonthOptions.map((month) => (
-                    <option key={month.value} value={month.value}>
-                      {month.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.month && (
-                  <span className="settings-error">{errors.month}</span>
-                )}
-              </label>
-
-              <label className="settings-field">
-                <span className="settings-label">Year</span>
-                <select
-                  className={`settings-input settings-birth-select ${
-                    errors.year ? "settings-input--error" : ""
-                  }`}
-                  value={modal.draft.year}
-                  onChange={(event) =>
-                    onChange({ ...modal.draft, year: event.target.value })
-                  }
-                >
-                  <option value="">Year</option>
-                  {birthYearOptions.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-                {errors.year && (
-                  <span className="settings-error">{errors.year}</span>
-                )}
-              </label>
-            </div>
-
-            <div className="settings-birth-note">
-              We ask for this information to support account safety and future
-              identity verification.
-            </div>
           </div>
         )}
 
@@ -1367,7 +1244,6 @@ export default function AccountSettings() {
     name: rawUser.name || "",
     email: rawUser.email || "",
     phone: rawUser.phone || "",
-    dateOfBirth: rawUser.dateOfBirth || "",
     nationality: "Moroccan",
     languages: ["Arabic", "French", "English"],
     contactMethod: "Email",
@@ -1452,7 +1328,6 @@ export default function AccountSettings() {
       profile.name,
       profile.email,
       profile.phone,
-      profile.dateOfBirth,
       profile.nationality,
       profile.languages.length > 0 ? "languages" : "",
       profile.contactMethod,
@@ -1605,23 +1480,12 @@ export default function AccountSettings() {
   };
 
   const openProfileModal = (type) => {
-    const currentBirth = profile.dateOfBirth || "";
-    const [birthYear = "", birthMonth = "", birthDay = ""] =
-      currentBirth.split("-");
-
     const draft =
       type === "name"
         ? splitName(profile.name)
         : type === "email"
           ? { email: profile.email, step: 1, code: "" }
-          : type === "phone"
-            ? { phone: profile.phone, step: 1, code: "" }
-            : {
-                day: birthDay,
-                month: birthMonth,
-                year: birthYear,
-              };
-
+          : { phone: profile.phone, step: 1, code: "" };
     setModal({ type, draft });
     setModalErrors({});
   };
@@ -1676,44 +1540,6 @@ export default function AccountSettings() {
       }
     }
 
-    if (modal.type === "dateOfBirth") {
-      if (!modal.draft.day) errors.day = "Day is required.";
-      if (!modal.draft.month) errors.month = "Month is required.";
-      if (!modal.draft.year) errors.year = "Year is required.";
-
-      if (!Object.keys(errors).length) {
-        const selectedDate = new Date(
-          Number(modal.draft.year),
-          Number(modal.draft.month) - 1,
-          Number(modal.draft.day),
-        );
-
-        const isInvalidDate =
-          selectedDate.getFullYear() !== Number(modal.draft.year) ||
-          selectedDate.getMonth() !== Number(modal.draft.month) - 1 ||
-          selectedDate.getDate() !== Number(modal.draft.day);
-
-        const today = new Date();
-        const age =
-          today.getFullYear() -
-          selectedDate.getFullYear() -
-          (today <
-          new Date(
-            today.getFullYear(),
-            selectedDate.getMonth(),
-            selectedDate.getDate(),
-          )
-            ? 1
-            : 0);
-
-        if (isInvalidDate) {
-          errors.day = "Please choose a valid date.";
-        } else if (age < 18) {
-          errors.year = "You must be at least 18 years old.";
-        }
-      }
-    }
-
     setModalErrors(errors);
     if (Object.keys(errors).length) return;
 
@@ -1729,11 +1555,6 @@ export default function AccountSettings() {
         ...current,
         phone: modal.draft.phone.trim(),
       }));
-    } else if (modal.type === "dateOfBirth") {
-      setProfile((current) => ({
-        ...current,
-        dateOfBirth: `${modal.draft.year}-${modal.draft.month}-${modal.draft.day}`,
-      }));
     } else {
       setProfile((current) => ({ ...current, ...modal.draft }));
     }
@@ -1743,9 +1564,7 @@ export default function AccountSettings() {
         ? "Email address verified and updated."
         : modal.type === "phone"
           ? "Phone number verified and updated."
-          : modal.type === "dateOfBirth"
-            ? "Date of birth updated."
-            : "Profile detail updated.",
+          : "Profile detail updated.",
     );
   };
 
@@ -2062,13 +1881,6 @@ export default function AccountSettings() {
                     value={profile.phone}
                     actionLabel="Edit"
                     onAction={() => openProfileModal("phone")}
-                  />
-                  <ProfileRow
-                    title="Date of birth"
-                    description="Used for trust, safety, and future identity verification."
-                    value={formatDateOfBirth(profile.dateOfBirth)}
-                    actionLabel={profile.dateOfBirth ? "Edit" : "Add"}
-                    onAction={() => openProfileModal("dateOfBirth")}
                   />
                 </div>
 

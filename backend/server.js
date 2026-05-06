@@ -1161,7 +1161,7 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       SELECT id_booking 
       FROM bookings 
       WHERE id_property = ? 
-      AND status IN ('pending', 'confirmed')
+      AND status IN ('pending', 'approved')
       AND (start_date < ? AND end_date > ?)
       `,
       [id_property, checkOut, checkIn],
