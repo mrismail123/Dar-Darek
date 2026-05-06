@@ -31,6 +31,48 @@ const MOCK_USER = {
   role: "user",
 };
 
+const API_BASE_URL = "http://localhost:5000";
+
+function parseStoredUser() {
+  try {
+    const storedRaw = localStorage.getItem("user");
+    return storedRaw ? JSON.parse(storedRaw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAccountDate(value) {
+  return value ? String(value).split("T")[0] : "";
+}
+
+function parseAccountLanguages(value) {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean);
+  }
+
+  if (typeof value !== "string" || !value.trim()) {
+    return [];
+  }
+
+  try {
+    const parsedValue = JSON.parse(value);
+    return Array.isArray(parsedValue) ? parsedValue.filter(Boolean) : [];
+  } catch {
+    return value
+      .split(",")
+      .map((language) => language.trim())
+      .filter(Boolean);
+  }
+}
+
+function normalizeProfilePictureUrl(value) {
+  if (!value) return "";
+  return String(value).startsWith("/uploads")
+    ? `${API_BASE_URL}${value}`
+    : String(value);
+}
+
 const SECTIONS = [
   { id: "profile", label: "Profile", Icon: FiUser },
   { id: "security", label: "Security", Icon: FiShield },
@@ -371,6 +413,8 @@ function Toast({ toast }) {
 }
 
 function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
+  const [openBirthDropdown, setOpenBirthDropdown] = useState(null);
+
   if (!modal) return null;
 
   const copy = {
@@ -467,22 +511,26 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
             <div className="settings-birth-picker">
               <label className="settings-field">
                 <span className="settings-label">Day</span>
-                <select
-                  className={`settings-input settings-birth-select ${
-                    errors.day ? "settings-input--error" : ""
-                  }`}
+                <PreferenceDropdown
                   value={modal.draft.day}
-                  onChange={(event) =>
-                    onChange({ ...modal.draft, day: event.target.value })
+                  options={birthDayOptions}
+                  open={openBirthDropdown === "day"}
+                  onToggle={() =>
+                    setOpenBirthDropdown((current) =>
+                      current === "day" ? null : "day",
+                    )
                   }
-                >
-                  <option value="">Day</option>
-                  {birthDayOptions.map((day) => (
-                    <option key={day} value={day}>
-                      {day}
-                    </option>
-                  ))}
-                </select>
+                  onClose={() => setOpenBirthDropdown(null)}
+                  onSelect={(day) => {
+                    onChange({ ...modal.draft, day });
+                    setOpenBirthDropdown(null);
+                  }}
+                  placeholder="Day"
+                  className={`settings-birth-dropdown ${
+                    errors.day ? "settings-birth-dropdown--error" : ""
+                  }`}
+                  menuClassName="settings-birth-dropdown__menu"
+                />
                 {errors.day && (
                   <span className="settings-error">{errors.day}</span>
                 )}
@@ -490,22 +538,28 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
 
               <label className="settings-field">
                 <span className="settings-label">Month</span>
-                <select
-                  className={`settings-input settings-birth-select ${
-                    errors.month ? "settings-input--error" : ""
-                  }`}
+                <PreferenceDropdown
                   value={modal.draft.month}
-                  onChange={(event) =>
-                    onChange({ ...modal.draft, month: event.target.value })
+                  options={birthMonthOptions}
+                  open={openBirthDropdown === "month"}
+                  onToggle={() =>
+                    setOpenBirthDropdown((current) =>
+                      current === "month" ? null : "month",
+                    )
                   }
-                >
-                  <option value="">Month</option>
-                  {birthMonthOptions.map((month) => (
-                    <option key={month.value} value={month.value}>
-                      {month.label}
-                    </option>
-                  ))}
-                </select>
+                  onClose={() => setOpenBirthDropdown(null)}
+                  onSelect={(month) => {
+                    onChange({ ...modal.draft, month });
+                    setOpenBirthDropdown(null);
+                  }}
+                  placeholder="Month"
+                  className={`settings-birth-dropdown ${
+                    errors.month ? "settings-birth-dropdown--error" : ""
+                  }`}
+                  menuClassName="settings-birth-dropdown__menu"
+                  getOptionValue={(month) => month.value}
+                  getOptionLabel={(month) => month.label}
+                />
                 {errors.month && (
                   <span className="settings-error">{errors.month}</span>
                 )}
@@ -513,22 +567,26 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
 
               <label className="settings-field">
                 <span className="settings-label">Year</span>
-                <select
-                  className={`settings-input settings-birth-select ${
-                    errors.year ? "settings-input--error" : ""
-                  }`}
+                <PreferenceDropdown
                   value={modal.draft.year}
-                  onChange={(event) =>
-                    onChange({ ...modal.draft, year: event.target.value })
+                  options={birthYearOptions}
+                  open={openBirthDropdown === "year"}
+                  onToggle={() =>
+                    setOpenBirthDropdown((current) =>
+                      current === "year" ? null : "year",
+                    )
                   }
-                >
-                  <option value="">Year</option>
-                  {birthYearOptions.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
+                  onClose={() => setOpenBirthDropdown(null)}
+                  onSelect={(year) => {
+                    onChange({ ...modal.draft, year });
+                    setOpenBirthDropdown(null);
+                  }}
+                  placeholder="Year"
+                  className={`settings-birth-dropdown ${
+                    errors.year ? "settings-birth-dropdown--error" : ""
+                  }`}
+                  menuClassName="settings-birth-dropdown__menu"
+                />
                 {errors.year && (
                   <span className="settings-error">{errors.year}</span>
                 )}
@@ -1256,11 +1314,16 @@ function PreferenceDropdown({
   onSelect,
   getOptionValue = (option) => option,
   getOptionLabel = (option) => option,
+  placeholder = "Select",
+  className = "",
+  menuClassName = "",
 }) {
   const selectedOption =
     options.find((option) => getOptionValue(option) === value) || value;
   const selectedLabel =
-    typeof selectedOption === "string"
+    value === "" || value === null || value === undefined
+      ? placeholder
+      : typeof selectedOption === "string"
       ? selectedOption
       : getOptionLabel(selectedOption);
 
@@ -1268,7 +1331,7 @@ function PreferenceDropdown({
     <div
       className={`settings-preference-dropdown ${
         open ? "settings-preference-dropdown--open" : ""
-      }`}
+      } ${className}`}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) {
           onClose();
@@ -1281,11 +1344,22 @@ function PreferenceDropdown({
         aria-expanded={open}
         onClick={onToggle}
       >
-        <span>{selectedLabel}</span>
+        <span
+          className={
+            value === "" || value === null || value === undefined
+              ? "settings-preference-dropdown__placeholder"
+              : ""
+          }
+        >
+          {selectedLabel}
+        </span>
         <FiChevronDown aria-hidden="true" />
       </button>
       {open && (
-        <div className="settings-preference-dropdown__menu" role="listbox">
+        <div
+          className={`settings-preference-dropdown__menu ${menuClassName}`}
+          role="listbox"
+        >
           {options.map((option) => {
             const optionValue = getOptionValue(option);
             const optionLabel = getOptionLabel(option);
@@ -1341,13 +1415,16 @@ export default function AccountSettings() {
   const avatarInputRef = useRef(null);
   const avatarPhotoUrlRef = useRef(null);
   const avatarPreviewUrlRef = useRef(null);
-  const { user: ctxUser } = useToken();
-  const storedRaw = localStorage.getItem("user");
-  const storedUser = storedRaw ? JSON.parse(storedRaw) : null;
+  const { token, user: ctxUser, setUser } = useToken();
+  const storedUser = parseStoredUser();
   const rawUser = ctxUser || storedUser || MOCK_USER;
-  const isHost = rawUser.role === "host" || rawUser.role === "admin";
 
   const [activeSection, setActiveSection] = useState("profile");
+  const [accountLoading, setAccountLoading] = useState(true);
+  const [accountRole, setAccountRole] = useState(rawUser.role || "user");
+  const [hasPassword, setHasPassword] = useState(
+    rawUser.has_password ?? rawUser.hasPassword ?? true,
+  );
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState(null);
   const [modalErrors, setModalErrors] = useState({});
@@ -1366,12 +1443,12 @@ export default function AccountSettings() {
   const [profile, setProfile] = useState({
     name: rawUser.name || "",
     email: rawUser.email || "",
-    phone: rawUser.phone || "",
-    dateOfBirth: rawUser.dateOfBirth || "",
-    nationality: "Moroccan",
-    languages: ["Arabic", "French", "English"],
-    contactMethod: "Email",
-    emergencyContact: "",
+    phone: rawUser.phone_number || rawUser.phone || "",
+    dateOfBirth: normalizeAccountDate(rawUser.date_of_birth || rawUser.dateOfBirth),
+    nationality: rawUser.nationality || "",
+    languages: parseAccountLanguages(rawUser.languages),
+    contactMethod: rawUser.preferred_contact || "Email",
+    emergencyContact: rawUser.emergency_contact || "",
     bio: rawUser.bio || "",
   });
 
@@ -1406,29 +1483,30 @@ export default function AccountSettings() {
   });
 
   const [hosting, setHosting] = useState({
-    hostMode: isHost,
+    hostMode: rawUser.role === "host" || rawUser.role === "admin",
   });
   const [startHostingModalOpen, setStartHostingModalOpen] = useState(false);
 
   const [preferences, setPreferences] = useState({
-    language: "English",
-    currency: "MAD",
-    preferredCity: "Tangier",
-    stayType: "Apartment",
+    language: rawUser.preferred_language || "English",
+    currency: rawUser.preferred_currency || "MAD",
+    preferredCity: rawUser.preferred_city || "Tangier",
+    stayType: rawUser.preferred_stay_type || "Apartment",
   });
   const [citySearch, setCitySearch] = useState("");
   const [cityFocused, setCityFocused] = useState(false);
   const [openPreferenceDropdown, setOpenPreferenceDropdown] = useState(null);
 
   const [billing, setBilling] = useState({
-    billingName: profile.name,
-    address: "",
-    city: "",
-    postalCode: "",
-    country: "Morocco",
+    billingName: rawUser.billing_name || rawUser.name || "",
+    address: rawUser.billing_address || "",
+    city: rawUser.billing_city || "",
+    postalCode: rawUser.billing_postal_code || "",
+    country: rawUser.billing_country || "Morocco",
   });
   const [paymentPreviewOpen, setPaymentPreviewOpen] = useState(false);
   const [payoutPreviewOpen, setPayoutPreviewOpen] = useState(false);
+  const isHost = accountRole === "host" || accountRole === "admin";
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -1465,7 +1543,11 @@ export default function AccountSettings() {
 
   const securityStatusRows = useMemo(
     () => [
-      { label: "Password protection", status: "Active", tone: "verified" },
+      {
+        label: "Password login",
+        status: hasPassword ? "Enabled" : "Not enabled",
+        tone: hasPassword ? "verified" : "pending",
+      },
       {
         label: "Email verification",
         status: profile.email ? "Verified" : "Pending",
@@ -1477,7 +1559,7 @@ export default function AccountSettings() {
         tone: profile.phone ? "verified" : "pending",
       },
     ],
-    [profile.email, profile.phone],
+    [hasPassword, profile.email, profile.phone],
   );
 
   const filteredPreferenceCities = useMemo(() => {
@@ -1491,6 +1573,121 @@ export default function AccountSettings() {
   const showToast = (message, type = "success") => {
     setToast({ message, type });
   };
+
+  const accountRequest = async (path, options = {}) => {
+    if (!token) {
+      throw new Error("Please sign in again to update account settings.");
+    }
+
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(options.headers || {}),
+      },
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(data?.message || "Could not update account settings.");
+    }
+
+    return data;
+  };
+
+  const syncStoredUser = (accountUser) => {
+    const nextStoredUser = {
+      ...(ctxUser || storedUser || {}),
+      id: accountUser.id_user,
+      id_user: accountUser.id_user,
+      name: accountUser.name,
+      email: accountUser.email,
+      role: accountUser.role,
+      has_password: accountUser.has_password,
+    };
+
+    localStorage.setItem("user", JSON.stringify(nextStoredUser));
+    setUser(nextStoredUser);
+  };
+
+  const applyAccountUser = (accountUser) => {
+    if (!accountUser) return;
+
+    setProfile({
+      name: accountUser.name || "",
+      email: accountUser.email || "",
+      phone: accountUser.phone_number || "",
+      dateOfBirth: normalizeAccountDate(accountUser.date_of_birth),
+      nationality: accountUser.nationality || "",
+      languages: parseAccountLanguages(accountUser.languages),
+      contactMethod: accountUser.preferred_contact || "Email",
+      emergencyContact: accountUser.emergency_contact || "",
+      bio: accountUser.bio || "",
+    });
+
+    setPreferences({
+      language: accountUser.preferred_language || "English",
+      currency: accountUser.preferred_currency || "MAD",
+      preferredCity: accountUser.preferred_city || "Tangier",
+      stayType: accountUser.preferred_stay_type || "Apartment",
+    });
+
+    setBilling({
+      billingName: accountUser.billing_name || accountUser.name || "",
+      address: accountUser.billing_address || "",
+      city: accountUser.billing_city || "",
+      postalCode: accountUser.billing_postal_code || "",
+      country: accountUser.billing_country || "Morocco",
+    });
+
+    setAccountRole(accountUser.role || "user");
+    setHasPassword(Boolean(accountUser.has_password));
+    setHosting({ hostMode: accountUser.role === "host" || accountUser.role === "admin" });
+
+    const profilePictureUrl = normalizeProfilePictureUrl(
+      accountUser.profile_picture,
+    );
+    setAvatarPhoto(
+      profilePictureUrl
+        ? { url: profilePictureUrl, zoom: 1, positionX: 0, positionY: 0 }
+        : null,
+    );
+    syncStoredUser(accountUser);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAccountSettings = async () => {
+      if (!token) {
+        setAccountLoading(false);
+        return;
+      }
+
+      try {
+        setAccountLoading(true);
+        const data = await accountRequest("/api/users/me");
+        if (isMounted) {
+          applyAccountUser(data.user);
+        }
+      } catch {
+        if (isMounted) {
+          showToast("Could not load account settings.", "warning");
+        }
+      } finally {
+        if (isMounted) {
+          setAccountLoading(false);
+        }
+      }
+    };
+
+    loadAccountSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token]);
 
   const handleDone = () => {
     if (window.history.length > 1) {
@@ -1626,7 +1823,7 @@ export default function AccountSettings() {
     setModalErrors({});
   };
 
-  const saveProfileModal = () => {
+  const saveProfileModal = async () => {
     const errors = {};
     if (modal.type === "name") {
       if (!modal.draft.firstName.trim())
@@ -1717,41 +1914,54 @@ export default function AccountSettings() {
     setModalErrors(errors);
     if (Object.keys(errors).length) return;
 
-    if (modal.type === "name") {
-      setProfile((current) => ({
-        ...current,
-        name: `${modal.draft.firstName.trim()} ${modal.draft.lastName.trim()}`,
-      }));
-    } else if (modal.type === "email") {
-      setProfile((current) => ({ ...current, email: modal.draft.email }));
-    } else if (modal.type === "phone") {
-      setProfile((current) => ({
-        ...current,
-        phone: modal.draft.phone.trim(),
-      }));
-    } else if (modal.type === "dateOfBirth") {
-      setProfile((current) => ({
-        ...current,
-        dateOfBirth: `${modal.draft.year}-${modal.draft.month}-${modal.draft.day}`,
-      }));
-    } else {
-      setProfile((current) => ({ ...current, ...modal.draft }));
+    try {
+      let data;
+
+      if (modal.type === "name") {
+        data = await accountRequest("/api/users/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            name: `${modal.draft.firstName.trim()} ${modal.draft.lastName.trim()}`,
+          }),
+        });
+      } else if (modal.type === "email") {
+        data = await accountRequest("/api/users/email", {
+          method: "PUT",
+          body: JSON.stringify({ email: modal.draft.email }),
+        });
+      } else if (modal.type === "phone") {
+        data = await accountRequest("/api/users/profile", {
+          method: "PUT",
+          body: JSON.stringify({ phone_number: modal.draft.phone.trim() }),
+        });
+      } else if (modal.type === "dateOfBirth") {
+        data = await accountRequest("/api/users/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            date_of_birth: `${modal.draft.year}-${modal.draft.month}-${modal.draft.day}`,
+          }),
+        });
+      }
+
+      applyAccountUser(data?.user);
+      setModal(null);
+      showToast(
+        modal.type === "email"
+          ? "Email address verified and updated."
+          : modal.type === "phone"
+            ? "Phone number verified and updated."
+            : modal.type === "dateOfBirth"
+              ? "Date of birth updated."
+              : "Profile detail updated.",
+      );
+    } catch (error) {
+      showToast(error.message || "Could not update account settings.", "warning");
     }
-    setModal(null);
-    showToast(
-      modal.type === "email"
-        ? "Email address verified and updated."
-        : modal.type === "phone"
-          ? "Phone number verified and updated."
-          : modal.type === "dateOfBirth"
-            ? "Date of birth updated."
-            : "Profile detail updated.",
-    );
   };
 
   const getPasswordErrors = (values) => {
     const errors = {};
-    if (!values.currentPassword)
+    if (hasPassword && !values.currentPassword)
       errors.currentPassword = "Current password is required.";
     if (values.newPassword.length < 8)
       errors.newPassword = "Password must be at least 8 characters.";
@@ -1772,17 +1982,47 @@ export default function AccountSettings() {
     return Object.keys(errors).length === 0;
   };
 
-  const savePassword = () => {
+  const savePassword = async () => {
     setPasswordTouched({
       currentPassword: true,
       newPassword: true,
       confirmPassword: true,
     });
     if (!validatePassword()) return;
-    setSecurity({ currentPassword: "", newPassword: "", confirmPassword: "" });
-    setPasswordErrors({});
-    setPasswordTouched({});
-    showToast("Password updated for preview.");
+
+    try {
+      const passwordPath = hasPassword
+        ? "/api/users/change-password"
+        : "/api/users/create-password";
+      const passwordBody = hasPassword
+        ? {
+            currentPassword: security.currentPassword,
+            newPassword: security.newPassword,
+          }
+        : { newPassword: security.newPassword };
+
+      const data = await accountRequest(passwordPath, {
+        method: "PUT",
+        body: JSON.stringify(passwordBody),
+      });
+      if (data?.has_password) {
+        setHasPassword(true);
+      }
+      setSecurity({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setPasswordErrors({});
+      setPasswordTouched({});
+      showToast(
+        hasPassword
+          ? "Password updated successfully."
+          : "Password login enabled for this account.",
+      );
+    } catch (error) {
+      showToast(error.message || "Could not update password.", "warning");
+    }
   };
 
   const confirmDeactivateAccount = () => {
@@ -1812,22 +2052,94 @@ export default function AccountSettings() {
 
   const hostModeActive = isHost || hosting.hostMode;
 
-  const continueHostOnboarding = () => {
-    setStartHostingModalOpen(false);
-    setHosting((current) => ({ ...current, hostMode: true }));
-    showToast("Host mode enabled for preview.");
+  const continueHostOnboarding = async () => {
+    try {
+      const data = await accountRequest("/api/users/become-host", {
+        method: "PUT",
+      });
+      const nextRole = data.role || "host";
+      setAccountRole(nextRole);
+      setHosting((current) => ({ ...current, hostMode: true }));
+      setStartHostingModalOpen(false);
+
+      const nextStoredUser = {
+        ...(ctxUser || storedUser || {}),
+        role: nextRole,
+      };
+      localStorage.setItem("user", JSON.stringify(nextStoredUser));
+      setUser(nextStoredUser);
+      showToast("Host mode enabled.");
+    } catch (error) {
+      showToast(error.message || "Could not enable host mode.", "warning");
+    }
   };
 
   const saveNotificationPreferences = () => {
     showToast("Notification preferences saved for preview.");
   };
 
-  const savePreferences = () => {
-    showToast("Preferences saved for preview.");
+  const saveProfileDetails = async () => {
+    if (emergencyContactError) {
+      showToast("Enter a valid emergency phone number.", "warning");
+      return;
+    }
+
+    try {
+      const data = await accountRequest("/api/users/profile", {
+        method: "PUT",
+        body: JSON.stringify({
+          bio: profile.bio,
+          nationality: profile.nationality,
+          languages: profile.languages,
+          preferred_contact: profile.contactMethod,
+          emergency_contact: profile.emergencyContact,
+        }),
+      });
+      applyAccountUser(data.user);
+      showToast("Profile details saved.");
+    } catch (error) {
+      showToast(error.message || "Could not save profile details.", "warning");
+    }
   };
 
-  const saveBillingInformation = () => {
-    showToast("Billing information saved for preview.");
+  const savePreferences = async () => {
+    try {
+      const data = await accountRequest("/api/users/preferences", {
+        method: "PUT",
+        body: JSON.stringify({
+          preferred_language: preferences.language,
+          preferred_currency: preferences.currency,
+          preferred_city: preferences.preferredCity,
+          preferred_stay_type: preferences.stayType,
+        }),
+      });
+      applyAccountUser(data.user);
+      showToast("Preferences saved.");
+    } catch (error) {
+      showToast(error.message || "Could not save preferences.", "warning");
+    }
+  };
+
+  const saveBillingInformation = async () => {
+    try {
+      const data = await accountRequest("/api/users/billing", {
+        method: "PUT",
+        body: JSON.stringify({
+          billing_name: billing.billingName,
+          billing_address: billing.address,
+          billing_city: billing.city,
+          billing_postal_code: billing.postalCode,
+          billing_country: billing.country,
+        }),
+      });
+      applyAccountUser(data.user);
+      showToast("Billing information saved.");
+    } catch (error) {
+      showToast(
+        error.message || "Could not save billing information.",
+        "warning",
+      );
+    }
   };
 
   const closePaymentPreview = () => {
@@ -1841,7 +2153,7 @@ export default function AccountSettings() {
   };
 
   const isPasswordReady =
-    security.currentPassword.trim() &&
+    (!hasPassword || security.currentPassword.trim()) &&
     security.newPassword.trim() &&
     security.confirmPassword.trim();
 
@@ -2032,6 +2344,26 @@ export default function AccountSettings() {
           </nav>
 
           <main className="account-settings-content">
+            {accountLoading ? (
+              <section className="settings-section">
+                <div className="settings-card">
+                  <div className="settings-card__head">
+                    <div className="settings-card__icon">
+                      <FiSettings aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h4 className="settings-card-title">
+                        Loading account settings
+                      </h4>
+                      <p className="settings-helper">
+                        Your account details are being loaded.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <>
             {activeSection === "profile" && (
               <section className="settings-section">
                 <div className="settings-section__head">
@@ -2295,6 +2627,15 @@ export default function AccountSettings() {
                       </span>
                     </ProfileFieldCard>
                   </div>
+                  <div className="settings-actions">
+                    <button
+                      className="settings-btn settings-btn--primary"
+                      type="button"
+                      onClick={saveProfileDetails}
+                    >
+                      Save profile details
+                    </button>
+                  </div>
                 </div>
               </section>
             )}
@@ -2343,15 +2684,19 @@ export default function AccountSettings() {
                       <FiLock aria-hidden="true" />
                     </div>
                     <div>
-                      <h4 className="settings-card-title">Change password</h4>
+                      <h4 className="settings-card-title">
+                        {hasPassword ? "Change password" : "Create password"}
+                      </h4>
                       <p className="settings-helper">
-                        Use at least 8 characters with a mix of letters,
-                        numbers, or symbols.
+                        {hasPassword
+                          ? "Use at least 8 characters with a mix of letters, numbers, or symbols."
+                          : "Your account was created with Google. Add a password if you also want to sign in with email and password."}
                       </p>
                     </div>
                   </div>
                   <div className="settings-field-grid">
-                    {renderPasswordField("currentPassword", "Current password")}
+                    {hasPassword &&
+                      renderPasswordField("currentPassword", "Current password")}
                     {renderPasswordField("newPassword", "New password")}
                     {renderPasswordField("confirmPassword", "Confirm password")}
                   </div>
@@ -2362,7 +2707,7 @@ export default function AccountSettings() {
                       onClick={savePassword}
                       disabled={!isPasswordReady}
                     >
-                      Update password
+                      {hasPassword ? "Update password" : "Create password"}
                     </button>
                   </div>
                 </div>
@@ -3086,6 +3431,8 @@ export default function AccountSettings() {
                   </div>
                 </div>
               </section>
+            )}
+              </>
             )}
           </main>
         </div>

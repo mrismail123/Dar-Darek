@@ -134,6 +134,492 @@ app.get("/api/test-db", async (req, res) => {
 });
 
 /* =========================
+   USER ACCOUNT ROUTES
+========================= */
+
+const USER_ACCOUNT_FIELDS = `
+  id_user,
+  name,
+  email,
+  phone_number,
+  role,
+  profile_picture,
+  bio,
+  nationality,
+  languages,
+  preferred_contact,
+  emergency_contact,
+  preferred_language,
+  preferred_currency,
+  preferred_city,
+  preferred_stay_type,
+  billing_name,
+  billing_address,
+  billing_city,
+  billing_postal_code,
+  billing_country,
+  date_of_birth,
+  password IS NOT NULL AS has_password
+`;
+
+const ACCOUNT_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ACCOUNT_PHONE_ALLOWED_REGEX = /^[\d\s()+-]+$/;
+const ACCOUNT_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const cleanText = (value, maxLength = 255) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+
+  const trimmedValue = String(value).trim();
+  return trimmedValue ? trimmedValue.slice(0, maxLength) : null;
+};
+
+const normalizePhoneForUsersTable = (value) => {
+  const cleanedValue = cleanText(value, 30);
+  if (!cleanedValue) return cleanedValue;
+  const hasLeadingPlus = cleanedValue.trim().startsWith("+");
+  const digitsOnly = cleanedValue.replace(/\D/g, "");
+  return `${hasLeadingPlus ? "+" : ""}${digitsOnly}`;
+};
+
+const isValidPhoneValue = (value) => {
+  if (!value) return true;
+  return (
+    ACCOUNT_PHONE_ALLOWED_REGEX.test(value) &&
+    value.replace(/\D/g, "").length >= 7 &&
+    value.replace(/\D/g, "").length <= 15
+  );
+};
+
+const isValidDateValue = (value) => {
+  if (!value) return true;
+  if (!ACCOUNT_DATE_REGEX.test(value)) return false;
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+};
+
+const normalizeDateForResponse = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().split("T")[0];
+  return String(value).split("T")[0];
+};
+
+const normalizeLanguages = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+
+  let languageList = value;
+  if (typeof value === "string") {
+    try {
+      const parsedValue = JSON.parse(value);
+      languageList = Array.isArray(parsedValue) ? parsedValue : [value];
+    } catch {
+      languageList = value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+
+  if (!Array.isArray(languageList)) {
+    return null;
+  }
+
+  const cleanedLanguages = languageList
+    .map((language) => cleanText(language, 50))
+    .filter(Boolean);
+
+  return JSON.stringify(cleanedLanguages);
+};
+
+const sendSafeUser = (res, user) => {
+  const safeUser = {
+    ...user,
+    date_of_birth: normalizeDateForResponse(user.date_of_birth),
+    has_password: Boolean(user.has_password),
+  };
+
+  return res.status(200).json({ user: safeUser });
+};
+
+const getUserIdFromRequest = (req) => {
+  const userId = Number(req.user?.id || req.user?.id_user);
+  return Number.isFinite(userId) && userId > 0 ? userId : null;
+};
+
+const getSafeUserById = async (userId) => {
+  const [rows] = await db.query(
+    `SELECT ${USER_ACCOUNT_FIELDS} FROM users WHERE id_user = ? LIMIT 1`,
+    [userId],
+  );
+
+  return rows[0] || null;
+};
+
+const updateUserFields = async (userId, fieldMap) => {
+  const entries = Object.entries(fieldMap).filter(
+    ([, value]) => value !== undefined,
+  );
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  const assignments = entries.map(([field]) => `${field} = ?`).join(", ");
+  const values = entries.map(([, value]) => value);
+
+  await db.execute(`UPDATE users SET ${assignments} WHERE id_user = ?`, [
+    ...values,
+    userId,
+  ]);
+
+  return getSafeUserById(userId);
+};
+
+app.get("/api/users/me", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const user = await getSafeUserById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    return sendSafeUser(res, user);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not load account settings.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/profile", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const {
+      name,
+      phone_number,
+      bio,
+      nationality,
+      languages,
+      preferred_contact,
+      emergency_contact,
+      date_of_birth,
+    } = req.body;
+
+    const nextName = cleanText(name, 100);
+    if (name !== undefined && (!nextName || nextName.length < 5)) {
+      return res
+        .status(400)
+        .json({ message: "Name must be at least 5 characters." });
+    }
+
+    const nextPhoneNumber = normalizePhoneForUsersTable(phone_number);
+    if (phone_number !== undefined && !isValidPhoneValue(phone_number)) {
+      return res.status(400).json({
+        message: "Phone number can only contain numbers and phone symbols.",
+      });
+    }
+
+    const nextEmergencyContact = cleanText(emergency_contact, 50);
+    if (
+      emergency_contact !== undefined &&
+      !isValidPhoneValue(nextEmergencyContact)
+    ) {
+      return res.status(400).json({
+        message:
+          "Emergency contact can only contain numbers and phone symbols.",
+      });
+    }
+
+    const nextDateOfBirth = cleanText(date_of_birth, 10);
+    if (date_of_birth !== undefined && !isValidDateValue(nextDateOfBirth)) {
+      return res
+        .status(400)
+        .json({ message: "Date of birth must use YYYY-MM-DD." });
+    }
+
+    const user = await updateUserFields(userId, {
+      name: nextName,
+      phone_number: nextPhoneNumber,
+      bio: cleanText(bio, 250),
+      nationality: cleanText(nationality, 100),
+      languages: normalizeLanguages(languages),
+      preferred_contact: cleanText(preferred_contact, 50),
+      emergency_contact: nextEmergencyContact,
+      date_of_birth: nextDateOfBirth,
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "No profile fields provided." });
+    }
+
+    return sendSafeUser(res, user);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not update profile.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/email", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const email = cleanText(req.body.email, 255)?.toLowerCase();
+    if (!email || !ACCOUNT_EMAIL_REGEX.test(email)) {
+      return res
+        .status(400)
+        .json({ message: "Please enter a valid email address." });
+    }
+
+    const [existingUsers] = await db.query(
+      "SELECT id_user FROM users WHERE email = ? AND id_user != ? LIMIT 1",
+      [email, userId],
+    );
+
+    if (existingUsers.length > 0) {
+      return res
+        .status(409)
+        .json({ message: "An account with this email already exists." });
+    }
+
+    const user = await updateUserFields(userId, { email });
+    return sendSafeUser(res, user);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not update email.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/preferences", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const user = await updateUserFields(userId, {
+      preferred_language: cleanText(req.body.preferred_language, 50),
+      preferred_currency: cleanText(req.body.preferred_currency, 10),
+      preferred_city: cleanText(req.body.preferred_city, 100),
+      preferred_stay_type: cleanText(req.body.preferred_stay_type, 100),
+    });
+
+    if (!user) {
+      return res
+        .status(400)
+        .json({ message: "No preference fields provided." });
+    }
+
+    return sendSafeUser(res, user);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not update preferences.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/billing", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const user = await updateUserFields(userId, {
+      billing_name: cleanText(req.body.billing_name, 150),
+      billing_address: cleanText(req.body.billing_address, 255),
+      billing_city: cleanText(req.body.billing_city, 100),
+      billing_postal_code: cleanText(req.body.billing_postal_code, 30),
+      billing_country: cleanText(req.body.billing_country, 100),
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "No billing fields provided." });
+    }
+
+    return sendSafeUser(res, user);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not update billing information.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/change-password", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const currentPassword =
+      typeof req.body.currentPassword === "string"
+        ? req.body.currentPassword
+        : "";
+    const newPassword =
+      typeof req.body.newPassword === "string" ? req.body.newPassword : "";
+
+    if (!currentPassword) {
+      return res.status(400).json({ message: "Current password is required." });
+    }
+
+    if (newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 8 characters." });
+    }
+
+    const [rows] = await db.query(
+      "SELECT password FROM users WHERE id_user = ? LIMIT 1",
+      [userId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (!rows[0].password) {
+      return res.status(400).json({
+        message: "Password login is not enabled for this account.",
+      });
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(
+      currentPassword,
+      rows[0].password,
+    );
+
+    if (!isCurrentPasswordValid) {
+      return res
+        .status(401)
+        .json({ message: "Current password is incorrect." });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await db.execute("UPDATE users SET password = ? WHERE id_user = ?", [
+      hashedPassword,
+      userId,
+    ]);
+
+    return res.status(200).json({ message: "Password updated successfully." });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not update password.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/create-password", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const newPassword =
+      typeof req.body.newPassword === "string" ? req.body.newPassword : "";
+
+    if (newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 8 characters." });
+    }
+
+    const [rows] = await db.query(
+      "SELECT password FROM users WHERE id_user = ? LIMIT 1",
+      [userId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (rows[0].password) {
+      return res
+        .status(409)
+        .json({ message: "Password login is already enabled." });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await db.query(
+      "UPDATE users SET password = ?, is_active = 1 WHERE id_user = ? AND password IS NULL",
+      [hashedPassword, userId],
+    );
+
+    return res.status(200).json({
+      message: "Password login enabled for this account.",
+      has_password: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not create password.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/become-host", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const [rows] = await db.query(
+      "SELECT role FROM users WHERE id_user = ? LIMIT 1",
+      [userId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const currentRole = rows[0].role;
+    const nextRole = currentRole === "admin" ? "admin" : "host";
+
+    if (currentRole !== nextRole) {
+      await db.execute("UPDATE users SET role = ? WHERE id_user = ?", [
+        nextRole,
+        userId,
+      ]);
+    }
+
+    return res.status(200).json({ role: nextRole });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not enable host mode.",
+      details: error.message,
+    });
+  }
+});
+
+/* =========================
    AUTH ROUTES
 ========================= */
 
@@ -650,6 +1136,7 @@ app.get("/api/houses/:id", async (req, res) => {
         c.name AS city,
         c.name AS city_name,
         u.name AS host_name,
+        u.profile_picture AS host_profile_picture,
         SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1) AS host_first_name,
         NULLIF(TRIM(SUBSTRING(COALESCE(u.name, ''), LENGTH(SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1)) + 1)), '') AS host_last_name
       FROM properties p
