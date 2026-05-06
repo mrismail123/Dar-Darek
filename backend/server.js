@@ -165,6 +165,72 @@ const USER_ACCOUNT_FIELDS = `
 const ACCOUNT_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ACCOUNT_PHONE_ALLOWED_REGEX = /^[\d\s()+-]+$/;
 const ACCOUNT_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const ACCOUNT_LANGUAGE_OPTIONS = new Set([
+  "Arabic",
+  "French",
+  "English",
+  "Spanish",
+  "Italian",
+  "German",
+  "Dutch",
+  "Portuguese",
+  "Turkish",
+  "Amazigh",
+]);
+const ACCOUNT_CONTACT_OPTIONS = new Set([
+  "Email",
+  "SMS",
+  "Push notification",
+]);
+const ACCOUNT_PREFERENCE_LANGUAGE_OPTIONS = new Set([
+  "English",
+  "French",
+  "Arabic",
+  "Spanish",
+  "German",
+  "Italian",
+  "Dutch",
+  "Portuguese",
+  "Turkish",
+  "Amazigh",
+]);
+const ACCOUNT_CURRENCY_OPTIONS = new Set([
+  "MAD",
+  "EUR",
+  "USD",
+  "GBP",
+  "CAD",
+  "AED",
+  "SAR",
+]);
+const ACCOUNT_CITY_OPTIONS = new Set([
+  "Ajdir",
+  "Al Hoceima",
+  "Asilah",
+  "Belyounech",
+  "Bni Bouayach",
+  "Cabo Negro",
+  "Chefchaouen",
+  "Fnideq",
+  "Imzouren",
+  "Ksar El Kebir",
+  "Larache",
+  "Martil",
+  "M'diq",
+  "Oued Laou",
+  "Ouazzane",
+  "Tangier",
+  "Targuist",
+  "Tetouan",
+]);
+const ACCOUNT_STAY_TYPE_OPTIONS = new Set([
+  "Apartment",
+  "Studio",
+  "House",
+  "Villa",
+  "Riad",
+  "Guest house",
+]);
 
 const cleanText = (value, maxLength = 255) => {
   if (value === undefined) return undefined;
@@ -205,6 +271,16 @@ const isValidDateValue = (value) => {
   );
 };
 
+const getAgeFromDateValue = (value) => {
+  if (!value || !isValidDateValue(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  const birthdayThisYear = new Date(today.getFullYear(), month - 1, day);
+  if (today < birthdayThisYear) age -= 1;
+  return age;
+};
+
 const normalizeDateForResponse = (value) => {
   if (!value) return null;
   if (value instanceof Date) return value.toISOString().split("T")[0];
@@ -234,9 +310,29 @@ const normalizeLanguages = (value) => {
 
   const cleanedLanguages = languageList
     .map((language) => cleanText(language, 50))
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter(
+      (language, index, list) =>
+        list.findIndex(
+          (item) => item.toLowerCase() === language.toLowerCase(),
+        ) === index,
+    );
 
   return JSON.stringify(cleanedLanguages);
+};
+
+const validateAccountLanguages = (value) => {
+  const normalizedValue = normalizeLanguages(value);
+  if (!normalizedValue) return true;
+
+  try {
+    const parsedLanguages = JSON.parse(normalizedValue);
+    return parsedLanguages.every((language) =>
+      ACCOUNT_LANGUAGE_OPTIONS.has(language),
+    );
+  } catch {
+    return false;
+  }
 };
 
 const sendSafeUser = (res, user) => {
@@ -347,11 +443,37 @@ app.put("/api/users/profile", verifyToken, async (req, res) => {
       });
     }
 
+    if (languages !== undefined && !validateAccountLanguages(languages)) {
+      return res.status(400).json({
+        message: "Choose languages from the supported language list.",
+      });
+    }
+
+    const nextPreferredContact = cleanText(preferred_contact, 50);
+    if (
+      preferred_contact !== undefined &&
+      nextPreferredContact &&
+      !ACCOUNT_CONTACT_OPTIONS.has(nextPreferredContact)
+    ) {
+      return res.status(400).json({
+        message: "Choose a valid preferred contact method.",
+      });
+    }
+
     const nextDateOfBirth = cleanText(date_of_birth, 10);
     if (date_of_birth !== undefined && !isValidDateValue(nextDateOfBirth)) {
       return res
         .status(400)
         .json({ message: "Date of birth must use YYYY-MM-DD." });
+    }
+    if (
+      date_of_birth !== undefined &&
+      nextDateOfBirth &&
+      getAgeFromDateValue(nextDateOfBirth) < 18
+    ) {
+      return res
+        .status(400)
+        .json({ message: "You must be at least 18 years old." });
     }
 
     const user = await updateUserFields(userId, {
@@ -360,7 +482,7 @@ app.put("/api/users/profile", verifyToken, async (req, res) => {
       bio: cleanText(bio, 250),
       nationality: cleanText(nationality, 100),
       languages: normalizeLanguages(languages),
-      preferred_contact: cleanText(preferred_contact, 50),
+      preferred_contact: nextPreferredContact,
       emergency_contact: nextEmergencyContact,
       date_of_birth: nextDateOfBirth,
     });
@@ -413,6 +535,41 @@ app.put("/api/users/email", verifyToken, async (req, res) => {
   }
 });
 
+app.put(
+  "/api/users/profile-picture",
+  verifyToken,
+  upload.single("profile_picture"),
+  async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Invalid authenticated user." });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "Profile picture is required." });
+      }
+
+      if (!req.file.mimetype.startsWith("image/")) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(400).json({ message: "Only image files are allowed." });
+      }
+
+      const profilePicture = `/uploads/${req.file.filename}`;
+      const user = await updateUserFields(userId, {
+        profile_picture: profilePicture,
+      });
+
+      return sendSafeUser(res, user);
+    } catch (error) {
+      return res.status(500).json({
+        message: "Could not update profile picture.",
+        details: error.message,
+      });
+    }
+  },
+);
+
 app.put("/api/users/preferences", verifyToken, async (req, res) => {
   try {
     const userId = getUserIdFromRequest(req);
@@ -420,11 +577,43 @@ app.put("/api/users/preferences", verifyToken, async (req, res) => {
       return res.status(401).json({ message: "Invalid authenticated user." });
     }
 
+    const preferredLanguage = cleanText(req.body.preferred_language, 50);
+    const preferredCurrency = cleanText(req.body.preferred_currency, 10);
+    const preferredCity = cleanText(req.body.preferred_city, 100);
+    const preferredStayType = cleanText(req.body.preferred_stay_type, 100);
+
+    if (
+      preferredLanguage &&
+      !ACCOUNT_PREFERENCE_LANGUAGE_OPTIONS.has(preferredLanguage)
+    ) {
+      return res.status(400).json({
+        message: "Choose a valid preferred language.",
+      });
+    }
+
+    if (preferredCurrency && !ACCOUNT_CURRENCY_OPTIONS.has(preferredCurrency)) {
+      return res.status(400).json({
+        message: "Choose a valid preferred currency.",
+      });
+    }
+
+    if (preferredCity && !ACCOUNT_CITY_OPTIONS.has(preferredCity)) {
+      return res.status(400).json({
+        message: "Choose a valid Northern Morocco city.",
+      });
+    }
+
+    if (preferredStayType && !ACCOUNT_STAY_TYPE_OPTIONS.has(preferredStayType)) {
+      return res.status(400).json({
+        message: "Choose a valid preferred stay type.",
+      });
+    }
+
     const user = await updateUserFields(userId, {
-      preferred_language: cleanText(req.body.preferred_language, 50),
-      preferred_currency: cleanText(req.body.preferred_currency, 10),
-      preferred_city: cleanText(req.body.preferred_city, 100),
-      preferred_stay_type: cleanText(req.body.preferred_stay_type, 100),
+      preferred_language: preferredLanguage,
+      preferred_currency: preferredCurrency,
+      preferred_city: preferredCity,
+      preferred_stay_type: preferredStayType,
     });
 
     if (!user) {
@@ -437,6 +626,28 @@ app.put("/api/users/preferences", verifyToken, async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: "Could not update preferences.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/deactivate", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    await db.execute("UPDATE users SET is_active = 0 WHERE id_user = ?", [
+      userId,
+    ]);
+
+    return res.status(200).json({
+      message: "Account deactivated successfully.",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not deactivate account.",
       details: error.message,
     });
   }
@@ -933,7 +1144,9 @@ app.post("/api/login", async (req, res) => {
 
     if (user.is_active === 0) {
       return res.status(401).json({
-        message: "Please verify your account before logging in.",
+        message: "This account is deactivated.",
+        canReactivate: true,
+        email: user.email,
       });
     }
 
@@ -955,6 +1168,61 @@ app.post("/api/login", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "An error occurred during login.",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/reactivate-account", async (req, res) => {
+  const { email, password } = req.body;
+  const cleanEmail =
+    typeof email === "string" ? email.trim().toLowerCase() : "";
+  const safePassword = typeof password === "string" ? password : "";
+
+  try {
+    if (!cleanEmail) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+
+    if (!safePassword) {
+      return res.status(400).json({ message: "Password is required." });
+    }
+
+    const [rows] = await db.query("SELECT * FROM users WHERE email = ? LIMIT 1", [
+      cleanEmail,
+    ]);
+
+    if (rows.length === 0 || !rows[0].password) {
+      return res.status(401).json({
+        message: "Email or password is incorrect.",
+      });
+    }
+
+    const user = rows[0];
+    const isMatch = await bcrypt.compare(safePassword, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        message: "Email or password is incorrect.",
+      });
+    }
+
+    if (user.is_active !== 0) {
+      return res.status(200).json({
+        message: "This account is already active.",
+      });
+    }
+
+    await db.execute("UPDATE users SET is_active = 1 WHERE id_user = ?", [
+      user.id_user,
+    ]);
+
+    return res.status(200).json({
+      message: "Account reactivated successfully. You can sign in now.",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not reactivate account.",
       details: error.message,
     });
   }

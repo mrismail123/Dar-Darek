@@ -23,15 +23,8 @@ import { useToken } from "../Contexts/TokenContext";
 import Footer from "../Footer";
 import "./AccountSettings.css";
 
-const MOCK_USER = {
-  name: "Ismail Mrini",
-  email: "ismail.mrini@example.com",
-  phone: "+212 661 234 567",
-  bio: "Passionate traveller. I love discovering the beauty of Northern Morocco and finding memorable stays.",
-  role: "user",
-};
-
 const API_BASE_URL = "http://localhost:5000";
+const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
 
 function parseStoredUser() {
   try {
@@ -360,6 +353,14 @@ function formatDateOfBirth(value) {
   });
 }
 
+function getAllowedValue(value, allowedValues, fallback) {
+  return allowedValues.includes(value) ? value : fallback;
+}
+
+function getAllowedOptionValue(value, options, fallback) {
+  return options.some((option) => option.value === value) ? value : fallback;
+}
+
 const birthDayOptions = Array.from({ length: 31 }, (_, index) =>
   String(index + 1).padStart(2, "0"),
 );
@@ -412,7 +413,14 @@ function Toast({ toast }) {
   );
 }
 
-function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
+function SettingsModal({
+  modal,
+  errors,
+  isSaving,
+  onChange,
+  onClose,
+  onSave,
+}) {
   const [openBirthDropdown, setOpenBirthDropdown] = useState(null);
 
   if (!modal) return null;
@@ -426,14 +434,14 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
       title: "Edit email address",
       guidance:
         modal.draft.step === 2
-          ? "We sent a 6-digit verification code to your new email address."
+          ? "Enter the preview verification code to save your new email address."
           : "Enter a new email address and verify it before saving.",
     },
     phone: {
       title: "Edit phone number",
       guidance:
         modal.draft.step === 2
-          ? "We sent a 6-digit verification code to your phone number."
+          ? "Enter the preview verification code to save your new phone number."
           : "Enter a phone number and verify it before saving.",
     },
     dateOfBirth: {
@@ -443,8 +451,13 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
     },
   }[modal.type];
 
-  const saveLabel =
-    modal.type === "email" || modal.type === "phone"
+  const saveLabel = isSaving
+    ? modal.type === "email" || modal.type === "phone"
+      ? modal.draft.step === 2
+        ? "Verifying..."
+        : "Sending code..."
+      : "Saving..."
+    : modal.type === "email" || modal.type === "phone"
       ? modal.draft.step === 2
         ? "Verify and save"
         : "Send verification code"
@@ -467,6 +480,7 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
           className="settings-modal__close"
           type="button"
           onClick={onClose}
+          disabled={isSaving}
           aria-label="Close"
         >
           <FiX aria-hidden="true" />
@@ -639,11 +653,12 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
                       code: event.target.value.replace(/\D/g, "").slice(0, 6),
                     })
                   }
-                  placeholder="123456"
+                  placeholder="6-digit code"
                   autoFocus
                 />
                 <span className="settings-helper">
-                  For preview mode, use code 123456.
+                  For this project preview, use code 123456. Real email
+                  delivery can be connected later.
                 </span>
                 {errors.code && (
                   <span className="settings-error">{errors.code}</span>
@@ -696,11 +711,12 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
                       code: event.target.value.replace(/\D/g, "").slice(0, 6),
                     })
                   }
-                  placeholder="123456"
+                  placeholder="6-digit code"
                   autoFocus
                 />
                 <span className="settings-helper">
-                  For preview mode, use code 123456.
+                  For this project preview, use code 123456. SMS verification
+                  can be connected later.
                 </span>
                 {errors.code && (
                   <span className="settings-error">{errors.code}</span>
@@ -710,11 +726,14 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
           </div>
         )}
 
+        {errors.form && <span className="settings-error">{errors.form}</span>}
+
         <div className="settings-modal__actions">
           <button
             className="settings-btn settings-btn--ghost"
             type="button"
             onClick={onClose}
+            disabled={isSaving}
           >
             Cancel
           </button>
@@ -722,6 +741,7 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
             className="settings-btn settings-btn--primary"
             type="button"
             onClick={onSave}
+            disabled={isSaving}
           >
             {saveLabel}
           </button>
@@ -731,7 +751,7 @@ function SettingsModal({ modal, errors, onChange, onClose, onSave }) {
   );
 }
 
-function AvatarPhotoModal({ photo, onClose, onSave }) {
+function AvatarPhotoModal({ photo, isSaving, onClose, onSave }) {
   const [zoom, setZoom] = useState(photo?.zoom || 1);
   const [position, setPosition] = useState({
     x: photo?.positionX || 0,
@@ -844,6 +864,7 @@ function AvatarPhotoModal({ photo, onClose, onSave }) {
             className="settings-btn settings-btn--ghost"
             type="button"
             onClick={resetCrop}
+            disabled={isSaving}
           >
             Reset
           </button>
@@ -851,6 +872,7 @@ function AvatarPhotoModal({ photo, onClose, onSave }) {
             className="settings-btn settings-btn--ghost"
             type="button"
             onClick={onClose}
+            disabled={isSaving}
           >
             Cancel
           </button>
@@ -865,8 +887,9 @@ function AvatarPhotoModal({ photo, onClose, onSave }) {
                 positionY: position.y,
               })
             }
+            disabled={isSaving}
           >
-            Save photo
+            {isSaving ? "Uploading..." : "Save photo"}
           </button>
         </div>
       </div>
@@ -874,7 +897,7 @@ function AvatarPhotoModal({ photo, onClose, onSave }) {
   );
 }
 
-function DeactivateAccountModal({ onClose, onConfirm }) {
+function DeactivateAccountModal({ isSaving, onClose, onConfirm }) {
   return (
     <div
       className="settings-modal-overlay"
@@ -898,14 +921,15 @@ function DeactivateAccountModal({ onClose, onConfirm }) {
         </button>
         <h3 id="settings-deactivate-modal-title">Deactivate account?</h3>
         <p>
-          Your profile and listings will be hidden in preview mode. You can
-          reactivate later when backend integration is added.
+          Your account will be disabled without deleting your profile,
+          bookings, or listings. You will be signed out after confirmation.
         </p>
         <div className="settings-modal__actions">
           <button
             className="settings-btn settings-btn--ghost"
             type="button"
             onClick={onClose}
+            disabled={isSaving}
           >
             Cancel
           </button>
@@ -913,8 +937,9 @@ function DeactivateAccountModal({ onClose, onConfirm }) {
             className="settings-btn settings-btn--warning"
             type="button"
             onClick={onConfirm}
+            disabled={isSaving}
           >
-            Deactivate account
+            {isSaving ? "Deactivating..." : "Deactivate account"}
           </button>
         </div>
       </div>
@@ -922,7 +947,7 @@ function DeactivateAccountModal({ onClose, onConfirm }) {
   );
 }
 
-function StartHostingModal({ onClose, onContinue }) {
+function StartHostingModal({ isSaving, onClose, onContinue }) {
   return (
     <div
       className="settings-modal-overlay"
@@ -961,8 +986,8 @@ function StartHostingModal({ onClose, onContinue }) {
         </div>
 
         <div className="settings-hosting-modal__note">
-          For this frontend preview, continuing will enable host mode locally.
-          Backend verification will be added later.
+          Continuing enables host tools on your account. Property publication
+          still follows DarDarek listing review.
         </div>
 
         <div className="settings-modal__actions">
@@ -970,6 +995,7 @@ function StartHostingModal({ onClose, onContinue }) {
             className="settings-btn settings-btn--ghost"
             type="button"
             onClick={onClose}
+            disabled={isSaving}
           >
             Cancel
           </button>
@@ -977,8 +1003,9 @@ function StartHostingModal({ onClose, onContinue }) {
             className="settings-btn settings-btn--primary"
             type="button"
             onClick={onContinue}
+            disabled={isSaving}
           >
-            Continue
+            {isSaving ? "Starting..." : "Continue"}
           </button>
         </div>
       </div>
@@ -1010,53 +1037,13 @@ function PaymentMethodPreviewModal({ onClose }) {
         </button>
         <h3 id="settings-payment-preview-title">Add payment method</h3>
         <p>
-          Online payments will be available after backend and payment provider
-          integration.
+          Payment methods require a secure payment provider integration before
+          DarDarek can collect or store payment tokens.
         </p>
 
-        <div className="settings-payment-preview-fields">
-          <label className="settings-field">
-            <span className="settings-label">Cardholder name</span>
-            <input
-              className="settings-input"
-              placeholder="Preview only"
-              disabled
-              readOnly
-            />
-          </label>
-          <label className="settings-field">
-            <span className="settings-label">Card number</span>
-            <input
-              className="settings-input"
-              placeholder="0000 0000 0000 0000"
-              disabled
-              readOnly
-            />
-          </label>
-          <div className="settings-payment-preview-row">
-            <label className="settings-field">
-              <span className="settings-label">Expiry date</span>
-              <input
-                className="settings-input"
-                placeholder="MM / YY"
-                disabled
-                readOnly
-              />
-            </label>
-            <label className="settings-field">
-              <span className="settings-label">CVC</span>
-              <input
-                className="settings-input"
-                placeholder="000"
-                disabled
-                readOnly
-              />
-            </label>
-          </div>
-        </div>
-
         <div className="settings-payment-preview-note">
-          Do not enter real card details. This is a UI preview only.
+          No card data is collected here. A provider such as Stripe, PayPal, or
+          a bank gateway should handle card entry, tokenization, and compliance.
         </div>
 
         <div className="settings-modal__actions">
@@ -1072,7 +1059,7 @@ function PaymentMethodPreviewModal({ onClose }) {
             type="button"
             onClick={onClose}
           >
-            Continue later
+            Close
           </button>
         </div>
       </div>
@@ -1084,20 +1071,6 @@ function PayoutSetupPreviewModal({ onClose }) {
   const [step, setStep] = useState(1);
   const [country, setCountry] = useState("Morocco");
   const [method, setMethod] = useState("Bank account");
-
-  const previewFields =
-    method === "Bank account"
-      ? [
-          "Account holder name",
-          "Bank name",
-          "Account number placeholder",
-          "RIB/IBAN placeholder",
-        ]
-      : [
-          "Account holder name",
-          `${method} account placeholder`,
-          "Confirmation contact placeholder",
-        ];
 
   return (
     <div
@@ -1122,8 +1095,8 @@ function PayoutSetupPreviewModal({ onClose }) {
         </button>
         <h3 id="settings-payout-preview-title">Set up payout method</h3>
         <p>
-          Preview the future payout setup flow without storing financial
-          information.
+          Payout setup requires provider verification before DarDarek can collect
+          bank, wallet, or identity details.
         </p>
 
         <div className="settings-payout-steps" aria-label="Payout setup step">
@@ -1181,23 +1154,11 @@ function PayoutSetupPreviewModal({ onClose }) {
 
         {step === 3 && (
           <div className="settings-payout-flow">
-            <h4>{method} preview fields</h4>
-            <div className="settings-payment-preview-fields">
-              {previewFields.map((field) => (
-                <label className="settings-field" key={field}>
-                  <span className="settings-label">{field}</span>
-                  <input
-                    className="settings-input"
-                    placeholder="Preview only"
-                    disabled
-                    readOnly
-                  />
-                </label>
-              ))}
-            </div>
+            <h4>{method} requires verification</h4>
             <div className="settings-payment-preview-note">
-              Real payout setup will require backend verification and may show
-              pending status.
+              No payout details are saved here. Real payout onboarding needs a
+              provider-backed workflow for identity checks, account ownership,
+              and payout status.
             </div>
           </div>
         )}
@@ -1226,7 +1187,7 @@ function PayoutSetupPreviewModal({ onClose }) {
               type="button"
               onClick={onClose}
             >
-              Close preview
+              Close
             </button>
           )}
         </div>
@@ -1415,12 +1376,13 @@ export default function AccountSettings() {
   const avatarInputRef = useRef(null);
   const avatarPhotoUrlRef = useRef(null);
   const avatarPreviewUrlRef = useRef(null);
-  const { token, user: ctxUser, setUser } = useToken();
+  const { token, user: ctxUser, setToken, setUser } = useToken();
   const storedUser = parseStoredUser();
-  const rawUser = ctxUser || storedUser || MOCK_USER;
+  const rawUser = ctxUser || storedUser || {};
 
   const [activeSection, setActiveSection] = useState("profile");
   const [accountLoading, setAccountLoading] = useState(true);
+  const [accountLoadError, setAccountLoadError] = useState("");
   const [accountRole, setAccountRole] = useState(rawUser.role || "user");
   const [hasPassword, setHasPassword] = useState(
     rawUser.has_password ?? rawUser.hasPassword ?? true,
@@ -1428,11 +1390,13 @@ export default function AccountSettings() {
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState(null);
   const [modalErrors, setModalErrors] = useState({});
+  const [modalSaving, setModalSaving] = useState(false);
   const [nationalityFocused, setNationalityFocused] = useState(false);
   const [languageQuery, setLanguageQuery] = useState("");
   const [languageFocused, setLanguageFocused] = useState(false);
   const [avatarPhoto, setAvatarPhoto] = useState(null);
   const [avatarModal, setAvatarModal] = useState(null);
+  const [avatarSaving, setAvatarSaving] = useState(false);
   const [emergencyVerification, setEmergencyVerification] = useState({
     step: "idle",
     code: "",
@@ -1451,7 +1415,6 @@ export default function AccountSettings() {
     languages: parseAccountLanguages(rawUser.languages),
     contactMethod: rawUser.preferred_contact || "Email",
     emergencyContact: rawUser.emergency_contact || "",
-    bio: rawUser.bio || "",
   });
 
   const [security, setSecurity] = useState({
@@ -1460,6 +1423,7 @@ export default function AccountSettings() {
     confirmPassword: "",
   });
   const [passwordErrors, setPasswordErrors] = useState({});
+  const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState({});
   const [showPassword, setShowPassword] = useState({
     currentPassword: false,
@@ -1467,6 +1431,7 @@ export default function AccountSettings() {
     confirmPassword: false,
   });
   const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
+  const [deactivateSaving, setDeactivateSaving] = useState(false);
 
   const [notifications, setNotifications] = useState({
     categories: {
@@ -1488,6 +1453,7 @@ export default function AccountSettings() {
     hostMode: rawUser.role === "host" || rawUser.role === "admin",
   });
   const [startHostingModalOpen, setStartHostingModalOpen] = useState(false);
+  const [hostingSaving, setHostingSaving] = useState(false);
 
   const [preferences, setPreferences] = useState({
     language: rawUser.preferred_language || "English",
@@ -1498,6 +1464,8 @@ export default function AccountSettings() {
   const [citySearch, setCitySearch] = useState("");
   const [cityFocused, setCityFocused] = useState(false);
   const [openPreferenceDropdown, setOpenPreferenceDropdown] = useState(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [preferencesSaving, setPreferencesSaving] = useState(false);
 
   const [billing, setBilling] = useState({
     billingName: rawUser.billing_name || rawUser.name || "",
@@ -1508,6 +1476,7 @@ export default function AccountSettings() {
   });
   const [paymentPreviewOpen, setPaymentPreviewOpen] = useState(false);
   const [payoutPreviewOpen, setPayoutPreviewOpen] = useState(false);
+  const [billingSaving, setBillingSaving] = useState(false);
   const isHost = accountRole === "host" || accountRole === "admin";
 
   useEffect(() => {
@@ -1537,7 +1506,6 @@ export default function AccountSettings() {
       profile.languages.length > 0 ? "languages" : "",
       profile.contactMethod,
       profile.emergencyContact,
-      profile.bio,
     ];
     const filled = fields.filter((value) => String(value || "").trim()).length;
     return Math.round((filled / fields.length) * 100);
@@ -1581,10 +1549,11 @@ export default function AccountSettings() {
       throw new Error("Please sign in again to update account settings.");
     }
 
+    const isFormData = options.body instanceof FormData;
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       headers: {
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         Authorization: `Bearer ${token}`,
         ...(options.headers || {}),
       },
@@ -1605,7 +1574,9 @@ export default function AccountSettings() {
       id_user: accountUser.id_user,
       name: accountUser.name,
       email: accountUser.email,
+      phone_number: accountUser.phone_number,
       role: accountUser.role,
+      profile_picture: accountUser.profile_picture,
       has_password: accountUser.has_password,
     };
 
@@ -1616,23 +1587,51 @@ export default function AccountSettings() {
   const applyAccountUser = (accountUser) => {
     if (!accountUser) return;
 
+    const supportedLanguages = parseAccountLanguages(accountUser.languages)
+      .filter((language) => LANGUAGE_OPTIONS.includes(language))
+      .filter(
+        (language, index, list) =>
+          list.findIndex(
+            (item) => item.toLowerCase() === language.toLowerCase(),
+          ) === index,
+      );
+
     setProfile({
       name: accountUser.name || "",
       email: accountUser.email || "",
       phone: accountUser.phone_number || "",
       dateOfBirth: normalizeAccountDate(accountUser.date_of_birth),
       nationality: accountUser.nationality || "",
-      languages: parseAccountLanguages(accountUser.languages),
-      contactMethod: accountUser.preferred_contact || "Email",
+      languages: supportedLanguages,
+      contactMethod: getAllowedValue(
+        accountUser.preferred_contact,
+        CONTACT_OPTIONS,
+        "Email",
+      ),
       emergencyContact: accountUser.emergency_contact || "",
-      bio: accountUser.bio || "",
     });
 
     setPreferences({
-      language: accountUser.preferred_language || "English",
-      currency: accountUser.preferred_currency || "MAD",
-      preferredCity: accountUser.preferred_city || "Tangier",
-      stayType: accountUser.preferred_stay_type || "Apartment",
+      language: getAllowedValue(
+        accountUser.preferred_language,
+        preferenceLanguageOptions,
+        "English",
+      ),
+      currency: getAllowedOptionValue(
+        accountUser.preferred_currency,
+        preferenceCurrencyOptions,
+        "MAD",
+      ),
+      preferredCity: getAllowedValue(
+        accountUser.preferred_city,
+        preferenceCityOptions,
+        "Tangier",
+      ),
+      stayType: getAllowedOptionValue(
+        accountUser.preferred_stay_type,
+        preferenceStayTypes,
+        "Apartment",
+      ),
     });
 
     setBilling({
@@ -1665,19 +1664,24 @@ export default function AccountSettings() {
 
     const loadAccountSettings = async () => {
       if (!token) {
+        setAccountLoadError("Could not load account settings. Please try again.");
         setAccountLoading(false);
         return;
       }
 
       try {
         setAccountLoading(true);
+        setAccountLoadError("");
         const data = await accountRequest("/api/users/me");
         if (isMounted) {
           applyAccountUser(data.user);
         }
       } catch {
         if (isMounted) {
-          showToast("Could not load account settings.", "warning");
+          setAccountLoadError(
+            "Could not load account settings. Please try again.",
+          );
+          showToast("Could not load account settings. Please try again.", "warning");
         }
       } finally {
         if (isMounted) {
@@ -1704,7 +1708,9 @@ export default function AccountSettings() {
   const sanitizePhoneInput = (value) => value.replace(/[^\d\s()+-]/g, "");
 
   const isValidPhone = (value) =>
-    /^[\d\s()+-]+$/.test(value) && value.replace(/\D/g, "").length >= 7;
+    /^[\d\s()+-]+$/.test(value) &&
+    value.replace(/\D/g, "").length >= 7 &&
+    value.replace(/\D/g, "").length <= 15;
 
   const nationalitySuggestions = NATIONALITY_OPTIONS.filter((option) =>
     option.toLowerCase().includes(profile.nationality.trim().toLowerCase()),
@@ -1712,7 +1718,9 @@ export default function AccountSettings() {
 
   const languageSuggestions = LANGUAGE_OPTIONS.filter(
     (language) =>
-      !profile.languages.includes(language) &&
+      !profile.languages.some(
+        (item) => item.toLowerCase() === language.toLowerCase(),
+      ) &&
       language.toLowerCase().includes(languageQuery.trim().toLowerCase()),
   );
   const emergencyContactError =
@@ -1721,14 +1729,30 @@ export default function AccountSettings() {
 
   const handleAvatarFileChange = (event) => {
     const file = event.target.files?.[0];
-    if (!file || !file.type.startsWith("image/")) return;
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showToast("Please choose an image file.", "warning");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > MAX_AVATAR_SIZE_BYTES) {
+      showToast("Profile photo must be 5 MB or smaller.", "warning");
+      event.target.value = "";
+      return;
+    }
 
     if (avatarPreviewUrlRef.current) {
       URL.revokeObjectURL(avatarPreviewUrlRef.current);
     }
     const nextUrl = URL.createObjectURL(file);
     avatarPreviewUrlRef.current = nextUrl;
-    setAvatarModal({ url: nextUrl, zoom: 1, positionX: 0, positionY: 0 });
+    setAvatarModal({
+      file,
+      url: nextUrl,
+      zoom: 1,
+      positionX: 0,
+      positionY: 0,
+    });
     event.target.value = "";
   };
 
@@ -1740,16 +1764,24 @@ export default function AccountSettings() {
     setAvatarModal(null);
   };
 
-  const saveAvatarPhoto = (adjustedPhoto) => {
+  const saveAvatarPhoto = async (adjustedPhoto) => {
     if (!adjustedPhoto) return;
-    if (avatarPhotoUrlRef.current) {
-      URL.revokeObjectURL(avatarPhotoUrlRef.current);
+    try {
+      setAvatarSaving(true);
+      const formData = new FormData();
+      formData.append("profile_picture", adjustedPhoto.file);
+      const data = await accountRequest("/api/users/profile-picture", {
+        method: "PUT",
+        body: formData,
+      });
+      applyAccountUser(data.user);
+      closeAvatarModal();
+      showToast("Profile photo updated.");
+    } catch (error) {
+      showToast(error.message || "Could not update profile photo.", "warning");
+    } finally {
+      setAvatarSaving(false);
     }
-    avatarPhotoUrlRef.current = adjustedPhoto.url;
-    avatarPreviewUrlRef.current = null;
-    setAvatarPhoto(adjustedPhoto);
-    setAvatarModal(null);
-    showToast("Profile photo updated.");
   };
 
   const startEmergencyVerification = () => {
@@ -1764,34 +1796,20 @@ export default function AccountSettings() {
     }
 
     setEmergencyVerification({
-      step: "code",
-      code: "",
-      verified: false,
-      error: "",
-    });
-  };
-
-  const verifyEmergencyContact = () => {
-    if (emergencyVerification.code !== "123456") {
-      setEmergencyVerification((current) => ({
-        ...current,
-        error: "Invalid verification code. Use 123456 for preview.",
-      }));
-      return;
-    }
-
-    setEmergencyVerification({
       step: "verified",
       code: "",
       verified: true,
       error: "",
     });
+    showToast("Emergency contact format looks valid.");
   };
 
   const addLanguage = (language) => {
     setProfile((current) => ({
       ...current,
-      languages: current.languages.includes(language)
+      languages: current.languages.some(
+        (item) => item.toLowerCase() === language.toLowerCase(),
+      )
         ? current.languages
         : [...current.languages, language],
     }));
@@ -1828,6 +1846,7 @@ export default function AccountSettings() {
   };
 
   const saveProfileModal = async () => {
+    if (!modal) return;
     const errors = {};
     if (modal.type === "name") {
       if (!modal.draft.firstName.trim())
@@ -1846,13 +1865,14 @@ export default function AccountSettings() {
           ...current,
           draft: { ...current.draft, step: 2, code: "" },
         }));
+        showToast("Verification code ready. Use 123456 for this preview.");
         return;
       }
 
       if (!/^\d{6}$/.test(modal.draft.code)) {
         errors.code = "Enter the 6-digit verification code.";
       } else if (modal.draft.code !== "123456") {
-        errors.code = "Invalid verification code. Use 123456 for preview.";
+        errors.code = "Invalid verification code. Use 123456 for this preview.";
       }
     }
     if (modal.type === "phone") {
@@ -1867,13 +1887,14 @@ export default function AccountSettings() {
           ...current,
           draft: { ...current.draft, step: 2, code: "" },
         }));
+        showToast("Verification code ready. Use 123456 for this preview.");
         return;
       }
 
       if (!/^\d{6}$/.test(modal.draft.code)) {
         errors.code = "Enter the 6-digit verification code.";
       } else if (modal.draft.code !== "123456") {
-        errors.code = "Invalid verification code. Use 123456 for preview.";
+        errors.code = "Invalid verification code. Use 123456 for this preview.";
       }
     }
 
@@ -1919,6 +1940,7 @@ export default function AccountSettings() {
     if (Object.keys(errors).length) return;
 
     try {
+      setModalSaving(true);
       let data;
 
       if (modal.type === "name") {
@@ -1931,7 +1953,9 @@ export default function AccountSettings() {
       } else if (modal.type === "email") {
         data = await accountRequest("/api/users/email", {
           method: "PUT",
-          body: JSON.stringify({ email: modal.draft.email }),
+          body: JSON.stringify({
+            email: modal.draft.email.trim().toLowerCase(),
+          }),
         });
       } else if (modal.type === "phone") {
         data = await accountRequest("/api/users/profile", {
@@ -1959,10 +1983,11 @@ export default function AccountSettings() {
               : "Profile detail updated.",
       );
     } catch (error) {
-      showToast(
-        error.message || "Could not update account settings.",
-        "warning",
-      );
+      const message = error.message || "Could not update account settings.";
+      setModalErrors({ form: message });
+      showToast(message, "warning");
+    } finally {
+      setModalSaving(false);
     }
   };
 
@@ -1998,6 +2023,7 @@ export default function AccountSettings() {
     if (!validatePassword()) return;
 
     try {
+      setPasswordSaving(true);
       const passwordPath = hasPassword
         ? "/api/users/change-password"
         : "/api/users/create-password";
@@ -2029,12 +2055,29 @@ export default function AccountSettings() {
       );
     } catch (error) {
       showToast(error.message || "Could not update password.", "warning");
+    } finally {
+      setPasswordSaving(false);
     }
   };
 
-  const confirmDeactivateAccount = () => {
-    setDeactivateModalOpen(false);
-    showToast("Account deactivation is disabled in preview mode.", "warning");
+  const confirmDeactivateAccount = async () => {
+    try {
+      setDeactivateSaving(true);
+      await accountRequest("/api/users/deactivate", {
+        method: "PUT",
+      });
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      setToken(null);
+      setUser(null);
+      setDeactivateModalOpen(false);
+      showToast("Account deactivated. You have been signed out.");
+      navigate("/Authentication");
+    } catch (error) {
+      showToast(error.message || "Could not deactivate account.", "warning");
+    } finally {
+      setDeactivateSaving(false);
+    }
   };
 
   const updateNotificationCategory = (categoryKey, value) => {
@@ -2061,6 +2104,7 @@ export default function AccountSettings() {
 
   const continueHostOnboarding = async () => {
     try {
+      setHostingSaving(true);
       const data = await accountRequest("/api/users/become-host", {
         method: "PUT",
       });
@@ -2078,11 +2122,13 @@ export default function AccountSettings() {
       showToast("Host mode enabled.");
     } catch (error) {
       showToast(error.message || "Could not enable host mode.", "warning");
+    } finally {
+      setHostingSaving(false);
     }
   };
 
   const saveNotificationPreferences = () => {
-    showToast("Notification preferences saved for preview.");
+    showToast("Notification delivery preferences will be connected later.");
   };
 
   const saveProfileDetails = async () => {
@@ -2091,11 +2137,23 @@ export default function AccountSettings() {
       return;
     }
 
+    if (!CONTACT_OPTIONS.includes(profile.contactMethod)) {
+      showToast("Choose a valid preferred contact method.", "warning");
+      return;
+    }
+
+    if (
+      profile.languages.some((language) => !LANGUAGE_OPTIONS.includes(language))
+    ) {
+      showToast("Choose languages from the supported list.", "warning");
+      return;
+    }
+
     try {
+      setProfileSaving(true);
       const data = await accountRequest("/api/users/profile", {
         method: "PUT",
         body: JSON.stringify({
-          bio: profile.bio,
           nationality: profile.nationality,
           languages: profile.languages,
           preferred_contact: profile.contactMethod,
@@ -2106,11 +2164,26 @@ export default function AccountSettings() {
       showToast("Profile details saved.");
     } catch (error) {
       showToast(error.message || "Could not save profile details.", "warning");
+    } finally {
+      setProfileSaving(false);
     }
   };
 
   const savePreferences = async () => {
+    if (
+      !preferenceLanguageOptions.includes(preferences.language) ||
+      !preferenceCurrencyOptions.some(
+        (option) => option.value === preferences.currency,
+      ) ||
+      !preferenceCityOptions.includes(preferences.preferredCity) ||
+      !preferenceStayTypes.some((option) => option.value === preferences.stayType)
+    ) {
+      showToast("Choose valid preference values before saving.", "warning");
+      return;
+    }
+
     try {
+      setPreferencesSaving(true);
       const data = await accountRequest("/api/users/preferences", {
         method: "PUT",
         body: JSON.stringify({
@@ -2124,11 +2197,14 @@ export default function AccountSettings() {
       showToast("Preferences saved.");
     } catch (error) {
       showToast(error.message || "Could not save preferences.", "warning");
+    } finally {
+      setPreferencesSaving(false);
     }
   };
 
   const saveBillingInformation = async () => {
     try {
+      setBillingSaving(true);
       const data = await accountRequest("/api/users/billing", {
         method: "PUT",
         body: JSON.stringify({
@@ -2146,6 +2222,8 @@ export default function AccountSettings() {
         error.message || "Could not save billing information.",
         "warning",
       );
+    } finally {
+      setBillingSaving(false);
     }
   };
 
@@ -2189,6 +2267,7 @@ export default function AccountSettings() {
             }`}
             type={showPassword[key] ? "text" : "password"}
             value={security[key]}
+            disabled={passwordSaving}
             onChange={(event) => {
               const next = { ...security, [key]: event.target.value };
               setSecurity(next);
@@ -2202,6 +2281,7 @@ export default function AccountSettings() {
           />
           <button
             type="button"
+            disabled={passwordSaving}
             onClick={() =>
               setShowPassword((current) => ({
                 ...current,
@@ -2232,19 +2312,31 @@ export default function AccountSettings() {
       <SettingsModal
         modal={modal}
         errors={modalErrors}
-        onChange={(draft) => setModal((current) => ({ ...current, draft }))}
-        onClose={() => setModal(null)}
+        isSaving={modalSaving}
+        onChange={(draft) => {
+          setModal((current) => ({ ...current, draft }));
+          setModalErrors({});
+        }}
+        onClose={() => {
+          if (!modalSaving) setModal(null);
+        }}
         onSave={saveProfileModal}
       />
       {startHostingModalOpen && (
         <StartHostingModal
-          onClose={() => setStartHostingModalOpen(false)}
+          isSaving={hostingSaving}
+          onClose={() => {
+            if (!hostingSaving) setStartHostingModalOpen(false);
+          }}
           onContinue={continueHostOnboarding}
         />
       )}
       {deactivateModalOpen && (
         <DeactivateAccountModal
-          onClose={() => setDeactivateModalOpen(false)}
+          isSaving={deactivateSaving}
+          onClose={() => {
+            if (!deactivateSaving) setDeactivateModalOpen(false);
+          }}
           onConfirm={confirmDeactivateAccount}
         />
       )}
@@ -2258,7 +2350,10 @@ export default function AccountSettings() {
         <AvatarPhotoModal
           key={avatarModal.url}
           photo={avatarModal}
-          onClose={closeAvatarModal}
+          isSaving={avatarSaving}
+          onClose={() => {
+            if (!avatarSaving) closeAvatarModal();
+          }}
           onSave={saveAvatarPhoto}
         />
       )}
@@ -2366,6 +2461,31 @@ export default function AccountSettings() {
                         Your account details are being loaded.
                       </p>
                     </div>
+                  </div>
+                </div>
+              </section>
+            ) : accountLoadError ? (
+              <section className="settings-section">
+                <div className="settings-card">
+                  <div className="settings-card__head">
+                    <div className="settings-card__icon">
+                      <FiShield aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h4 className="settings-card-title">
+                        Could not load account settings
+                      </h4>
+                      <p className="settings-helper">{accountLoadError}</p>
+                    </div>
+                  </div>
+                  <div className="settings-actions">
+                    <button
+                      className="settings-btn settings-btn--primary"
+                      type="button"
+                      onClick={() => window.location.reload()}
+                    >
+                      Try again
+                    </button>
                   </div>
                 </div>
               </section>
@@ -2562,48 +2682,18 @@ export default function AccountSettings() {
                                 type="button"
                                 onClick={startEmergencyVerification}
                               >
-                                Verify
+                                Validate
                               </button>
                             </div>
-                            {emergencyVerification.step === "code" && (
-                              <div className="settings-emergency-code">
-                                <input
-                                  className={`settings-input ${emergencyVerification.error ? "settings-input--error" : ""}`}
-                                  inputMode="numeric"
-                                  maxLength={6}
-                                  value={emergencyVerification.code}
-                                  onChange={(event) =>
-                                    setEmergencyVerification((current) => ({
-                                      ...current,
-                                      code: event.target.value
-                                        .replace(/\D/g, "")
-                                        .slice(0, 6),
-                                      error: "",
-                                    }))
-                                  }
-                                  placeholder="123456"
-                                />
-                                <button
-                                  className="settings-btn settings-btn--primary"
-                                  type="button"
-                                  onClick={verifyEmergencyContact}
-                                >
-                                  Confirm
-                                </button>
-                              </div>
-                            )}
                             {emergencyVerification.verified && (
                               <span className="settings-verified-badge">
                                 <FiCheck aria-hidden="true" />
-                                Verified
+                                Valid phone format
                               </span>
                             )}
                           </div>
                           <span className="settings-helper">
                             Used only for urgent booking or safety situations.
-                          </span>
-                          <span className="settings-helper">
-                            For preview mode, use code 123456.
                           </span>
                           {(emergencyContactError ||
                             emergencyVerification.error) && (
@@ -2614,36 +2704,15 @@ export default function AccountSettings() {
                           )}
                         </ProfileFieldCard>
 
-                        <ProfileFieldCard
-                          title="Bio"
-                          description="A short introduction for hosts and guests."
-                          fullWidth
-                        >
-                          <textarea
-                            className="settings-input settings-textarea"
-                            value={profile.bio}
-                            maxLength={250}
-                            onChange={(event) =>
-                              setProfile({
-                                ...profile,
-                                bio: event.target.value,
-                              })
-                            }
-                            placeholder="Tell hosts and guests a little about yourself."
-                            rows={4}
-                          />
-                          <span className="settings-character-count">
-                            {profile.bio.length} / 250
-                          </span>
-                        </ProfileFieldCard>
                       </div>
                       <div className="settings-actions">
                         <button
                           className="settings-btn settings-btn--primary"
                           type="button"
                           onClick={saveProfileDetails}
+                          disabled={profileSaving}
                         >
-                          Save profile details
+                          {profileSaving ? "Saving..." : "Save profile details"}
                         </button>
                       </div>
                     </div>
@@ -2655,8 +2724,7 @@ export default function AccountSettings() {
                     <div className="settings-section__head">
                       <h3 className="settings-section-title">Security</h3>
                       <p className="settings-section-subtitle">
-                        Review account protections and preview security
-                        controls.
+                        Review account protections and security controls.
                       </p>
                     </div>
 
@@ -2670,8 +2738,8 @@ export default function AccountSettings() {
                             Security status
                           </h4>
                           <p className="settings-helper">
-                            Based on the profile details available in preview
-                            mode.
+                            Based on the profile details available for this
+                            account.
                           </p>
                         </div>
                       </div>
@@ -2727,9 +2795,17 @@ export default function AccountSettings() {
                           className="settings-btn settings-btn--primary"
                           type="button"
                           onClick={savePassword}
-                          disabled={!isPasswordReady}
+                          disabled={
+                            !isPasswordReady ||
+                            passwordSaving ||
+                            Object.keys(getPasswordErrors(security)).length > 0
+                          }
                         >
-                          {hasPassword ? "Update password" : "Create password"}
+                          {passwordSaving
+                            ? "Saving..."
+                            : hasPassword
+                              ? "Update password"
+                              : "Create password"}
                         </button>
                       </div>
                     </div>
@@ -2742,38 +2818,16 @@ export default function AccountSettings() {
                         <div>
                           <h4 className="settings-card-title">Login devices</h4>
                           <p className="settings-helper">
-                            Recent sessions connected to your DarDarek account.
+                            Login device tracking will be connected later.
                           </p>
                         </div>
                       </div>
                       <div className="settings-device-list">
-                        <div className="settings-device-row settings-device-row--current">
-                          <FiMonitor aria-hidden="true" />
-                          <div>
-                            <strong>Current session</strong>
-                            <span>Current browser</span>
-                            <span>Location: Morocco</span>
-                          </div>
-                          <em>Status: Active now</em>
-                        </div>
                         <p className="settings-integration-note">
-                          Other trusted devices will appear here after backend
-                          integration.
+                          DarDarek is not tracking trusted devices yet. Once
+                          session tracking is added, active browsers and sign
+                          out controls can appear here.
                         </p>
-                        <div className="settings-actions">
-                          <button
-                            className="settings-btn settings-btn--ghost"
-                            type="button"
-                            onClick={() =>
-                              showToast(
-                                "Device management will be available after backend integration.",
-                                "warning",
-                              )
-                            }
-                          >
-                            Sign out of other devices
-                          </button>
-                        </div>
                       </div>
                     </div>
 
@@ -2784,7 +2838,7 @@ export default function AccountSettings() {
                         </h4>
                         <p className="settings-helper">
                           Your profile and listings will be hidden until you
-                          sign back in. No data is deleted in this preview.
+                          reactivate with support. No data is deleted.
                         </p>
                       </div>
                       <button
@@ -2803,7 +2857,8 @@ export default function AccountSettings() {
                     <div className="settings-section__head">
                       <h3 className="settings-section-title">Notifications</h3>
                       <p className="settings-section-subtitle">
-                        Choose the updates DarDarek can send in preview mode.
+                        Choose the updates DarDarek can send when delivery
+                        preferences are connected.
                       </p>
                     </div>
 
@@ -2820,6 +2875,10 @@ export default function AccountSettings() {
                             Choose how DarDarek keeps you updated about
                             bookings, messages, rental requests, and account
                             activity.
+                          </p>
+                          <p className="settings-helper">
+                            Notification delivery preferences will be connected
+                            later.
                           </p>
                         </div>
                       </div>
@@ -3140,7 +3199,8 @@ export default function AccountSettings() {
                             }
                           />
                           <span className="settings-preference-note">
-                            Currency conversion will be connected later.
+                            Currency preference is saved to your account and
+                            can be used later when displaying prices.
                           </span>
                         </div>
 
@@ -3269,8 +3329,9 @@ export default function AccountSettings() {
                         className="settings-btn settings-btn--primary"
                         type="button"
                         onClick={savePreferences}
+                        disabled={preferencesSaving}
                       >
-                        Save preferences
+                        {preferencesSaving ? "Saving..." : "Save preferences"}
                       </button>
                     </div>
                   </section>
@@ -3446,8 +3507,11 @@ export default function AccountSettings() {
                             className="settings-btn settings-btn--primary"
                             type="button"
                             onClick={saveBillingInformation}
+                            disabled={billingSaving}
                           >
-                            Save billing information
+                            {billingSaving
+                              ? "Saving..."
+                              : "Save billing information"}
                           </button>
                         </div>
                       </div>
