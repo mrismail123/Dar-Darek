@@ -663,6 +663,7 @@ app.get("/api/houses/:id", async (req, res) => {
         c.name AS city,
         c.name AS city_name,
         u.name AS host_name,
+        u.phone_number AS host_phone,
         SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1) AS host_first_name,
         NULLIF(TRIM(SUBSTRING(COALESCE(u.name, ''), LENGTH(SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1)) + 1)), '') AS host_last_name
       FROM properties p
@@ -1094,8 +1095,8 @@ app.post("/api/houses", upload.array("images", 12), async (req, res) => {
 ========================= */
 
 app.get("/api/pendingProperties", verifyToken, verifyAdmin, async (req, res) => {
-    try {
-      const [result] = await db.query(`
+  try {
+    const [result] = await db.query(`
         SELECT 
           p.*, 
         c.name AS city_name, 
@@ -1114,40 +1115,40 @@ app.get("/api/pendingProperties", verifyToken, verifyAdmin, async (req, res) => 
         WHERE p.status = 'pending'
       `);
 
-      const [statusCounts] = await db.query(`
+    const [statusCounts] = await db.query(`
         SELECT status, COUNT(*) AS total
         FROM properties
         GROUP BY status
       `);
 
-      const summary = statusCounts.reduce(
-        (acc, row) => {
-          const safeStatus = String(row.status || "").toLowerCase();
-          const total = Number(row.total) || 0;
+    const summary = statusCounts.reduce(
+      (acc, row) => {
+        const safeStatus = String(row.status || "").toLowerCase();
+        const total = Number(row.total) || 0;
 
-          acc.all += total;
+        acc.all += total;
 
-          if (safeStatus === "approved") {
-            acc.approved += total;
-          } else if (safeStatus === "rejected") {
-            acc.rejected += total;
-          } else if (safeStatus === "pending") {
-            acc.pending += total;
-          }
+        if (safeStatus === "approved") {
+          acc.approved += total;
+        } else if (safeStatus === "rejected") {
+          acc.rejected += total;
+        } else if (safeStatus === "pending") {
+          acc.pending += total;
+        }
 
-          return acc;
-        },
-        { all: 0, pending: 0, approved: 0, rejected: 0 },
-      );
-  
-      res.status(200).json({
-        pendingProperties: result,
-        summary,
-      });
-    } catch (error) {
-      res.status(500).json({ details: error.message });
-    }
-  });
+        return acc;
+      },
+      { all: 0, pending: 0, approved: 0, rejected: 0 },
+    );
+
+    res.status(200).json({
+      pendingProperties: result,
+      summary,
+    });
+  } catch (error) {
+    res.status(500).json({ details: error.message });
+  }
+});
 
 app.post("/api/admin/approve/:id", verifyToken, verifyAdmin, async (req, res) => {
   try {
@@ -1250,7 +1251,11 @@ app.get("/api/rentalRequests", verifyToken, async (req, res) => {
         b.total_price AS totalPrice,
         b.status AS status,
         p.title AS title,
+        p.property_type,
+        c.name AS city_name,
         u.name AS guestName,
+        u.email AS guestEmail,
+        u.phone_number AS tenant_phone,
         (
           SELECT image_url 
           FROM property_images 
@@ -1259,6 +1264,7 @@ app.get("/api/rentalRequests", verifyToken, async (req, res) => {
         ) AS image
       FROM bookings b
       JOIN properties p ON b.id_property = p.id_property
+      LEFT JOIN cities c ON p.id_city = c.id_city
       JOIN users u ON b.id_user = u.id_user
       WHERE p.id_user = ? 
       AND b.id_user != ?
@@ -1272,6 +1278,201 @@ app.get("/api/rentalRequests", verifyToken, async (req, res) => {
     res.status(500).json({
       message: "Server error while fetching rental requests.",
     });
+  }
+});
+
+app.patch("/api/rentalRequests/:id/status", verifyToken, async (req, res) => {
+  const bookingId = Number(req.params.id);
+  const { status } = req.body;
+  const tokenUserId = Number(req.user?.id);
+
+  const allowedStatuses = ["approved", "rejected", "pending"];
+
+  if (!allowedStatuses.includes(status)) {
+    return res.status(400).json({ message: "Invalid status value." });
+  }
+
+  if (!Number.isFinite(bookingId) || bookingId <= 0) {
+    return res.status(400).json({ message: "Invalid booking id." });
+  }
+
+  try {
+    // Ensure the logged-in user owns the property attached to this booking
+    const [rows] = await db.query(
+      `SELECT b.id_booking FROM bookings b
+       JOIN properties p ON b.id_property = p.id_property
+       WHERE b.id_booking = ? AND p.id_user = ?`,
+      [bookingId, tokenUserId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(403).json({ message: "Not authorized to update this booking." });
+    }
+
+    await db.execute(
+      "UPDATE bookings SET status = ? WHERE id_booking = ?",
+      [status, bookingId],
+    );
+
+    res.status(200).json({ message: `Booking ${status} successfully.` });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while updating booking status.",
+      details: error.message,
+    });
+  }
+});
+
+/* =========================
+   REVIEW ROUTES
+========================= */
+
+app.get("/api/properties/:id/reviews", async (req, res) => {
+  const propertyId = Number(req.params.id);
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
+
+  try {
+    const [reviews] = await db.query(
+      `SELECT
+         r.id_review,
+         r.rating,
+         r.comment,
+         r.created_at,
+         r.id_booking,
+         u.name AS reviewer_name
+       FROM reviews r
+       JOIN users u ON r.id_user = u.id_user
+       WHERE r.id_property = ?
+       ORDER BY r.created_at DESC`,
+      [propertyId],
+    );
+
+    const avgRating =
+      reviews.length > 0
+        ? Math.round(
+            (reviews.reduce((sum, r) => sum + Number(r.rating), 0) /
+              reviews.length) *
+              10,
+          ) / 10
+        : null;
+
+    res.status(200).json({ reviews, avgRating, count: reviews.length });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while fetching reviews.",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/reviews", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+  const { id_property, rating, comment } = req.body;
+  const propertyId = Number(id_property);
+  const safeRating = Number(rating);
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
+
+  if (!Number.isFinite(safeRating) || safeRating < 1 || safeRating > 5) {
+    return res.status(400).json({ message: "Rating must be between 1 and 5." });
+  }
+
+  if (!comment || String(comment).trim().length < 10) {
+    return res
+      .status(400)
+      .json({ message: "Comment must be at least 10 characters." });
+  }
+
+  try {
+    // Find an eligible completed booking for this user & property
+    const [eligibleBookings] = await db.query(
+      `SELECT id_booking FROM bookings
+       WHERE id_user = ?
+         AND id_property = ?
+         AND status = 'approved'
+         AND end_date < CURDATE()
+       LIMIT 1`,
+      [userId, propertyId],
+    );
+
+    if (eligibleBookings.length === 0) {
+      return res.status(403).json({
+        message:
+          "You can only leave a review after a completed, approved stay.",
+      });
+    }
+
+    const bookingId = eligibleBookings[0].id_booking;
+
+    // Enforce one review per booking
+    const [existingReview] = await db.query(
+      "SELECT id_review FROM reviews WHERE id_booking = ? AND id_user = ?",
+      [bookingId, userId],
+    );
+
+    if (existingReview.length > 0) {
+      return res
+        .status(409)
+        .json({ message: "You have already reviewed this booking." });
+    }
+
+    await db.execute(
+      `INSERT INTO reviews (id_property, id_user, rating, comment, id_booking)
+       VALUES (?, ?, ?, ?, ?)`,
+      [propertyId, userId, safeRating, String(comment).trim(), bookingId],
+    );
+
+    res.status(201).json({ message: "Review submitted successfully." });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while submitting review.",
+      details: error.message,
+    });
+  }
+});
+
+// Check whether a user is eligible to leave a review for a property
+app.get("/api/properties/:id/review-eligibility", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+  const propertyId = Number(req.params.id);
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
+
+  try {
+    const [eligibleBookings] = await db.query(
+      `SELECT b.id_booking FROM bookings b
+       WHERE b.id_user = ?
+         AND b.id_property = ?
+         AND b.status = 'approved'
+         AND b.end_date < CURDATE()
+       LIMIT 1`,
+      [userId, propertyId],
+    );
+
+    if (eligibleBookings.length === 0) {
+      return res.status(200).json({ eligible: false, alreadyReviewed: false });
+    }
+
+    const bookingId = eligibleBookings[0].id_booking;
+
+    const [existing] = await db.query(
+      "SELECT id_review FROM reviews WHERE id_booking = ? AND id_user = ?",
+      [bookingId, userId],
+    );
+
+    res.status(200).json({
+      eligible: true,
+      alreadyReviewed: existing.length > 0,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error.", details: error.message });
   }
 });
 

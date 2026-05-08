@@ -450,11 +450,9 @@
   justify-content: center;
   border-radius: 999px;
   color: var(--surface);
-  background: linear-gradient(
-    135deg,
-    var(--navy-900) 0%,
-    var(--tanger-teal) 100%
-  );
+  background: linear-gradient(135deg,
+      var(--navy-900) 0%,
+      var(--tanger-teal) 100%);
   font-size: 0.82rem;
   font-weight: 800;
   box-shadow: 0 6px 14px rgba(11, 33, 54, 0.11);
@@ -519,11 +517,9 @@
   align-items: flex-start;
   padding: 20px 18px;
   border-color: rgba(226, 232, 240, 0.9);
-  background: linear-gradient(
-    160deg,
-    rgba(255, 255, 255, 0.98) 0%,
-    rgba(246, 243, 236, 0.88) 100%
-  );
+  background: linear-gradient(160deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(246, 243, 236, 0.88) 100%);
   transition:
     transform var(--transition),
     border-color var(--transition),
@@ -544,11 +540,9 @@
   align-items: center;
   justify-content: center;
   border-radius: 16px;
-  background: linear-gradient(
-    135deg,
-    rgba(20, 168, 157, 0.12),
-    rgba(62, 142, 208, 0.1)
-  );
+  background: linear-gradient(135deg,
+      rgba(20, 168, 157, 0.12),
+      rgba(62, 142, 208, 0.1));
   border: 1px solid rgba(20, 168, 157, 0.16);
   font-size: 1.3rem;
 }
@@ -656,11 +650,9 @@
   width: 100%;
   max-width: 100%;
   padding: 24px;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.97) 0%,
-    rgba(246, 243, 236, 0.92) 100%
-  );
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.97) 0%,
+      rgba(246, 243, 236, 0.92) 100%);
 }
 
 .pd-calendar__head {
@@ -961,11 +953,9 @@ button.pd-calendar__day:hover:not(:disabled) {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    var(--tanger-teal),
-    var(--chefchaouen-blue)
-  );
+  background: linear-gradient(90deg,
+      var(--tanger-teal),
+      var(--chefchaouen-blue));
 }
 
 .pd-comments {
@@ -978,11 +968,9 @@ button.pd-calendar__day:hover:not(:disabled) {
   padding: 20px;
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 20px;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.96) 0%,
-    rgba(246, 243, 236, 0.9) 100%
-  );
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(246, 243, 236, 0.9) 100%);
   box-shadow: 0 8px 22px rgba(11, 33, 54, 0.04);
 }
 
@@ -993,7 +981,7 @@ button.pd-calendar__day:hover:not(:disabled) {
   margin-bottom: 12px;
 }
 
-.pd-comment__head > span {
+.pd-comment__head>span {
   width: 42px;
   height: 42px;
   display: inline-flex;
@@ -1018,7 +1006,7 @@ button.pd-calendar__day:hover:not(:disabled) {
   font-size: 0.82rem;
 }
 
-.pd-comment > p {
+.pd-comment>p {
   margin: 0;
   color: var(--text-muted);
   font-size: 0.92rem;
@@ -1089,11 +1077,9 @@ button.pd-calendar__day:hover:not(:disabled) {
   flex-direction: column;
   gap: 16px;
   padding: 24px;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.98) 0%,
-    rgba(250, 248, 243, 0.94) 100%
-  );
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(250, 248, 243, 0.94) 100%);
   min-height: 320px;
   justify-content: center;
 }
@@ -1124,7 +1110,7 @@ button.pd-calendar__day:hover:not(:disabled) {
   padding: 0 0 18px;
 }
 
-.pd-location__detail + .pd-location__detail {
+.pd-location__detail+.pd-location__detail {
   padding-top: 18px;
   border-top: 1px solid rgba(226, 232, 240, 0.9);
 }
@@ -1263,7 +1249,7 @@ button.pd-calendar__day:hover:not(:disabled) {
   gap: 10px;
 }
 
-.pd-location-modal__block + .pd-location-modal__block {
+.pd-location-modal__block+.pd-location-modal__block {
   padding-top: 22px;
   border-top: 1px solid rgba(226, 232, 240, 0.9);
 }
@@ -1343,11 +1329,9 @@ button.pd-calendar__day:hover:not(:disabled) {
   gap: 14px;
   padding: 20px;
   min-height: 100%;
-  background: linear-gradient(
-    160deg,
-    rgba(255, 255, 255, 0.97) 0%,
-    rgba(246, 243, 236, 0.84) 100%
-  );
+  background: linear-gradient(160deg,
+      rgba(255, 255, 255, 0.97) 0%,
+      rgba(246, 243, 236, 0.84) 100%);
   transition:
     transform var(--transition),
     box-shadow var(--transition);
@@ -1489,11 +1473,9 @@ button.pd-calendar__day:hover:not(:disabled) {
   flex-direction: column;
   gap: 18px;
   padding: 24px;
-  background: linear-gradient(
-    160deg,
-    rgba(255, 255, 255, 0.97) 0%,
-    rgba(246, 243, 236, 0.9) 100%
-  );
+  background: linear-gradient(160deg,
+      rgba(255, 255, 255, 0.97) 0%,
+      rgba(246, 243, 236, 0.9) 100%);
 }
 
 .pd-host__top {
@@ -1524,11 +1506,9 @@ button.pd-calendar__day:hover:not(:disabled) {
   justify-content: center;
   border-radius: 22px;
   color: var(--surface);
-  background: linear-gradient(
-    135deg,
-    var(--navy-900) 0%,
-    var(--tanger-teal) 100%
-  );
+  background: linear-gradient(135deg,
+      var(--navy-900) 0%,
+      var(--tanger-teal) 100%);
   font-size: 1.1rem;
   font-weight: 800;
   box-shadow: 0 10px 24px rgba(11, 33, 54, 0.18);
@@ -1711,7 +1691,7 @@ button.pd-calendar__day:hover:not(:disabled) {
   padding: 13px 14px;
 }
 
-.pd-booking__field + .pd-booking__field {
+.pd-booking__field+.pd-booking__field {
   border-left: 1px solid var(--border-light);
 }
 
@@ -1989,7 +1969,7 @@ button.pd-calendar__day:hover:not(:disabled) {
     grid-template-columns: 1fr;
   }
 
-  .pd-booking__field + .pd-booking__field {
+  .pd-booking__field+.pd-booking__field {
     border-top: 1px solid var(--border-light);
     border-left: 0;
   }
@@ -2019,6 +1999,7 @@ button.pd-calendar__day:hover:not(:disabled) {
 }
 
 @media (max-width: 420px) {
+
   .pd-topbar,
   .pd-gallery,
   .pd-summary,
@@ -2048,8 +2029,8 @@ button.pd-calendar__day:hover:not(:disabled) {
    PROPERTY DETAILS HEADER / FOOTER ADAPTER
    ========================= */
 
-.pd-page > header,
-.pd-page > .MuiContainer-root {
+.pd-page>header,
+.pd-page>.MuiContainer-root {
   width: min(1120px, calc(100% - 40px)) !important;
   margin: 0 auto 22px !important;
   border: 1px solid var(--border-light);
@@ -2127,7 +2108,8 @@ button.pd-calendar__day:hover:not(:disabled) {
 .pd-content {
   display: flex;
   flex-direction: column;
-  gap: 32px; /* زيادة من 24px ليعطي راحة أكبر للعين */
+  gap: 32px;
+  /* زيادة من 24px ليعطي راحة أكبر للعين */
 }
 
 .pd-calendar__day--disabled {
@@ -2313,4 +2295,298 @@ button.pd-calendar__day:hover:not(:disabled) {
 
 .pd-location__open-map:hover {
   text-decoration: underline;
+}
+
+
+
+.contact-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.contact-modal-content {
+  background: white;
+  padding: 2rem;
+  border-radius: 15px;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+  position: relative;
+  animation: slideUp 0.3s ease-out;
+}
+
+.whatsapp-btn {
+  display: block;
+  background-color: #25D366;
+  /* لون واتساب */
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  margin-top: 1rem;
+  font-weight: bold;
+}
+
+.phone-btn {
+  display: block;
+  border: 2px solid #0d9488;
+  /* لون مشروعك Teal */
+  color: #0d9488;
+  padding: 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  margin-top: 0.5rem;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* =========================
+   REVIEW SYSTEM
+   ========================= */
+
+/* Star components */
+.pd-star {
+  background: transparent;
+  border: none;
+  padding: 0;
+  line-height: 1;
+  cursor: default;
+  transition: transform 0.15s;
+}
+
+button.pd-star {
+  cursor: pointer;
+}
+
+button.pd-star:hover,
+button.pd-star:focus-visible {
+  transform: scale(1.2);
+  outline: none;
+}
+
+.pd-star--filled {
+  color: #f59e0b;
+}
+
+.pd-star--empty {
+  color: #d1d5db;
+}
+
+/* Inline stars in review cards */
+.pd-comment .pd-star-rating {
+  display: inline-flex;
+  margin: 6px 0 10px;
+  gap: 1px;
+}
+
+.pd-comment .pd-star {
+  font-size: 0.95rem;
+}
+
+/* Review comment text */
+.pd-comment__text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.75;
+}
+
+/* Loading / empty */
+.pd-reviews__loading {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 12px 0;
+}
+
+/* Leave a review form */
+.pd-review-form {
+  margin-top: 28px;
+  padding: 26px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 253, 250, 0.92) 100%);
+  border: 1px solid rgba(20, 168, 157, 0.2);
+  animation: slideUp 0.35s ease;
+}
+
+.pd-review-form__title {
+  margin: 0 0 6px;
+  color: var(--navy-900);
+  font-family: "Cormorant Garamond", serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.pd-review-form__hint {
+  margin: 0 0 20px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.pd-review-form__label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--navy-900);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.pd-review-form__stars {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.pd-review-form__stars .pd-review-form__label {
+  margin: 0;
+}
+
+.pd-review-form__rating-label {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(20, 168, 157, 0.1);
+  border: 1px solid rgba(20, 168, 157, 0.22);
+  color: var(--tanger-teal);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pd-review-form__field {
+  margin-bottom: 18px;
+}
+
+.pd-review-form__textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1.5px solid rgba(122, 112, 52, 0.22);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--navy-900);
+  font-family: inherit;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  resize: vertical;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+  outline: none;
+}
+
+.pd-review-form__textarea:focus {
+  border-color: var(--tanger-teal);
+  box-shadow: 0 0 0 3px rgba(20, 168, 157, 0.12);
+}
+
+.pd-review-form__char-count {
+  display: block;
+  margin-top: 5px;
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.pd-review-form__error {
+  margin: 0 0 14px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  color: #b91c1c;
+  font-size: 0.87rem;
+  font-weight: 600;
+}
+
+.pd-review-form__submit {
+  width: auto;
+  min-width: 160px;
+  margin-top: 4px;
+}
+
+.pd-review-form__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* Success banner */
+.pd-review-success {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 22px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: rgba(20, 168, 157, 0.08);
+  border: 1px solid rgba(20, 168, 157, 0.24);
+  color: #0e7063;
+  font-size: 0.93rem;
+  font-weight: 700;
+  animation: slideUp 0.35s ease;
+}
+
+/* Already reviewed */
+.pd-review-done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.07);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: #92400e;
+  font-size: 0.87rem;
+  font-weight: 600;
+}
+
+/* Login nudge */
+.pd-reviews__login-nudge {
+  margin-top: 20px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.pd-reviews__login-nudge a {
+  color: var(--tanger-teal);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.pd-reviews__login-nudge a:hover {
+  text-decoration: underline;
+}
+
+
+
+.close-btn {
+  border: none;
+  background: transparent;
+  position: absolute;
+  top: 0;
+  right: 13px;
 }
