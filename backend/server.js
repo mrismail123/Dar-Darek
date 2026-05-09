@@ -13,7 +13,12 @@ const nodemailer = require("nodemailer");
 const db = require("./db");
 
 const app = express();
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const GOOGLE_CLIENT_ID =
+  process.env.GOOGLE_CLIENT_ID ||
+  "1053795619331-gldssns0qs9dol9j9rrfouf8ajkqkmj6.apps.googleusercontent.com";
+const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 app.use(cors());
 app.use(express.json());
@@ -46,6 +51,14 @@ const verifyToken = (req, res, next) => {
   } catch (error) {
     return res.status(403).json({ message: "Invalid or Expired Token" });
   }
+};
+
+const verifyAdmin = (req, res, next) => {
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ message: "Admin access required." });
+  }
+
+  next();
 };
 
 const storage = multer.diskStorage({
@@ -177,11 +190,7 @@ const ACCOUNT_LANGUAGE_OPTIONS = new Set([
   "Turkish",
   "Amazigh",
 ]);
-const ACCOUNT_CONTACT_OPTIONS = new Set([
-  "Email",
-  "SMS",
-  "Push notification",
-]);
+const ACCOUNT_CONTACT_OPTIONS = new Set(["Email", "SMS", "Push notification"]);
 const ACCOUNT_PREFERENCE_LANGUAGE_OPTIONS = new Set([
   "English",
   "French",
@@ -547,12 +556,16 @@ app.put(
       }
 
       if (!req.file) {
-        return res.status(400).json({ message: "Profile picture is required." });
+        return res
+          .status(400)
+          .json({ message: "Profile picture is required." });
       }
 
       if (!req.file.mimetype.startsWith("image/")) {
         fs.unlink(req.file.path, () => {});
-        return res.status(400).json({ message: "Only image files are allowed." });
+        return res
+          .status(400)
+          .json({ message: "Only image files are allowed." });
       }
 
       const profilePicture = `/uploads/${req.file.filename}`;
@@ -603,7 +616,10 @@ app.put("/api/users/preferences", verifyToken, async (req, res) => {
       });
     }
 
-    if (preferredStayType && !ACCOUNT_STAY_TYPE_OPTIONS.has(preferredStayType)) {
+    if (
+      preferredStayType &&
+      !ACCOUNT_STAY_TYPE_OPTIONS.has(preferredStayType)
+    ) {
       return res.status(400).json({
         message: "Choose a valid preferred stay type.",
       });
@@ -865,7 +881,7 @@ app.post("/api/forgot-password", async (req, res) => {
       { expiresIn: "15m" },
     );
 
-    const resettingUrl = `http://localhost:5173/Authentication/reset-password?token=${oneTimeActivationToken}`;
+    const resettingUrl = `${FRONTEND_URL}/Authentication/reset-password?token=${oneTimeActivationToken}`;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -1044,7 +1060,7 @@ app.post("/api/signup", async (req, res) => {
       { expiresIn: "15m" },
     );
 
-    const activationUrl = `http://localhost:5000/api/activate-account?token=${oneTimeActivationToken}`;
+    const activationUrl = `${BACKEND_URL}/api/activate-account?token=${oneTimeActivationToken}`;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -1102,7 +1118,7 @@ app.get("/api/activate-account", async (req, res) => {
       return res.status(404).send("User not found.");
     }
 
-    res.redirect("http://localhost:5173/Authentication");
+    res.redirect(`${FRONTEND_URL}/Authentication`);
   } catch (error) {
     res.status(400).send("Link expired or invalid. Please sign up again.");
   }
@@ -1188,9 +1204,10 @@ app.post("/api/reactivate-account", async (req, res) => {
       return res.status(400).json({ message: "Password is required." });
     }
 
-    const [rows] = await db.query("SELECT * FROM users WHERE email = ? LIMIT 1", [
-      cleanEmail,
-    ]);
+    const [rows] = await db.query(
+      "SELECT * FROM users WHERE email = ? LIMIT 1",
+      [cleanEmail],
+    );
 
     if (rows.length === 0 || !rows[0].password) {
       return res.status(401).json({
@@ -1234,7 +1251,7 @@ app.post("/api/google-auth", async (req, res) => {
   try {
     const ticket = await client.verifyIdToken({
       idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: GOOGLE_CLIENT_ID,
     });
 
     const payload = ticket.getPayload();
@@ -1404,11 +1421,10 @@ app.get("/api/houses/:id", async (req, res) => {
         c.name AS city,
         c.name AS city_name,
         COALESCE(u.name, 'Dar Darek Host') AS host_name,
+        u.phone_number AS host_phone,
         u.profile_picture AS host_profile_picture,
         u.bio AS host_bio,
-        COALESCE(u.role, 'host') AS host_role,
-        SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1) AS host_first_name,
-        NULLIF(TRIM(SUBSTRING(COALESCE(u.name, ''), LENGTH(SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1)) + 1)), '') AS host_last_name
+        COALESCE(u.role, 'host') AS host_role     
       FROM properties p
       LEFT JOIN cities c ON p.id_city = c.id_city
       LEFT JOIN users u ON p.id_user = u.id_user
@@ -1515,6 +1531,7 @@ app.post("/api/propertiesBasedOnParams", async (req, res) => {
     checkOut,
     guests,
     page = 1,
+    limit: requestedLimit,
     minPrice,
     maxPrice,
     propertyType,
@@ -1522,7 +1539,7 @@ app.post("/api/propertiesBasedOnParams", async (req, res) => {
     sortBy,
   } = req.body;
 
-  const limit = 9;
+  const limit = Math.max(1, Math.min(Number(requestedLimit) || 9, 24));
   const offset = (Number(page) - 1) * limit;
 
   try {
@@ -1844,11 +1861,15 @@ app.post("/api/houses", upload.array("images", 12), async (req, res) => {
    ADMIN ROUTES
 ========================= */
 
-app.get("/api/pendingProperties", async (req, res) => {
-  try {
-    const [result] = await db.query(`
-      SELECT 
-        p.*, 
+app.get(
+  "/api/pendingProperties",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const [result] = await db.query(`
+        SELECT 
+          p.*, 
         c.name AS city_name, 
         users.name AS host_name,
         users.email AS host_email,
@@ -1862,46 +1883,80 @@ app.get("/api/pendingProperties", async (req, res) => {
       FROM properties p
       JOIN cities c ON c.id_city = p.id_city
       LEFT JOIN users ON users.id_user = p.id_user
-      WHERE p.status = 'pending'
-    `);
+        WHERE p.status = 'pending'
+      `);
 
-    if (result.length === 0) {
-      return res.status(404).json({ message: "No pending properties found" });
+      const [statusCounts] = await db.query(`
+        SELECT status, COUNT(*) AS total
+        FROM properties
+        GROUP BY status
+      `);
+
+      const summary = statusCounts.reduce(
+        (acc, row) => {
+          const safeStatus = String(row.status || "").toLowerCase();
+          const total = Number(row.total) || 0;
+
+          acc.all += total;
+
+          if (safeStatus === "approved") {
+            acc.approved += total;
+          } else if (safeStatus === "rejected") {
+            acc.rejected += total;
+          } else if (safeStatus === "pending") {
+            acc.pending += total;
+          }
+
+          return acc;
+        },
+        { all: 0, pending: 0, approved: 0, rejected: 0 },
+      );
+
+      res.status(200).json({
+        pendingProperties: result,
+        summary,
+      });
+    } catch (error) {
+      res.status(500).json({ details: error.message });
     }
+  },
+);
 
-    res.status(200).json({
-      pendingProperties: result,
-    });
-  } catch (error) {
-    res.status(500).json({ details: error.message });
-  }
-});
+app.post(
+  "/api/admin/approve/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(
+        "UPDATE properties SET status = 'approved' WHERE id_property = ?",
+        [id],
+      );
+      res.status(200).json({ message: "Property approved successfully." });
+    } catch (error) {
+      res.status(500).json({ details: error.message });
+    }
+  },
+);
 
-app.post("/api/admin/approve/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    await db.execute(
-      "UPDATE properties SET status = 'approved' WHERE id_property = ?",
-      [id],
-    );
-    res.status(200).json({ message: "Property approved successfully." });
-  } catch (error) {
-    res.status(500).json({ details: error.message });
-  }
-});
-
-app.post("/api/admin/reject/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    await db.execute(
-      "UPDATE properties SET status = 'rejected' WHERE id_property = ?",
-      [id],
-    );
-    res.status(200).json({ message: "Property rejected successfully." });
-  } catch (error) {
-    res.status(500).json({ details: error.message });
-  }
-});
+app.post(
+  "/api/admin/reject/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(
+        "UPDATE properties SET status = 'rejected' WHERE id_property = ?",
+        [id],
+      );
+      res.status(200).json({ message: "Property rejected successfully." });
+    } catch (error) {
+      res.status(500).json({ details: error.message });
+    }
+  },
+);
 
 /* =========================
    BOOKING ROUTES
@@ -1909,15 +1964,41 @@ app.post("/api/admin/reject/:id", async (req, res) => {
 
 app.post("/api/bookingProperty", verifyToken, async (req, res) => {
   const { id_property, checkIn, checkOut, total_price, id_user } = req.body;
+  const tokenUserId = Number(req.user?.id);
+  const bookingUserId =
+    Number.isFinite(tokenUserId) && tokenUserId > 0
+      ? tokenUserId
+      : Number(id_user);
 
   try {
-    if (!id_property || !checkIn || !checkOut || !total_price || !id_user) {
+    if (!id_property || !checkIn || !checkOut || !total_price || !bookingUserId) {
       return res.status(400).json({ message: "All fields are required." });
     }
 
     if (new Date(checkOut) <= new Date(checkIn)) {
       return res.status(400).json({
         message: "Check-out date must be after check-in date.",
+      });
+    }
+
+    const [userActiveBooking] = await db.query(
+      `
+      SELECT id_booking
+      FROM bookings
+      WHERE id_property = ?
+        AND id_user = ?
+        AND (
+          status = 'pending'
+          OR (status = 'approved' AND end_date >= CURDATE())
+        )
+      LIMIT 1
+      `,
+      [id_property, bookingUserId],
+    );
+
+    if (userActiveBooking.length > 0) {
+      return res.status(409).json({
+        message: "You already have an active booking for this property.",
       });
     }
 
@@ -1933,8 +2014,8 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
     );
 
     if (bookingConflict.length > 0) {
-      return res.status(400).json({
-        message: "Property is already booked for these dates.",
+      return res.status(409).json({
+        message: "This property is already reserved for the selected dates.",
       });
     }
 
@@ -1944,7 +2025,7 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       (id_property, id_user, start_date, end_date, total_price, status) 
       VALUES (?, ?, ?, ?, ?, 'pending')
       `,
-      [id_property, id_user, checkIn, checkOut, total_price],
+      [id_property, bookingUserId, checkIn, checkOut, total_price],
     );
 
     res.status(201).json({
@@ -1954,6 +2035,219 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
     console.error("Database Error:", error);
     res.status(500).json({
       message: "Server error while processing your booking.",
+    });
+  }
+});
+
+app.get("/api/properties/:id/booked-dates", async (req, res) => {
+  const propertyId = Number(req.params.id);
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
+
+  try {
+    const [bookedDates] = await db.query(
+      `
+      SELECT start_date, end_date, status
+      FROM bookings
+      WHERE id_property = ?
+        AND (
+          status = 'pending'
+          OR (status = 'approved' AND end_date >= CURDATE())
+        )
+      ORDER BY start_date ASC
+      `,
+      [propertyId],
+    );
+
+    res.status(200).json({ bookedDates });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while fetching booked dates.",
+      details: error.message,
+    });
+  }
+});
+
+app.get("/api/my-bookings", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+
+  if (!Number.isFinite(userId) || userId <= 0) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  try {
+    const [bookings] = await db.query(
+      `
+      SELECT
+        b.id_booking AS id,
+        b.id_property AS propertyId,
+        p.title AS propertyTitle,
+        COALESCE(c.name, '') AS city,
+        COALESCE(NULLIF(p.neighborhood, ''), NULLIF(p.address, ''), c.name, '') AS location,
+        (
+          SELECT pi.image_url
+          FROM property_images pi
+          WHERE pi.id_property = p.id_property
+          ORDER BY pi.is_main DESC, pi.id_image ASC
+          LIMIT 1
+        ) AS image,
+        b.start_date AS checkIn,
+        b.end_date AS checkOut,
+        p.guests_total AS guests,
+        b.total_price AS totalPrice,
+        CASE
+          WHEN b.status = 'pending' THEN 'pending'
+          WHEN b.status = 'rejected' THEN 'cancelled'
+          WHEN b.status = 'approved' AND b.end_date < CURDATE() THEN 'completed'
+          ELSE 'upcoming'
+        END AS status,
+        COALESCE(host.name, 'DarDarek host') AS hostName,
+        EXISTS (
+          SELECT 1
+          FROM reviews review_check
+          WHERE review_check.id_booking = b.id_booking
+            AND review_check.id_user = b.id_user
+          LIMIT 1
+        ) AS reviewed
+      FROM bookings b
+      JOIN properties p ON b.id_property = p.id_property
+      LEFT JOIN cities c ON p.id_city = c.id_city
+      LEFT JOIN users host ON p.id_user = host.id_user
+      WHERE b.id_user = ?
+      ORDER BY b.start_date DESC, b.created_at DESC
+      `,
+      [userId],
+    );
+
+    res.status(200).json({ bookings });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while fetching your bookings.",
+      details: error.message,
+    });
+  }
+});
+
+app.patch("/api/my-bookings/:id/cancel", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+  const bookingId = Number(req.params.id);
+
+  if (!Number.isFinite(userId) || userId <= 0) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  if (!Number.isFinite(bookingId) || bookingId <= 0) {
+    return res.status(400).json({ message: "Invalid booking id." });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `SELECT id_booking, status, end_date, end_date < CURDATE() AS isCompleted
+       FROM bookings
+       WHERE id_booking = ? AND id_user = ?
+       LIMIT 1`,
+      [bookingId, userId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Booking not found." });
+    }
+
+    const booking = rows[0];
+
+    if (booking.status === "rejected") {
+      return res.status(200).json({ message: "Booking is already cancelled." });
+    }
+
+    if (booking.status === "approved" && Number(booking.isCompleted) === 1) {
+      return res
+        .status(400)
+        .json({ message: "Completed bookings cannot be cancelled." });
+    }
+
+    await db.execute(
+      "UPDATE bookings SET status = 'rejected' WHERE id_booking = ? AND id_user = ?",
+      [bookingId, userId],
+    );
+
+    res.status(200).json({ message: "Booking cancelled successfully." });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while cancelling your booking.",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/my-bookings/:id/review", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+  const bookingId = Number(req.params.id);
+  const safeRating = Number(req.body?.rating);
+  const comment = String(req.body?.comment || "").trim();
+
+  if (!Number.isFinite(userId) || userId <= 0) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  if (!Number.isFinite(bookingId) || bookingId <= 0) {
+    return res.status(400).json({ message: "Invalid booking id." });
+  }
+
+  if (!Number.isFinite(safeRating) || safeRating < 1 || safeRating > 5) {
+    return res.status(400).json({ message: "Rating must be between 1 and 5." });
+  }
+
+  if (comment.length < 10) {
+    return res
+      .status(400)
+      .json({ message: "Review comment must be at least 10 characters." });
+  }
+
+  try {
+    const [eligibleBookings] = await db.query(
+      `SELECT id_booking, id_property
+       FROM bookings
+       WHERE id_booking = ?
+         AND id_user = ?
+         AND status = 'approved'
+         AND end_date < CURDATE()
+       LIMIT 1`,
+      [bookingId, userId],
+    );
+
+    if (eligibleBookings.length === 0) {
+      return res.status(403).json({
+        message:
+          "You can only leave a review after a completed, approved stay.",
+      });
+    }
+
+    const booking = eligibleBookings[0];
+
+    const [existingReview] = await db.query(
+      "SELECT id_review FROM reviews WHERE id_booking = ? AND id_user = ?",
+      [bookingId, userId],
+    );
+
+    if (existingReview.length > 0) {
+      return res
+        .status(409)
+        .json({ message: "You have already reviewed this booking." });
+    }
+
+    await db.execute(
+      `INSERT INTO reviews (id_property, id_user, id_booking, rating, comment)
+       VALUES (?, ?, ?, ?, ?)`,
+      [booking.id_property, userId, bookingId, safeRating, comment],
+    );
+
+    res.status(201).json({ message: "Review submitted successfully." });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while submitting your review.",
+      details: error.message,
     });
   }
 });
@@ -1978,7 +2272,11 @@ app.get("/api/rentalRequests", verifyToken, async (req, res) => {
         b.total_price AS totalPrice,
         b.status AS status,
         p.title AS title,
+        p.property_type,
+        c.name AS city_name,
         u.name AS guestName,
+        u.email AS guestEmail,
+        u.phone_number AS tenant_phone,
         (
           SELECT image_url 
           FROM property_images 
@@ -1987,6 +2285,7 @@ app.get("/api/rentalRequests", verifyToken, async (req, res) => {
         ) AS image
       FROM bookings b
       JOIN properties p ON b.id_property = p.id_property
+      LEFT JOIN cities c ON p.id_city = c.id_city
       JOIN users u ON b.id_user = u.id_user
       WHERE p.id_user = ? 
       AND b.id_user != ?
@@ -2002,6 +2301,211 @@ app.get("/api/rentalRequests", verifyToken, async (req, res) => {
     });
   }
 });
+
+app.patch("/api/rentalRequests/:id/status", verifyToken, async (req, res) => {
+  const bookingId = Number(req.params.id);
+  const { status } = req.body;
+  const tokenUserId = Number(req.user?.id);
+
+  const allowedStatuses = ["approved", "rejected", "pending"];
+
+  if (!allowedStatuses.includes(status)) {
+    return res.status(400).json({ message: "Invalid status value." });
+  }
+
+  if (!Number.isFinite(bookingId) || bookingId <= 0) {
+    return res.status(400).json({ message: "Invalid booking id." });
+  }
+
+  try {
+    // Ensure the logged-in user owns the property attached to this booking
+    const [rows] = await db.query(
+      `SELECT b.id_booking FROM bookings b
+       JOIN properties p ON b.id_property = p.id_property
+       WHERE b.id_booking = ? AND p.id_user = ?`,
+      [bookingId, tokenUserId],
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to update this booking." });
+    }
+
+    await db.execute("UPDATE bookings SET status = ? WHERE id_booking = ?", [
+      status,
+      bookingId,
+    ]);
+
+    res.status(200).json({ message: `Booking ${status} successfully.` });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while updating booking status.",
+      details: error.message,
+    });
+  }
+});
+
+/* =========================
+   REVIEW ROUTES
+========================= */
+
+app.get("/api/properties/:id/reviews", async (req, res) => {
+  const propertyId = Number(req.params.id);
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
+
+  try {
+    const [reviews] = await db.query(
+      `SELECT
+         r.id_review,
+         r.rating,
+         r.comment,
+         r.created_at,
+         r.id_booking,
+         u.name AS reviewer_name
+       FROM reviews r
+       JOIN users u ON r.id_user = u.id_user
+       WHERE r.id_property = ?
+       ORDER BY r.created_at DESC`,
+      [propertyId],
+    );
+
+    const avgRating =
+      reviews.length > 0
+        ? Math.round(
+            (reviews.reduce((sum, r) => sum + Number(r.rating), 0) /
+              reviews.length) *
+              10,
+          ) / 10
+        : null;
+
+    res.status(200).json({ reviews, avgRating, count: reviews.length });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while fetching reviews.",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/reviews", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+  const { id_property, rating, comment } = req.body;
+  const propertyId = Number(id_property);
+  const safeRating = Number(rating);
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
+
+  if (!Number.isFinite(safeRating) || safeRating < 1 || safeRating > 5) {
+    return res.status(400).json({ message: "Rating must be between 1 and 5." });
+  }
+
+  if (!comment || String(comment).trim().length < 10) {
+    return res
+      .status(400)
+      .json({ message: "Comment must be at least 10 characters." });
+  }
+
+  try {
+    // Find an eligible completed booking for this user & property
+    const [eligibleBookings] = await db.query(
+      `SELECT id_booking FROM bookings
+       WHERE id_user = ?
+         AND id_property = ?
+         AND status = 'approved'
+         AND end_date < CURDATE()
+       LIMIT 1`,
+      [userId, propertyId],
+    );
+
+    if (eligibleBookings.length === 0) {
+      return res.status(403).json({
+        message:
+          "You can only leave a review after a completed, approved stay.",
+      });
+    }
+
+    const bookingId = eligibleBookings[0].id_booking;
+
+    // Enforce one review per booking
+    const [existingReview] = await db.query(
+      "SELECT id_review FROM reviews WHERE id_booking = ? AND id_user = ?",
+      [bookingId, userId],
+    );
+
+    if (existingReview.length > 0) {
+      return res
+        .status(409)
+        .json({ message: "You have already reviewed this booking." });
+    }
+
+    await db.execute(
+      `INSERT INTO reviews (id_property, id_user, rating, comment, id_booking)
+       VALUES (?, ?, ?, ?, ?)`,
+      [propertyId, userId, safeRating, String(comment).trim(), bookingId],
+    );
+
+    res.status(201).json({ message: "Review submitted successfully." });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while submitting review.",
+      details: error.message,
+    });
+  }
+});
+
+// Check whether a user is eligible to leave a review for a property
+app.get(
+  "/api/properties/:id/review-eligibility",
+  verifyToken,
+  async (req, res) => {
+    const userId = Number(req.user?.id);
+    const propertyId = Number(req.params.id);
+
+    if (!Number.isFinite(propertyId) || propertyId <= 0) {
+      return res.status(400).json({ message: "Invalid property id." });
+    }
+
+    try {
+      const [eligibleBookings] = await db.query(
+        `SELECT b.id_booking FROM bookings b
+       WHERE b.id_user = ?
+         AND b.id_property = ?
+         AND b.status = 'approved'
+         AND b.end_date < CURDATE()
+       LIMIT 1`,
+        [userId, propertyId],
+      );
+
+      if (eligibleBookings.length === 0) {
+        return res
+          .status(200)
+          .json({ eligible: false, alreadyReviewed: false });
+      }
+
+      const bookingId = eligibleBookings[0].id_booking;
+
+      const [existing] = await db.query(
+        "SELECT id_review FROM reviews WHERE id_booking = ? AND id_user = ?",
+        [bookingId, userId],
+      );
+
+      res.status(200).json({
+        eligible: true,
+        alreadyReviewed: existing.length > 0,
+      });
+    } catch (error) {
+      res
+        .status(500)
+        .json({ message: "Server error.", details: error.message });
+    }
+  },
+);
 
 /* =========================
    START SERVER

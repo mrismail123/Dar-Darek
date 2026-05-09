@@ -33,7 +33,7 @@ export default function PropertiesMap({ properties }) {
                         <div className="map-popup">
                             <h4 style={{ margin: 0 }}>{property.title}</h4>
                             <p style={{ color: '#00A9B5', fontWeight: 'bold' }}>{property.price_per_day} DH</p>
-                            <a href={`/property/${property.id_property}`}>عرض التفاصيل</a>
+                            <a href={`/property-details/${property.id_property}`}>عرض التفاصيل</a>
                         </div>
                     </Popup>
                 </Marker>

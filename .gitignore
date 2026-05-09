@@ -12,6 +12,8 @@ backend/node_modules/
 dist/
 dist-ssr/
 frontend/dist/
+.vite/
+frontend/.vite/
 
 # uploads
 backend/uploads/

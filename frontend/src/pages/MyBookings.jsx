@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import {
   FiCalendar,
+  FiChevronDown,
   FiCheckCircle,
   FiClock,
   FiEye,
@@ -17,92 +19,18 @@ import {
 } from "react-icons/fi";
 import Header from "../Home components/Header";
 import Footer from "../Footer";
-import tangierImage from "../assets/Tangier2.jpg";
-import chefchaouenImage from "../assets/chefchaouen.jpg";
-import tetouanImage from "../assets/tetouan-hero.jpg";
-import martilImage from "../assets/beach.jpg";
 import asilahImage from "../assets/ChaouenStreets.jpg";
+import { buildApiUrl, createAuthConfig } from "../lib/api";
 import "./MyBookings.css";
 
 const bookingTabs = [
   { id: "upcoming", label: "Upcoming" },
   { id: "pending", label: "Pending" },
-  { id: "completed", label: "Completed" },
   { id: "cancelled", label: "Cancelled" },
+  { id: "completed", label: "Completed" },
 ];
 
-const initialBookings = [
-  {
-    id: "BK-2048",
-    propertyId: "1",
-    propertyTitle: "Sea-view riad apartment near the Kasbah",
-    city: "Tangier",
-    location: "Kasbah, Tangier",
-    image: tangierImage,
-    checkIn: "2026-06-14",
-    checkOut: "2026-06-19",
-    guests: 3,
-    totalPrice: 4250,
-    status: "upcoming",
-    hostName: "Youssef El Amrani",
-  },
-  {
-    id: "BK-2051",
-    propertyId: "2",
-    propertyTitle: "Blue medina hideaway with mountain terrace",
-    city: "Chefchaouen",
-    location: "Outa El Hammam, Chefchaouen",
-    image: chefchaouenImage,
-    checkIn: "2026-07-03",
-    checkOut: "2026-07-06",
-    guests: 2,
-    totalPrice: 2880,
-    status: "pending",
-    hostName: "Salma Benjelloun",
-  },
-  {
-    id: "BK-1986",
-    propertyId: "3",
-    propertyTitle: "Elegant Tetouan suite beside the old medina",
-    city: "Tetouan",
-    location: "Ensanche, Tetouan",
-    image: tetouanImage,
-    checkIn: "2026-03-21",
-    checkOut: "2026-03-25",
-    guests: 2,
-    totalPrice: 3150,
-    status: "completed",
-    hostName: "Nadia El Fassi",
-  },
-  {
-    id: "BK-2012",
-    propertyId: "4",
-    propertyTitle: "Sunny beach flat steps from Martil corniche",
-    city: "Martil",
-    location: "Corniche, Martil",
-    image: martilImage,
-    checkIn: "2026-05-28",
-    checkOut: "2026-06-01",
-    guests: 4,
-    totalPrice: 3600,
-    status: "upcoming",
-    hostName: "Hamza Ait Lahcen",
-  },
-  {
-    id: "BK-1904",
-    propertyId: "5",
-    propertyTitle: "Calm Asilah house near the ramparts",
-    city: "Asilah",
-    location: "Medina walls, Asilah",
-    image: asilahImage,
-    checkIn: "2026-02-07",
-    checkOut: "2026-02-10",
-    guests: 2,
-    totalPrice: 2460,
-    status: "cancelled",
-    hostName: "Meryem Chafik",
-  },
-];
+const FALLBACK_BOOKING_IMAGE = asilahImage;
 
 const statusMeta = {
   upcoming: {
@@ -127,9 +55,42 @@ const statusMeta = {
   },
 };
 
+function normalizeBookingImage(imagePath) {
+  if (!imagePath) return FALLBACK_BOOKING_IMAGE;
+  if (/^https?:\/\//i.test(imagePath)) return imagePath;
+
+  const normalizedPath = imagePath.startsWith("/")
+    ? imagePath
+    : `/${imagePath}`;
+  return buildApiUrl(normalizedPath);
+}
+
+function normalizeBooking(booking) {
+  return {
+    id: booking.id,
+    propertyId: booking.propertyId,
+    propertyTitle: booking.propertyTitle || "DarDarek stay",
+    city: booking.city || "Northern Morocco",
+    location: booking.location || booking.city || "Northern Morocco",
+    image: normalizeBookingImage(booking.image),
+    checkIn: booking.checkIn,
+    checkOut: booking.checkOut,
+    guests: Number(booking.guests) || 1,
+    totalPrice: Number(booking.totalPrice) || 0,
+    status: booking.status || "pending",
+    hostName: booking.hostName || "DarDarek host",
+    reviewed: booking.reviewed === true || Number(booking.reviewed) === 1,
+  };
+}
+
 const dateFormatter = new Intl.DateTimeFormat("en", {
   month: "short",
   day: "numeric",
+  year: "numeric",
+});
+
+const monthFormatter = new Intl.DateTimeFormat("en", {
+  month: "long",
   year: "numeric",
 });
 
@@ -140,16 +101,57 @@ const priceFormatter = new Intl.NumberFormat("en-MA", {
 });
 
 function formatDate(value) {
-  return dateFormatter.format(new Date(`${value}T12:00:00`));
+  if (!value) return "Date not set";
+
+  const cleanValue = String(value).split("T")[0];
+  const date = new Date(`${cleanValue}T12:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date not set";
+  }
+
+  return dateFormatter.format(date);
+}
+
+function getBookingDate(value) {
+  return new Date(`${value}T12:00:00`);
 }
 
 function formatDateRange(checkIn, checkOut) {
   return `${formatDate(checkIn)} - ${formatDate(checkOut)}`;
 }
 
+function getMonthKey(value) {
+  const date = getBookingDate(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonth(value) {
+  return monthFormatter.format(getBookingDate(value));
+}
+
 function formatGuests(guests) {
   return `${guests} ${guests === 1 ? "guest" : "guests"}`;
 }
+
+const emptyStateCopy = {
+  upcoming: {
+    title: "No upcoming stays yet.",
+    text: "Your confirmed trips will appear here once a host approves your stay.",
+  },
+  pending: {
+    title: "No pending requests.",
+    text: "Booking requests waiting for host approval will be gathered here.",
+  },
+  completed: {
+    title: "No completed stays yet.",
+    text: "Past trips will appear here after your stay is finished.",
+  },
+  cancelled: {
+    title: "No cancelled bookings.",
+    text: "Cancelled bookings and requests will stay here for reference.",
+  },
+};
 
 function getTimelineSteps(status) {
   if (status === "completed") {
@@ -475,6 +477,7 @@ function ReviewModal({
           <button
             className="bookings-btn bookings-btn--primary"
             onClick={onSubmit}
+            disabled={reviewText.trim().length < 10}
           >
             <FiSend aria-hidden="true" />
             Submit review
@@ -488,48 +491,157 @@ function ReviewModal({
 export default function MyBookings() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("upcoming");
-  const [bookings, setBookings] = useState(initialBookings);
+  const [bookings, setBookings] = useState([]);
+  const [completedMonth, setCompletedMonth] = useState("all");
+  const [isMonthFilterOpen, setIsMonthFilterOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [bookingToCancel, setBookingToCancel] = useState(null);
   const [bookingToReview, setBookingToReview] = useState(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewText, setReviewText] = useState("");
   const [toast, setToast] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  async function fetchBookings() {
+    const token = localStorage.getItem("token");
+
+    setIsLoading(true);
+    setErrorMessage("");
+
+    try {
+      const response = await axios.get(
+        buildApiUrl("/api/my-bookings"),
+        createAuthConfig(token),
+      );
+      const apiBookings = Array.isArray(response.data?.bookings)
+        ? response.data.bookings
+        : [];
+
+      setBookings(apiBookings.map(normalizeBooking));
+    } catch (error) {
+      setErrorMessage(
+        error.response?.data?.message ||
+          "We couldn't load your bookings right now.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchBookings();
+  }, []);
 
   const summary = useMemo(
     () => ({
-      upcoming: bookings.filter((booking) => booking.status === "upcoming")
-        .length,
+      total: bookings.length,
       pending: bookings.filter((booking) => booking.status === "pending")
         .length,
-      completed: bookings.filter((booking) => booking.status === "completed")
+      confirmed: bookings.filter((booking) => booking.status === "upcoming")
         .length,
     }),
     [bookings],
   );
 
-  const filteredBookings = useMemo(
-    () => bookings.filter((booking) => booking.status === activeTab),
-    [activeTab, bookings],
+  const tabCounts = useMemo(
+    () =>
+      bookingTabs.reduce((counts, tab) => {
+        counts[tab.id] = bookings.filter(
+          (booking) => booking.status === tab.id,
+        ).length;
+
+        return counts;
+      }, {}),
+    [bookings],
   );
+
+  const completedMonthOptions = useMemo(() => {
+    const completedBookings = bookings
+      .filter((booking) => booking.status === "completed")
+      .sort((firstBooking, secondBooking) => {
+        return (
+          getBookingDate(secondBooking.checkOut) -
+          getBookingDate(firstBooking.checkOut)
+        );
+      });
+
+    const monthMap = new Map();
+
+    completedBookings.forEach((booking) => {
+      const key = getMonthKey(booking.checkOut);
+
+      if (!monthMap.has(key)) {
+        monthMap.set(key, formatMonth(booking.checkOut));
+      }
+    });
+
+    return [
+      { value: "all", label: "All months" },
+      ...Array.from(monthMap, ([value, label]) => ({ value, label })),
+    ];
+  }, [bookings]);
+
+  const filteredBookings = useMemo(() => {
+    const currentBookings = bookings.filter(
+      (booking) => booking.status === activeTab,
+    );
+
+    if (activeTab !== "completed") {
+      return currentBookings;
+    }
+
+    return currentBookings
+      .filter(
+        (booking) =>
+          completedMonth === "all" ||
+          getMonthKey(booking.checkOut) === completedMonth,
+      )
+      .sort((firstBooking, secondBooking) => {
+        return (
+          getBookingDate(secondBooking.checkOut) -
+          getBookingDate(firstBooking.checkOut)
+        );
+      });
+  }, [activeTab, bookings, completedMonth]);
+
+  const isDenseCompletedGrid =
+    activeTab === "completed" && filteredBookings.length > 4;
+  const currentEmptyState = emptyStateCopy[activeTab];
+  const selectedMonthLabel =
+    completedMonthOptions.find((option) => option.value === completedMonth)
+      ?.label || "All months";
 
   function showToast(message) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2600);
   }
 
-  function handleCancelBooking() {
+  async function handleCancelBooking() {
     if (!bookingToCancel) return;
 
-    setBookings((currentBookings) =>
-      currentBookings.map((booking) =>
-        booking.id === bookingToCancel.id
-          ? { ...booking, status: "cancelled" }
-          : booking,
-      ),
-    );
-    setBookingToCancel(null);
-    showToast("Booking cancelled for preview.");
+    const token = localStorage.getItem("token");
+
+    try {
+      await axios.patch(
+        buildApiUrl(`/api/my-bookings/${bookingToCancel.id}/cancel`),
+        {},
+        createAuthConfig(token),
+      );
+
+      setBookings((currentBookings) =>
+        currentBookings.map((booking) =>
+          booking.id === bookingToCancel.id
+            ? { ...booking, status: "cancelled" }
+            : booking,
+        ),
+      );
+      setBookingToCancel(null);
+      setActiveTab("cancelled");
+      showToast("Booking cancelled.");
+    } catch (error) {
+      showToast(error.response?.data?.message || "Could not cancel booking.");
+    }
   }
 
   function handleOpenReview(booking) {
@@ -538,19 +650,34 @@ export default function MyBookings() {
     setReviewText("");
   }
 
-  function handleSubmitReview() {
+  async function handleSubmitReview() {
     if (!bookingToReview) return;
 
-    setBookings((currentBookings) =>
-      currentBookings.map((booking) =>
-        booking.id === bookingToReview.id
-          ? { ...booking, reviewed: true }
-          : booking,
-      ),
-    );
-    setBookingToReview(null);
-    setReviewText("");
-    showToast("Review submitted for preview.");
+    const token = localStorage.getItem("token");
+
+    try {
+      await axios.post(
+        buildApiUrl(`/api/my-bookings/${bookingToReview.id}/review`),
+        {
+          rating: reviewRating,
+          comment: reviewText,
+        },
+        createAuthConfig(token),
+      );
+
+      setBookings((currentBookings) =>
+        currentBookings.map((booking) =>
+          booking.id === bookingToReview.id
+            ? { ...booking, reviewed: true }
+            : booking,
+        ),
+      );
+      setBookingToReview(null);
+      setReviewText("");
+      showToast("Review submitted.");
+    } catch (error) {
+      showToast(error.response?.data?.message || "Could not submit review.");
+    }
   }
 
   function handleViewProperty() {
@@ -559,18 +686,23 @@ export default function MyBookings() {
     navigate(`/property-details/${selectedBooking.propertyId}`);
   }
 
+  function handleSelectCompletedMonth(value) {
+    setCompletedMonth(value);
+    setIsMonthFilterOpen(false);
+  }
+
   return (
     <div className="bookings-page">
       <Header />
 
       <main className="bookings-shell">
-        <section className="bookings-hero">
+        <section className="bookings-hero-card">
           <div className="bookings-hero__copy">
             <p className="bookings-kicker">Guest dashboard</p>
-            <h1>My bookings</h1>
+            <h1>My Bookings</h1>
             <p>
-              Manage your upcoming stays, past trips, and booking requests in
-              one place.
+              Manage your upcoming stays, pending requests, and past trips
+              across Northern Morocco.
             </p>
           </div>
 
@@ -580,8 +712,8 @@ export default function MyBookings() {
                 <FiCalendar aria-hidden="true" />
               </span>
               <div>
-                <strong>{summary.upcoming}</strong>
-                <p>Upcoming trips</p>
+                <strong>{summary.total}</strong>
+                <p>Total bookings</p>
               </div>
             </article>
             <article className="bookings-summary-card">
@@ -598,14 +730,14 @@ export default function MyBookings() {
                 <FiCheckCircle aria-hidden="true" />
               </span>
               <div>
-                <strong>{summary.completed}</strong>
-                <p>Completed stays</p>
+                <strong>{summary.confirmed}</strong>
+                <p>Confirmed bookings</p>
               </div>
             </article>
           </div>
         </section>
 
-        <section className="bookings-panel">
+        <section className="bookings-tabs-card">
           <div
             className="bookings-tabs"
             role="tablist"
@@ -619,18 +751,121 @@ export default function MyBookings() {
                     : "bookings-tab"
                 }
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setIsMonthFilterOpen(false);
+                }}
                 role="tab"
                 type="button"
                 aria-selected={activeTab === tab.id}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                <strong>{tabCounts[tab.id] || 0}</strong>
               </button>
             ))}
           </div>
+        </section>
 
-          {filteredBookings.length > 0 ? (
-            <div className="bookings-grid">
+        <section className="bookings-content-section">
+          {activeTab === "completed" ? (
+            <div className="bookings-list-toolbar">
+              <div>
+                <p className="bookings-kicker">Past trips</p>
+                <h2>Completed stays</h2>
+              </div>
+              <div
+                className={
+                  isMonthFilterOpen
+                    ? "bookings-month-filter bookings-month-filter--open"
+                    : "bookings-month-filter"
+                }
+              >
+                <span>Filter by month</span>
+                <button
+                  className="bookings-month-filter__button"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded={isMonthFilterOpen}
+                  onClick={() =>
+                    setIsMonthFilterOpen((currentState) => !currentState)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setIsMonthFilterOpen(false);
+                    }
+                  }}
+                >
+                  <span>{selectedMonthLabel}</span>
+                  <FiChevronDown aria-hidden="true" />
+                </button>
+
+                {isMonthFilterOpen ? (
+                  <div
+                    className="bookings-month-filter__menu"
+                    role="listbox"
+                    aria-label="Completed bookings month"
+                  >
+                    {completedMonthOptions.map((option) => (
+                      <button
+                        className={
+                          completedMonth === option.value
+                            ? "bookings-month-filter__option bookings-month-filter__option--active"
+                            : "bookings-month-filter__option"
+                        }
+                        key={option.value}
+                        type="button"
+                        role="option"
+                        aria-selected={completedMonth === option.value}
+                        onClick={() => handleSelectCompletedMonth(option.value)}
+                      >
+                        <span>{option.label}</span>
+                        {completedMonth === option.value ? (
+                          <FiCheckCircle aria-hidden="true" />
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {isLoading ? (
+            <div className="bookings-loading" aria-live="polite">
+              {[1, 2, 3, 4].map((item) => (
+                <div className="bookings-skeleton-card" key={item}>
+                  <span className="bookings-skeleton bookings-skeleton--image" />
+                  <div>
+                    <span className="bookings-skeleton bookings-skeleton--title" />
+                    <span className="bookings-skeleton bookings-skeleton--line" />
+                    <span className="bookings-skeleton bookings-skeleton--line bookings-skeleton--short" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : errorMessage ? (
+            <div className="bookings-error">
+              <div className="bookings-empty__icon">
+                <FiXCircle aria-hidden="true" />
+              </div>
+              <h2>Bookings could not be loaded.</h2>
+              <p>{errorMessage}</p>
+              <button
+                className="bookings-btn bookings-btn--primary"
+                onClick={fetchBookings}
+              >
+                <FiClock aria-hidden="true" />
+                Retry
+              </button>
+            </div>
+          ) : filteredBookings.length > 0 ? (
+            <div
+              className={
+                isDenseCompletedGrid
+                  ? "bookings-grid bookings-grid--dense"
+                  : "bookings-grid"
+              }
+            >
               {filteredBookings.map((booking) => (
                 <article className="bookings-card" key={booking.id}>
                   <div className="bookings-card__image">
@@ -688,11 +923,8 @@ export default function MyBookings() {
               <div className="bookings-empty__icon">
                 <FiCalendar aria-hidden="true" />
               </div>
-              <h2>No {activeTab} bookings yet</h2>
-              <p>
-                When a reservation lands here, it will appear with all the
-                details you need.
-              </p>
+              <h2>{currentEmptyState.title}</h2>
+              <p>{currentEmptyState.text}</p>
               <button
                 className="bookings-btn bookings-btn--primary"
                 onClick={() => navigate("/properties")}

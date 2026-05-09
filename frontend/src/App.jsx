@@ -15,6 +15,7 @@ import PropertyDetails from "./pages/PropertyDetails";
 import Publish from "./pages/Publish";
 import RentalRequests from "./RentalRequests";
 import AccountSettings from "./pages/AccountSettings";
+import MyBookings from "./pages/MyBookings";
 
 import { useToken } from "./Contexts/TokenContext";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
@@ -74,7 +75,7 @@ function App() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requiredRole="admin">
               <AdminDashboard />
             </ProtectedRoute>
           }
@@ -94,6 +95,15 @@ function App() {
           element={
             <ProtectedRoute>
               <AccountSettings />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/my-bookings"
+          element={
+            <ProtectedRoute>
+              <MyBookings />
             </ProtectedRoute>
           }
         />

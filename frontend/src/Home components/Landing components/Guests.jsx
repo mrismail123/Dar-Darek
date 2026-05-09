@@ -90,7 +90,7 @@ export default function Guests() {
         <div
             ref={dropdownRef}
             onClick={() => setIsOpen((prev) => !prev)}
-            className='asjustmentFlexing'
+            className='asjustmentFlexing landingField landingField--guests'
             style={{ position: 'relative', cursor: 'pointer' }}
         >
             <div>
@@ -108,6 +108,7 @@ export default function Guests() {
 
             {/* Dropdown Panel with Animations */}
             <div
+                className='guestsDropdown'
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     position: 'absolute',
@@ -117,7 +118,7 @@ export default function Guests() {
                     boxShadow: '0px 10px 30px rgba(0,0,0,0.1)',
                     borderRadius: '24px',
                     padding: '24px',
-                    width: '340px',
+                    width: 'min(92vw, 340px)',
                     zIndex: 100,
                     opacity: isOpen ? 1 : 0,
                     visibility: isOpen ? 'visible' : 'hidden',

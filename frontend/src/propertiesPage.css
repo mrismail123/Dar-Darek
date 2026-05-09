@@ -112,6 +112,8 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 16px;
+    align-items: stretch;
+    align-content: start;
 }
 
 .propertiesAndFilter {
@@ -135,9 +137,54 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 18px 0 6px;
 }
 
-.propertiesAndFilter .pagination-container button {}
+.propertiesAndFilter .pagination-container .pagination-button {
+    min-width: 44px;
+    height: 44px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(122, 112, 52, 0.18);
+    background: #ffffff;
+    color: #5E5530;
+    font-weight: 600;
+    box-shadow: 0 8px 20px rgba(73, 55, 28, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.propertiesAndFilter .pagination-container .pagination-button:hover {
+    transform: translateY(-2px);
+    background: #F7F4EB;
+    box-shadow: 0 12px 24px rgba(73, 55, 28, 0.12);
+}
+
+.propertiesAndFilter .pagination-container .pagination-button.active-page {
+    background: linear-gradient(135deg, #7A7034 0%, #A08E45 100%);
+    color: #ffffff;
+    border-color: transparent;
+    box-shadow: 0 12px 26px rgba(122, 112, 52, 0.28);
+}
+
+.propertiesAndFilter .pagination-container .pagination-button.Mui-disabled {
+    background: #F3F4F6;
+    color: #9CA3AF;
+    border-color: #E5E7EB;
+    box-shadow: none;
+}
+
+.propertiesAndFilter .pagination-container .pagination-arrow {
+    min-width: 74px;
+}
+
+.propertiesAndFilter .pagination-container .pagination-ellipsis {
+    color: #8B8B8B;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    padding: 0 4px;
+}
 
 .about {
     background-color: #FCF8F2;
@@ -275,7 +322,11 @@
     }
 
     .showProperties .propertiesAndFilter .properties {
-        /* grid-template-columns: 1fr; */
+        grid-template-columns: 1fr;
+    }
+
+    .propertiesAndFilter .pagination-container {
+        justify-content: flex-start;
     }
 
     .dynamicPropertiesIntro .intro h2 {

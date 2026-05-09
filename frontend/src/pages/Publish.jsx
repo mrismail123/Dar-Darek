@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./Publish.css";
+import SuccessAlert from "../SuccessAlert";
+import { useLocation, useNavigate } from "react-router-dom";
+import { buildApiUrl } from "../lib/api";
+import Footer from "../Footer";
 
 import logoImage from "../assets/dardarek-logo.png";
 import {
@@ -347,11 +351,17 @@ function LocationMapView({ position }) {
 }
 
 export default function Publish() {
+  // a state for a success alert
+  const [showSuccess, setShowSuccess] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cities, setCities] = useState([]);
   const [errors, setErrors] = useState({});
   const [imagePreviews, setImagePreviews] = useState([]);
+  const [publishNotice, setPublishNotice] = useState(null);
   const [locationMessage, setLocationMessage] = useState({
     type: "info",
     text: "Select a point in Northern Morocco or use your current location.",
@@ -563,7 +573,10 @@ export default function Publish() {
 
     const totalImages = formData.images.length + selectedFiles.length;
     if (totalImages > 35) {
-      alert("You can upload a maximum of 35 images.");
+      setPublishNotice({
+        type: "error",
+        text: "You can upload a maximum of 35 images.",
+      });
       return;
     }
 
@@ -691,6 +704,18 @@ export default function Publish() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const currentToken = localStorage.getItem("token");
+
+    if (!currentToken) {
+      setPublishNotice({
+        type: "error",
+        text: "Please sign in before publishing your property.",
+      });
+
+      navigate("/Authentication", { state: { from: location.pathname } });
+      return;
+    }
+
     const newErrors = validateForm();
     setErrors(newErrors);
 
@@ -700,12 +725,18 @@ export default function Publish() {
     }
 
     if (!formData.availableFrom || !formData.availableTo) {
-      alert("Please provide the availability period.");
+      setPublishNotice({
+        type: "error",
+        text: "Please provide the availability period.",
+      });
       return;
     }
 
     if (formData.availableTo < formData.availableFrom) {
-      alert("The end date must be later than the start date.");
+      setPublishNotice({
+        type: "error",
+        text: "The end date must be later than the start date.",
+      });
       return;
     }
 
@@ -728,7 +759,10 @@ export default function Publish() {
     const userId = storedUser?.id;
 
     if (!userId) {
-      alert("Session expired. Please log in again.");
+      setPublishNotice({
+        type: "error",
+        text: "Session expired. Please log in again.",
+      });
       return;
     }
 
@@ -739,16 +773,13 @@ export default function Publish() {
     try {
       const token = localStorage.getItem("token");
 
-      const response = await fetch(
-        "http://localhost:5000/api/publishProperty",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formPayload,
+      const response = await fetch(buildApiUrl("/api/publishProperty"), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: formPayload,
+      });
 
       const data = await response.json();
 
@@ -756,7 +787,8 @@ export default function Publish() {
         throw new Error(data.message || "An error occurred while publishing.");
       }
 
-      alert(data.message);
+      setShowSuccess(true);
+      setPublishNotice(null);
 
       imagePreviews.forEach((url) => URL.revokeObjectURL(url));
       setImagePreviews([]);
@@ -767,14 +799,21 @@ export default function Publish() {
       }
     } catch (err) {
       console.error("Error :", err);
-      alert(err.message || "An error occurred while publishing.");
+      setPublishNotice({
+        type: "error",
+        text: err.message || "An error occurred while publishing.",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleGoBack = () => {
+    navigate("/", { replace: true });
+  };
+
   useEffect(() => {
-    fetch("http://localhost:5000/api/cities")
+    fetch(buildApiUrl("/api/cities"))
       .then((r) => r.json())
       .then((d) => {
         const apiNames = d.map((city) => city.name);
@@ -800,801 +839,841 @@ export default function Publish() {
   const mapPosition = [formData.latitude, formData.longitude];
 
   return (
-    <div className="pub-page">
-      <header className="pub-hero">
-        <div className="pub-hero__container">
-          <div className="pub-hero__content">
-            <span className="pub-hero__eyebrow">Dar Darek Host Area</span>
+    <>
+      <div className="pub-page">
+        <header className="pub-hero">
+          <div className="pub-hero__container">
+            <div className="pub-hero__content">
+              <button
+                type="button"
+                className="pub-back-btn"
+                onClick={handleGoBack}
+              >
+                <span aria-hidden="true">←</span>
+                Back
+              </button>
 
-            <h1 className="pub-hero__title">
-              Create a truly unique <br />
-              <em>stay experience.</em>
-            </h1>
+              <span className="pub-hero__eyebrow">Dar Darek Host Area</span>
 
-            <p className="pub-hero__lead">
-              Showcase your property and welcome travelers looking for authentic
-              experiences across the most beautiful destinations in Northern
-              Morocco.
-            </p>
-          </div>
+              <h1 className="pub-hero__title">
+                Create a truly unique <br />
+                <em>stay experience.</em>
+              </h1>
 
-          <div className="pub-hero__visual">
-            <div className="pub-hero__brand">
-              <img
+              <p className="pub-hero__lead">
+                Showcase your property and welcome travelers looking for
+                authentic experiences across the most beautiful destinations in
+                Northern Morocco.
+              </p>
+            </div>
+
+            <div className="pub-hero__visual">
+              <div className="pub-hero__brand">
+                {/* <img
                 src={logoImage}
                 alt="Dar Darek logo"
                 className="pub-hero__logo-image"
-              />
-              <h2 className="pub-hero__brand-name">Dar Darek</h2>
+              /> */}
+                {/* <h2 className="pub-hero__brand-name">Dar Darek</h2> */}
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="pub-main">
-        <form onSubmit={handleSubmit} className="pub-form" noValidate>
-          <div className="pub-form-note">
-            Fields marked with <span className="pub-required">*</span> are
-            required to continue.
-          </div>
-
-          <section className="pub-section">
-            <div className="pub-section__head">
-              <div className="pub-section__meta">
-                <h2 className="pub-section__title">Basic Information</h2>
-                <p className="pub-section__hint">
-                  Set the key details that define your property.
-                </p>
-              </div>
+        <main className="pub-main">
+          <form onSubmit={handleSubmit} className="pub-form" noValidate>
+            <div className="pub-form-note">
+              Fields marked with <span className="pub-required">*</span> are
+              required to continue.
             </div>
 
-            <div className="pub-split-grid">
-              <div className="pub-subcard">
-                <div className="pub-field">
-                  <label className="pub-label" htmlFor="title">
-                    Listing title <span className="pub-required">*</span>
-                  </label>
-                  <input
-                    id="title"
-                    name="title"
-                    type="text"
-                    className={`pub-input ${
-                      errors.title ? "pub-input--error" : ""
-                    }`}
-                    placeholder="Ex: Stunning riad with medina views"
-                    value={formData.title}
-                    onChange={handleChange}
-                  />
-                  {errors.title && (
-                    <p className="pub-field-error">{errors.title}</p>
-                  )}
+            {publishNotice && (
+              <div
+                className={`pub-inline-message pub-inline-message--${publishNotice.type}`}
+                role="status"
+              >
+                <span aria-hidden="true">
+                  {publishNotice.type === "success" ? "✓" : "!"}
+                </span>
+                <p>{publishNotice.text}</p>
+              </div>
+            )}
+
+            <section className="pub-section">
+              <div className="pub-section__head">
+                <div className="pub-section__meta">
+                  <h2 className="pub-section__title">Basic Information</h2>
+                  <p className="pub-section__hint">
+                    Set the key details that define your property.
+                  </p>
                 </div>
               </div>
 
-              <div className="pub-subcard">
-                <div className="pub-field">
-                  <label className="pub-label">Property type</label>
-
-                  <div className="pub-property-types pub-property-types--compact">
-                    {PROPERTY_TYPES.map((type) => (
-                      <button
-                        key={type.value}
-                        type="button"
-                        className={`pub-property-card ${
-                          formData.propertyType === type.value
-                            ? "pub-property-card--active"
-                            : ""
-                        }`}
-                        onClick={() => handlePropertyTypeSelect(type.value)}
-                      >
-                        <span className="pub-property-card__icon">
-                          {type.icon}
-                        </span>
-                        <span className="pub-property-card__label">
-                          {type.label}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="pub-section">
-            <div className="pub-section__head">
-              <div className="pub-section__meta">
-                <h2 className="pub-section__title">Location</h2>
-                <p className="pub-section__hint">
-                  Help guests find your property easily by setting its exact
-                  location.
-                </p>
-              </div>
-            </div>
-
-            <div className="pub-location-layout">
-              <div className="pub-location-main">
-                <div className="pub-row pub-row--halves">
+              <div className="pub-split-grid">
+                <div className="pub-subcard">
                   <div className="pub-field">
-                    <label className="pub-label" htmlFor="city">
-                      City <span className="pub-required">*</span>
-                    </label>
-
-                    <div className="pub-select-wrap">
-                      <select
-                        id="city"
-                        name="city"
-                        className={`pub-input pub-select ${
-                          errors.city ? "pub-input--error" : ""
-                        }`}
-                        value={formData.city}
-                        onChange={handleChange}
-                      >
-                        <option value="">Select a city</option>
-                        {cities.map((c) => (
-                          <option key={c.id_city} value={c.name}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {errors.city && (
-                      <p className="pub-field-error">{errors.city}</p>
-                    )}
-                  </div>
-
-                  <div className="pub-field">
-                    <label className="pub-label" htmlFor="postalCode">
-                      Postal code
+                    <label className="pub-label" htmlFor="title">
+                      Listing title <span className="pub-required">*</span>
                     </label>
                     <input
-                      id="postalCode"
-                      name="postalCode"
-                      type="text"
-                      className="pub-input"
-                      placeholder="Ex: 90000"
-                      value={formData.postalCode}
-                      onChange={handleChange}
-                    />
-                  </div>
-                </div>
-
-                <div className="pub-row pub-row--halves">
-                  <div className="pub-field">
-                    <label className="pub-label" htmlFor="neighborhood">
-                      Neighborhood / Area
-                    </label>
-                    <input
-                      id="neighborhood"
-                      name="neighborhood"
-                      type="text"
-                      className="pub-input"
-                      placeholder="Ex: Medina, Malabata, Cabo Negro..."
-                      value={formData.neighborhood}
-                      onChange={handleChange}
-                    />
-                  </div>
-
-                  <div className="pub-field">
-                    <label className="pub-label" htmlFor="address">
-                      Full address <span className="pub-required">*</span>
-                    </label>
-                    <input
-                      id="address"
-                      name="address"
+                      id="title"
+                      name="title"
                       type="text"
                       className={`pub-input ${
-                        errors.address ? "pub-input--error" : ""
+                        errors.title ? "pub-input--error" : ""
                       }`}
-                      placeholder="Ex: 12 Rue Outa el Hammam, Chefchaouen"
-                      value={formData.address}
+                      placeholder="Ex: Stunning riad with medina views"
+                      value={formData.title}
                       onChange={handleChange}
                     />
-                    {errors.address && (
-                      <p className="pub-field-error">{errors.address}</p>
+                    {errors.title && (
+                      <p className="pub-field-error">{errors.title}</p>
                     )}
                   </div>
                 </div>
 
-                <div className="pub-field">
-                  <label className="pub-label" htmlFor="accessInstructions">
-                    Access details
-                  </label>
+                <div className="pub-subcard">
+                  <div className="pub-field">
+                    <label className="pub-label">Property type</label>
+
+                    <div className="pub-property-types pub-property-types--compact">
+                      {PROPERTY_TYPES.map((type) => (
+                        <button
+                          key={type.value}
+                          type="button"
+                          className={`pub-property-card ${
+                            formData.propertyType === type.value
+                              ? "pub-property-card--active"
+                              : ""
+                          }`}
+                          onClick={() => handlePropertyTypeSelect(type.value)}
+                        >
+                          <span className="pub-property-card__icon">
+                            {type.icon}
+                          </span>
+                          <span className="pub-property-card__label">
+                            {type.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="pub-section">
+              <div className="pub-section__head">
+                <div className="pub-section__meta">
+                  <h2 className="pub-section__title">Location</h2>
+                  <p className="pub-section__hint">
+                    Help guests find your property easily by setting its exact
+                    location.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pub-location-layout">
+                <div className="pub-location-main">
+                  <div className="pub-row pub-row--halves">
+                    <div className="pub-field">
+                      <label className="pub-label" htmlFor="city">
+                        City <span className="pub-required">*</span>
+                      </label>
+
+                      <div className="pub-select-wrap">
+                        <select
+                          id="city"
+                          name="city"
+                          className={`pub-input pub-select ${
+                            errors.city ? "pub-input--error" : ""
+                          }`}
+                          value={formData.city}
+                          onChange={handleChange}
+                        >
+                          <option value="">Select a city</option>
+                          {cities.map((c) => (
+                            <option key={c.id_city} value={c.name}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {errors.city && (
+                        <p className="pub-field-error">{errors.city}</p>
+                      )}
+                    </div>
+
+                    <div className="pub-field">
+                      <label className="pub-label" htmlFor="postalCode">
+                        Postal code
+                      </label>
+                      <input
+                        id="postalCode"
+                        name="postalCode"
+                        type="text"
+                        className="pub-input"
+                        placeholder="Ex: 90000"
+                        value={formData.postalCode}
+                        onChange={handleChange}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pub-row pub-row--halves">
+                    <div className="pub-field">
+                      <label className="pub-label" htmlFor="neighborhood">
+                        Neighborhood / Area
+                      </label>
+                      <input
+                        id="neighborhood"
+                        name="neighborhood"
+                        type="text"
+                        className="pub-input"
+                        placeholder="Ex: Medina, Malabata, Cabo Negro..."
+                        value={formData.neighborhood}
+                        onChange={handleChange}
+                      />
+                    </div>
+
+                    <div className="pub-field">
+                      <label className="pub-label" htmlFor="address">
+                        Full address <span className="pub-required">*</span>
+                      </label>
+                      <input
+                        id="address"
+                        name="address"
+                        type="text"
+                        className={`pub-input ${
+                          errors.address ? "pub-input--error" : ""
+                        }`}
+                        placeholder="Ex: 12 Rue Outa el Hammam, Chefchaouen"
+                        value={formData.address}
+                        onChange={handleChange}
+                      />
+                      {errors.address && (
+                        <p className="pub-field-error">{errors.address}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pub-field">
+                    <label className="pub-label" htmlFor="accessInstructions">
+                      Access details
+                    </label>
+                    <textarea
+                      id="accessInstructions"
+                      name="accessInstructions"
+                      className="pub-input pub-textarea pub-textarea--medium"
+                      placeholder="Ex: The entrance is on the left of the main door, just past the small alley. Add anything here that may help guests find the property easily."
+                      value={formData.accessInstructions}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <input
+                    type="hidden"
+                    name="latitude"
+                    value={formData.latitude}
+                  />
+                  <input
+                    type="hidden"
+                    name="longitude"
+                    value={formData.longitude}
+                  />
+                </div>
+
+                <aside className="pub-location-aside">
+                  <div className="pub-location-card pub-location-card--map">
+                    <div className="pub-location-card__top">
+                      <span className="pub-location-card__icon">📍</span>
+                      <h3 className="pub-location-card__title">Map location</h3>
+                    </div>
+
+                    <div className="pub-location-actions">
+                      <button
+                        type="button"
+                        className="pub-location-action-btn"
+                        onClick={handleUseCurrentLocation}
+                        disabled={isLocating}
+                      >
+                        {isLocating ? "Locating..." : "Use current location"}
+                      </button>
+                    </div>
+
+                    <div className="pub-location-map-shell">
+                      <MapContainer
+                        center={NORTHERN_MOROCCO_CENTER}
+                        zoom={8}
+                        minZoom={8}
+                        maxBounds={NORTHERN_MOROCCO_BOUNDS}
+                        maxBoundsViscosity={1}
+                        scrollWheelZoom={true}
+                        className="pub-location-map"
+                      >
+                        <TileLayer
+                          attribution="&copy; OpenStreetMap contributors"
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        />
+                        <LocationMapView position={mapPosition} />
+                        <LocationMapMarker
+                          position={mapPosition}
+                          onPick={handleMapPick}
+                        />
+                      </MapContainer>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </section>
+
+            <section className="pub-section">
+              <div className="pub-section__head">
+                <div className="pub-section__meta">
+                  <h2 className="pub-section__title">Capacity & Spaces</h2>
+                  <p className="pub-section__hint">
+                    Indicate how many guests your space can comfortably
+                    accommodate.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pub-details-grid">
+                {[
+                  { id: "guests", label: "Guests", icon: "👥" },
+                  { id: "bedrooms", label: "Bedrooms", icon: "🛏️" },
+                  { id: "beds", label: "Beds", icon: "🛌" },
+                  { id: "bathrooms", label: "Bathrooms", icon: "🚿" },
+                ].map(({ id, label, icon }) => (
+                  <div
+                    className="pub-detail-card"
+                    key={id}
+                    data-error-anchor={id}
+                  >
+                    <div className="pub-detail-card__header">
+                      <span className="pub-detail-card__icon">{icon}</span>
+                      <label className="pub-detail-card__label">{label}</label>
+                    </div>
+
+                    <div className="pub-stepper">
+                      <button
+                        type="button"
+                        className="pub-stepper__btn"
+                        onClick={() => handleStepperChange(id, -1)}
+                        disabled={Number(formData[id] || 0) <= 0}
+                      >
+                        -
+                      </button>
+                      <span className="pub-stepper__value">
+                        {formData[id] || 0}
+                      </span>
+                      <button
+                        type="button"
+                        className="pub-stepper__btn"
+                        onClick={() => handleStepperChange(id, 1)}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="pub-section">
+              <div className="pub-section__head">
+                <div className="pub-section__meta">
+                  <h2 className="pub-section__title">Amenities</h2>
+                  <p className="pub-section__hint">
+                    Choose the amenities that will enhance your guests’
+                    experience.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pub-amenities-wrapper">
+                {AMENITY_GROUPS.map((group) => (
+                  <div className="pub-amenity-group" key={group.id}>
+                    <div className="pub-amenity-group__info">
+                      <span className="pub-amenity-group__icon">
+                        {group.icon}
+                      </span>
+                      <h3 className="pub-amenity-group__title">
+                        {group.title}
+                      </h3>
+                    </div>
+
+                    <div className="pub-amenity-chips">
+                      {group.items.map((item) => (
+                        <label
+                          key={item.name}
+                          className={`pub-chip ${
+                            formData.amenities[item.name]
+                              ? "pub-chip--active"
+                              : ""
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            name={item.name}
+                            checked={formData.amenities[item.name]}
+                            onChange={handleAmenityChange}
+                            className="pub-chip__input"
+                          />
+                          <span className="pub-chip__icon">{item.icon}</span>
+                          <span className="pub-chip__label">{item.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="pub-section">
+              <div className="pub-section__head">
+                <div className="pub-section__meta">
+                  <h2 className="pub-section__title">Description</h2>
+                  <p className="pub-section__hint">
+                    Give guests a clear sense of your space, your hosting style,
+                    and the surrounding area.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pub-description-stack">
+                <div className="pub-description-card">
+                  <div className="pub-description-card__head">
+                    <span className="pub-description-card__icon">🏡</span>
+                    <div>
+                      <h3 className="pub-description-card__title">
+                        About the property{" "}
+                        <span className="pub-required">*</span>
+                      </h3>
+                      <p className="pub-description-card__hint">
+                        Describe the atmosphere, key features, and what makes
+                        your space memorable.
+                      </p>
+                    </div>
+                  </div>
+
                   <textarea
-                    id="accessInstructions"
-                    name="accessInstructions"
-                    className="pub-input pub-textarea pub-textarea--medium"
-                    placeholder="Ex: The entrance is on the left of the main door, just past the small alley. Add anything here that may help guests find the property easily."
-                    value={formData.accessInstructions}
+                    id="description"
+                    name="description"
+                    className={`pub-input pub-textarea pub-description-textarea ${
+                      errors.description ? "pub-input--error" : ""
+                    }`}
+                    placeholder="Ex: A bright apartment with a balcony, thoughtful décor, a calm atmosphere, and a convenient location for exploring the city..."
+                    value={formData.description}
+                    onChange={handleChange}
+                  />
+                  {errors.description && (
+                    <p className="pub-field-error">{errors.description}</p>
+                  )}
+                </div>
+
+                <div className="pub-description-card">
+                  <div className="pub-description-card__head">
+                    <span className="pub-description-card__icon">👤</span>
+                    <div>
+                      <h3 className="pub-description-card__title">About you</h3>
+                      <p className="pub-description-card__hint">
+                        Share a few words about your hosting style or anything
+                        helpful guests should know.
+                      </p>
+                    </div>
+                  </div>
+
+                  <textarea
+                    id="hostDescription"
+                    name="hostDescription"
+                    className="pub-input pub-textarea pub-description-textarea pub-description-textarea--secondary"
+                    placeholder="Ex: A responsive host, always happy to help and share the best local recommendations."
+                    value={formData.hostDescription}
                     onChange={handleChange}
                   />
                 </div>
-                <input
-                  type="hidden"
-                  name="latitude"
-                  value={formData.latitude}
-                />
-                <input
-                  type="hidden"
-                  name="longitude"
-                  value={formData.longitude}
-                />
+
+                <div className="pub-description-card">
+                  <div className="pub-description-card__head">
+                    <span className="pub-description-card__icon">📍</span>
+                    <div>
+                      <h3 className="pub-description-card__title">
+                        About the area
+                      </h3>
+                      <p className="pub-description-card__hint">
+                        Mention the atmosphere, nearby attractions, views, or
+                        useful places around the property.
+                      </p>
+                    </div>
+                  </div>
+
+                  <textarea
+                    id="neighborhoodDescription"
+                    name="neighborhoodDescription"
+                    className="pub-input pub-textarea pub-description-textarea pub-description-textarea--secondary"
+                    placeholder="Ex: A lively yet pleasant neighborhood, close to the center, with cafés, restaurants, and scenic walks nearby."
+                    value={formData.neighborhoodDescription}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="pub-section">
+              <div className="pub-section__head">
+                <div className="pub-section__meta">
+                  <h2 className="pub-section__title">Check-in & Check-out</h2>
+                  <p className="pub-section__hint">
+                    Set clear arrival and departure times for your guests.
+                  </p>
+                </div>
               </div>
 
-              <aside className="pub-location-aside">
-                <div className="pub-location-card pub-location-card--map">
-                  <div className="pub-location-card__top">
-                    <span className="pub-location-card__icon">📍</span>
-                    <h3 className="pub-location-card__title">Map location</h3>
+              <div className="pub-stay-grid">
+                <div className="pub-stay-card">
+                  <div className="pub-stay-card__top">
+                    <span className="pub-stay-card__icon">🕒</span>
+                    <div>
+                      <h3 className="pub-stay-card__title">Check-in time</h3>
+                      <p className="pub-stay-card__hint">
+                        When can guests arrive?
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="pub-location-actions">
-                    <button
-                      type="button"
-                      className="pub-location-action-btn"
-                      onClick={handleUseCurrentLocation}
-                      disabled={isLocating}
-                    >
-                      {isLocating ? "Locating..." : "Use current location"}
-                    </button>
+                  <input
+                    id="checkIn"
+                    name="checkIn"
+                    type="time"
+                    className={`pub-input pub-stay-input ${
+                      errors.checkIn ? "pub-input--error" : ""
+                    }`}
+                    value={formData.checkIn}
+                    onChange={handleChange}
+                  />
+                  {errors.checkIn && (
+                    <p className="pub-field-error">{errors.checkIn}</p>
+                  )}
+                </div>
+
+                <div className="pub-stay-card">
+                  <div className="pub-stay-card__top">
+                    <span className="pub-stay-card__icon">🚪</span>
+                    <div>
+                      <h3 className="pub-stay-card__title">Check-out time</h3>
+                      <p className="pub-stay-card__hint">
+                        When should guests check out?
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="pub-location-map-shell">
-                    <MapContainer
-                      center={NORTHERN_MOROCCO_CENTER}
-                      zoom={8}
-                      minZoom={8}
-                      maxBounds={NORTHERN_MOROCCO_BOUNDS}
-                      maxBoundsViscosity={1}
-                      scrollWheelZoom={true}
-                      className="pub-location-map"
-                    >
-                      <TileLayer
-                        attribution="&copy; OpenStreetMap contributors"
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      />
-                      <LocationMapView position={mapPosition} />
-                      <LocationMapMarker
-                        position={mapPosition}
-                        onPick={handleMapPick}
-                      />
-                    </MapContainer>
+                  <input
+                    id="checkOut"
+                    name="checkOut"
+                    type="time"
+                    className={`pub-input pub-stay-input ${
+                      errors.checkOut ? "pub-input--error" : ""
+                    }`}
+                    value={formData.checkOut}
+                    onChange={handleChange}
+                  />
+                  {errors.checkOut && (
+                    <p className="pub-field-error">{errors.checkOut}</p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section className="pub-section">
+              <div className="pub-section__head">
+                <div className="pub-section__meta">
+                  <h2 className="pub-section__title">Availability</h2>
+                  <p className="pub-section__hint">
+                    Set the period during which your property is available for
+                    booking.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pub-availability-box">
+                <div className="pub-availability-head">
+                  <span className="pub-availability-head__icon">📅</span>
+                  <div>
+                    <h3 className="pub-availability-head__title">
+                      Availability period
+                    </h3>
+                    <p className="pub-availability-head__hint">
+                      Let guests know when your property is open for bookings.
+                    </p>
                   </div>
                 </div>
-              </aside>
-            </div>
-          </section>
 
-          <section className="pub-section">
-            <div className="pub-section__head">
-              <div className="pub-section__meta">
-                <h2 className="pub-section__title">Capacity & Spaces</h2>
-                <p className="pub-section__hint">
-                  Indicate how many guests your space can comfortably
-                  accommodate.
-                </p>
+                <div className="pub-availability-actions">
+                  <button
+                    type="button"
+                    className="pub-availability-chip"
+                    onClick={() => handleAvailabilityQuickFill(7)}
+                  >
+                    Next 7 days
+                  </button>
+
+                  <button
+                    type="button"
+                    className="pub-availability-chip"
+                    onClick={() => handleAvailabilityQuickFill(30)}
+                  >
+                    Next 30 days
+                  </button>
+
+                  <button
+                    type="button"
+                    className="pub-availability-chip"
+                    onClick={() => handleAvailabilityQuickFill(90)}
+                  >
+                    Next 3 months
+                  </button>
+                </div>
+
+                <div className="pub-availability-grid">
+                  <div className="pub-field">
+                    <label className="pub-label" htmlFor="availableFrom">
+                      Available from <span className="pub-required">*</span>
+                    </label>
+                    <input
+                      id="availableFrom"
+                      name="availableFrom"
+                      type="date"
+                      className={`pub-input pub-availability-input ${
+                        errors.availableFrom ? "pub-input--error" : ""
+                      }`}
+                      value={formData.availableFrom}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={(e) => {
+                        const newFrom = e.target.value;
+
+                        setFormData((prev) => {
+                          let updatedTo = prev.availableTo;
+
+                          if (!updatedTo || updatedTo < newFrom) {
+                            const suggestedEnd = new Date(newFrom);
+                            suggestedEnd.setDate(suggestedEnd.getDate() + 7);
+                            updatedTo = suggestedEnd
+                              .toISOString()
+                              .split("T")[0];
+                          }
+
+                          return {
+                            ...prev,
+                            availableFrom: newFrom,
+                            availableTo: updatedTo,
+                          };
+                        });
+                      }}
+                    />
+                    {errors.availableFrom && (
+                      <p className="pub-field-error">{errors.availableFrom}</p>
+                    )}
+                  </div>
+
+                  <div className="pub-field">
+                    <label className="pub-label" htmlFor="availableTo">
+                      Available until <span className="pub-required">*</span>
+                    </label>
+                    <input
+                      id="availableTo"
+                      name="availableTo"
+                      type="date"
+                      className={`pub-input pub-availability-input ${
+                        errors.availableTo ? "pub-input--error" : ""
+                      }`}
+                      value={formData.availableTo}
+                      min={
+                        formData.availableFrom ||
+                        new Date().toISOString().split("T")[0]
+                      }
+                      onChange={handleChange}
+                    />
+                    {errors.availableTo && (
+                      <p className="pub-field-error">{errors.availableTo}</p>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
+            </section>
 
-            <div className="pub-details-grid">
-              {[
-                { id: "guests", label: "Guests", icon: "👥" },
-                { id: "bedrooms", label: "Bedrooms", icon: "🛏️" },
-                { id: "beds", label: "Beds", icon: "🛌" },
-                { id: "bathrooms", label: "Bathrooms", icon: "🚿" },
-              ].map(({ id, label, icon }) => (
+            <section className="pub-section">
+              <div className="pub-section__head pub-section__head--spread">
+                <div className="pub-section__head-left">
+                  <div className="pub-section__meta">
+                    <h2 className="pub-section__title">Photo gallery</h2>
+                    <p className="pub-section__hint">
+                      Add bright, high-quality photos that best represent your
+                      property.
+                    </p>
+                  </div>
+                </div>
+
                 <div
-                  className="pub-detail-card"
-                  key={id}
-                  data-error-anchor={id}
+                  className={`pub-photo-counter ${
+                    formData.images.length >= 4 ? "pub-photo-counter--ok" : ""
+                  }`}
                 >
-                  <div className="pub-detail-card__header">
-                    <span className="pub-detail-card__icon">{icon}</span>
-                    <label className="pub-detail-card__label">{label}</label>
-                  </div>
+                  {formData.images.length} / 35{" "}
+                  {formData.images.length >= 4 && "✓"}
+                </div>
+              </div>
 
-                  <div className="pub-stepper">
-                    <button
-                      type="button"
-                      className="pub-stepper__btn"
-                      onClick={() => handleStepperChange(id, -1)}
-                      disabled={Number(formData[id] || 0) <= 0}
-                    >
-                      -
-                    </button>
-                    <span className="pub-stepper__value">
-                      {formData[id] || 0}
+              <div className="pub-photos-layout" data-error-anchor="images">
+                <div className="pub-photos-toolbar">
+                  <label htmlFor="images" className="pub-upload-trigger">
+                    <span className="pub-upload-trigger__icon">📷</span>
+                    <span className="pub-upload-trigger__text">
+                      Upload photos
                     </span>
-                    <button
-                      type="button"
-                      className="pub-stepper__btn"
-                      onClick={() => handleStepperChange(id, 1)}
-                    >
-                      +
-                    </button>
+                  </label>
+
+                  <div className="pub-photos-helper">
+                    Minimum 4 photos • Maximum 35 photos
                   </div>
                 </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="pub-section">
-            <div className="pub-section__head">
-              <div className="pub-section__meta">
-                <h2 className="pub-section__title">Amenities</h2>
-                <p className="pub-section__hint">
-                  Choose the amenities that will enhance your guests’
-                  experience.
-                </p>
-              </div>
-            </div>
-
-            <div className="pub-amenities-wrapper">
-              {AMENITY_GROUPS.map((group) => (
-                <div className="pub-amenity-group" key={group.id}>
-                  <div className="pub-amenity-group__info">
-                    <span className="pub-amenity-group__icon">
-                      {group.icon}
-                    </span>
-                    <h3 className="pub-amenity-group__title">{group.title}</h3>
-                  </div>
-
-                  <div className="pub-amenity-chips">
-                    {group.items.map((item) => (
-                      <label
-                        key={item.name}
-                        className={`pub-chip ${
-                          formData.amenities[item.name]
-                            ? "pub-chip--active"
-                            : ""
-                        }`}
+                <input
+                  id="images"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png, image/jpeg, image/webp"
+                  multiple
+                  onChange={handleImageUpload}
+                  className="pub-file-hidden"
+                />
+                {errors.images && (
+                  <p className="pub-field-error">{errors.images}</p>
+                )}
+                {imagePreviews.length > 0 ? (
+                  <div className="pub-photo-grid pub-photo-grid--enhanced">
+                    {imagePreviews.map((src, i) => (
+                      <div
+                        className="pub-photo-card pub-photo-card--enhanced"
+                        key={i}
                       >
-                        <input
-                          type="checkbox"
-                          name={item.name}
-                          checked={formData.amenities[item.name]}
-                          onChange={handleAmenityChange}
-                          className="pub-chip__input"
+                        <img
+                          src={src}
+                          alt={`Preview ${i + 1}`}
+                          className="pub-photo-card__img"
                         />
-                        <span className="pub-chip__icon">{item.icon}</span>
-                        <span className="pub-chip__label">{item.label}</span>
-                      </label>
+
+                        <div className="pub-photo-card__overlay">
+                          {i === 0 && (
+                            <span className="pub-photo-card__badge">Main</span>
+                          )}
+
+                          <button
+                            type="button"
+                            className="pub-photo-card__remove"
+                            onClick={() => handleRemoveImage(i)}
+                            aria-label="Remove"
+                          >
+                            ✖
+                          </button>
+                        </div>
+                      </div>
                     ))}
                   </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="pub-section">
-            <div className="pub-section__head">
-              <div className="pub-section__meta">
-                <h2 className="pub-section__title">Description</h2>
-                <p className="pub-section__hint">
-                  Give guests a clear sense of your space, your hosting style,
-                  and the surrounding area.
-                </p>
-              </div>
-            </div>
-
-            <div className="pub-description-stack">
-              <div className="pub-description-card">
-                <div className="pub-description-card__head">
-                  <span className="pub-description-card__icon">🏡</span>
-                  <div>
-                    <h3 className="pub-description-card__title">
-                      About the property <span className="pub-required">*</span>
+                ) : (
+                  <div className="pub-photos-empty">
+                    <div className="pub-photos-empty__icon">🖼️</div>
+                    <h3 className="pub-photos-empty__title">
+                      No photos added yet
                     </h3>
-                    <p className="pub-description-card__hint">
-                      Describe the atmosphere, key features, and what makes your
-                      space memorable.
+                    <p className="pub-photos-empty__text">
+                      Start by adding at least 4 photos to showcase your
+                      property.
                     </p>
                   </div>
-                </div>
-
-                <textarea
-                  id="description"
-                  name="description"
-                  className={`pub-input pub-textarea pub-description-textarea ${
-                    errors.description ? "pub-input--error" : ""
-                  }`}
-                  placeholder="Ex: A bright apartment with a balcony, thoughtful décor, a calm atmosphere, and a convenient location for exploring the city..."
-                  value={formData.description}
-                  onChange={handleChange}
-                />
-                {errors.description && (
-                  <p className="pub-field-error">{errors.description}</p>
                 )}
               </div>
+            </section>
 
-              <div className="pub-description-card">
-                <div className="pub-description-card__head">
-                  <span className="pub-description-card__icon">👤</span>
-                  <div>
-                    <h3 className="pub-description-card__title">About you</h3>
-                    <p className="pub-description-card__hint">
-                      Share a few words about your hosting style or anything
-                      helpful guests should know.
-                    </p>
-                  </div>
-                </div>
-
-                <textarea
-                  id="hostDescription"
-                  name="hostDescription"
-                  className="pub-input pub-textarea pub-description-textarea pub-description-textarea--secondary"
-                  placeholder="Ex: A responsive host, always happy to help and share the best local recommendations."
-                  value={formData.hostDescription}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="pub-description-card">
-                <div className="pub-description-card__head">
-                  <span className="pub-description-card__icon">📍</span>
-                  <div>
-                    <h3 className="pub-description-card__title">
-                      About the area
-                    </h3>
-                    <p className="pub-description-card__hint">
-                      Mention the atmosphere, nearby attractions, views, or
-                      useful places around the property.
-                    </p>
-                  </div>
-                </div>
-
-                <textarea
-                  id="neighborhoodDescription"
-                  name="neighborhoodDescription"
-                  className="pub-input pub-textarea pub-description-textarea pub-description-textarea--secondary"
-                  placeholder="Ex: A lively yet pleasant neighborhood, close to the center, with cafés, restaurants, and scenic walks nearby."
-                  value={formData.neighborhoodDescription}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="pub-section">
-            <div className="pub-section__head">
-              <div className="pub-section__meta">
-                <h2 className="pub-section__title">Check-in & Check-out</h2>
-                <p className="pub-section__hint">
-                  Set clear arrival and departure times for your guests.
-                </p>
-              </div>
-            </div>
-
-            <div className="pub-stay-grid">
-              <div className="pub-stay-card">
-                <div className="pub-stay-card__top">
-                  <span className="pub-stay-card__icon">🕒</span>
-                  <div>
-                    <h3 className="pub-stay-card__title">Check-in time</h3>
-                    <p className="pub-stay-card__hint">
-                      When can guests arrive?
-                    </p>
-                  </div>
-                </div>
-
-                <input
-                  id="checkIn"
-                  name="checkIn"
-                  type="time"
-                  className={`pub-input pub-stay-input ${
-                    errors.checkIn ? "pub-input--error" : ""
-                  }`}
-                  value={formData.checkIn}
-                  onChange={handleChange}
-                />
-                {errors.checkIn && (
-                  <p className="pub-field-error">{errors.checkIn}</p>
-                )}
-              </div>
-
-              <div className="pub-stay-card">
-                <div className="pub-stay-card__top">
-                  <span className="pub-stay-card__icon">🚪</span>
-                  <div>
-                    <h3 className="pub-stay-card__title">Check-out time</h3>
-                    <p className="pub-stay-card__hint">
-                      When should guests check out?
-                    </p>
-                  </div>
-                </div>
-
-                <input
-                  id="checkOut"
-                  name="checkOut"
-                  type="time"
-                  className={`pub-input pub-stay-input ${
-                    errors.checkOut ? "pub-input--error" : ""
-                  }`}
-                  value={formData.checkOut}
-                  onChange={handleChange}
-                />
-                {errors.checkOut && (
-                  <p className="pub-field-error">{errors.checkOut}</p>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section className="pub-section">
-            <div className="pub-section__head">
-              <div className="pub-section__meta">
-                <h2 className="pub-section__title">Availability</h2>
-                <p className="pub-section__hint">
-                  Set the period during which your property is available for
-                  booking.
-                </p>
-              </div>
-            </div>
-
-            <div className="pub-availability-box">
-              <div className="pub-availability-head">
-                <span className="pub-availability-head__icon">📅</span>
-                <div>
-                  <h3 className="pub-availability-head__title">
-                    Availability period
-                  </h3>
-                  <p className="pub-availability-head__hint">
-                    Let guests know when your property is open for bookings.
+            <section className="pub-section pub-section--highlight">
+              <div className="pub-section__head">
+                <div className="pub-section__meta">
+                  <h2 className="pub-section__title">Pricing</h2>
+                  <p className="pub-section__hint">
+                    Set a fair and competitive nightly rate in Moroccan dirhams.
                   </p>
                 </div>
               </div>
 
-              <div className="pub-availability-actions">
-                <button
-                  type="button"
-                  className="pub-availability-chip"
-                  onClick={() => handleAvailabilityQuickFill(7)}
-                >
-                  Next 7 days
-                </button>
-
-                <button
-                  type="button"
-                  className="pub-availability-chip"
-                  onClick={() => handleAvailabilityQuickFill(30)}
-                >
-                  Next 30 days
-                </button>
-
-                <button
-                  type="button"
-                  className="pub-availability-chip"
-                  onClick={() => handleAvailabilityQuickFill(90)}
-                >
-                  Next 3 months
-                </button>
-              </div>
-
-              <div className="pub-availability-grid">
-                <div className="pub-field">
-                  <label className="pub-label" htmlFor="availableFrom">
-                    Available from <span className="pub-required">*</span>
-                  </label>
+              <div className="pub-price-wrap">
+                <div className="pub-price-box">
+                  <span className="pub-price-currency">MAD</span>
                   <input
-                    id="availableFrom"
-                    name="availableFrom"
-                    type="date"
-                    className={`pub-input pub-availability-input ${
-                      errors.availableFrom ? "pub-input--error" : ""
+                    id="price"
+                    name="price"
+                    type="number"
+                    min="0"
+                    className={`pub-input pub-input--price ${
+                      errors.price ? "pub-input--error" : ""
                     }`}
-                    value={formData.availableFrom}
-                    min={new Date().toISOString().split("T")[0]}
-                    onChange={(e) => {
-                      const newFrom = e.target.value;
-
-                      setFormData((prev) => {
-                        let updatedTo = prev.availableTo;
-
-                        if (!updatedTo || updatedTo < newFrom) {
-                          const suggestedEnd = new Date(newFrom);
-                          suggestedEnd.setDate(suggestedEnd.getDate() + 7);
-                          updatedTo = suggestedEnd.toISOString().split("T")[0];
-                        }
-
-                        return {
-                          ...prev,
-                          availableFrom: newFrom,
-                          availableTo: updatedTo,
-                        };
-                      });
+                    placeholder="0"
+                    value={formData.price}
+                    onChange={handleChange}
+                    onWheel={stopWheelChange}
+                    onKeyDown={(e) => {
+                      if (["e", "E", "+", "-"].includes(e.key)) {
+                        e.preventDefault();
+                      }
                     }}
                   />
-                  {errors.availableFrom && (
-                    <p className="pub-field-error">{errors.availableFrom}</p>
+                  {errors.price && (
+                    <p className="pub-field-error">{errors.price}</p>
                   )}
+                  <span className="pub-price-unit">/ night</span>
                 </div>
 
-                <div className="pub-field">
-                  <label className="pub-label" htmlFor="availableTo">
-                    Available until <span className="pub-required">*</span>
-                  </label>
-                  <input
-                    id="availableTo"
-                    name="availableTo"
-                    type="date"
-                    className={`pub-input pub-availability-input ${
-                      errors.availableTo ? "pub-input--error" : ""
-                    }`}
-                    value={formData.availableTo}
-                    min={
-                      formData.availableFrom ||
-                      new Date().toISOString().split("T")[0]
-                    }
-                    onChange={handleChange}
-                  />
-                  {errors.availableTo && (
-                    <p className="pub-field-error">{errors.availableTo}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="pub-section">
-            <div className="pub-section__head pub-section__head--spread">
-              <div className="pub-section__head-left">
-                <div className="pub-section__meta">
-                  <h2 className="pub-section__title">Photo gallery</h2>
-                  <p className="pub-section__hint">
-                    Add bright, high-quality photos that best represent your
-                    property.
+                <div className="pub-price-tip">
+                  <span className="pub-price-tip__icon">💡</span>
+                  <p>
+                    Similar homes in Northern Morocco are typically priced
+                    between <strong>350</strong> and <strong>900 MAD</strong>{" "}
+                    per night.
                   </p>
                 </div>
               </div>
+            </section>
 
-              <div
-                className={`pub-photo-counter ${
-                  formData.images.length >= 4 ? "pub-photo-counter--ok" : ""
-                }`}
+            <div className="pub-submit-bar">
+              <div className="pub-submit-bar__text">
+                <strong>Ready to start hosting?</strong>
+                <span>
+                  Your listing will soon be visible to thousands of travelers.
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                className="pub-submit-btn"
+                disabled={isSubmitting}
               >
-                {formData.images.length} / 35{" "}
-                {formData.images.length >= 4 && "✓"}
-              </div>
-            </div>
-
-            <div className="pub-photos-layout" data-error-anchor="images">
-              <div className="pub-photos-toolbar">
-                <label htmlFor="images" className="pub-upload-trigger">
-                  <span className="pub-upload-trigger__icon">📷</span>
-                  <span className="pub-upload-trigger__text">
-                    Upload photos
-                  </span>
-                </label>
-
-                <div className="pub-photos-helper">
-                  Minimum 4 photos • Maximum 35 photos
-                </div>
-              </div>
-              <input
-                id="images"
-                ref={fileInputRef}
-                type="file"
-                accept="image/png, image/jpeg, image/webp"
-                multiple
-                onChange={handleImageUpload}
-                className="pub-file-hidden"
-              />
-              {errors.images && (
-                <p className="pub-field-error">{errors.images}</p>
-              )}
-              {imagePreviews.length > 0 ? (
-                <div className="pub-photo-grid pub-photo-grid--enhanced">
-                  {imagePreviews.map((src, i) => (
-                    <div
-                      className="pub-photo-card pub-photo-card--enhanced"
-                      key={i}
-                    >
-                      <img
-                        src={src}
-                        alt={`Preview ${i + 1}`}
-                        className="pub-photo-card__img"
-                      />
-
-                      <div className="pub-photo-card__overlay">
-                        {i === 0 && (
-                          <span className="pub-photo-card__badge">Main</span>
-                        )}
-
-                        <button
-                          type="button"
-                          className="pub-photo-card__remove"
-                          onClick={() => handleRemoveImage(i)}
-                          aria-label="Remove"
-                        >
-                          ✖
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="pub-photos-empty">
-                  <div className="pub-photos-empty__icon">🖼️</div>
-                  <h3 className="pub-photos-empty__title">
-                    No photos added yet
-                  </h3>
-                  <p className="pub-photos-empty__text">
-                    Start by adding at least 4 photos to showcase your property.
-                  </p>
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section className="pub-section pub-section--highlight">
-            <div className="pub-section__head">
-              <div className="pub-section__meta">
-                <h2 className="pub-section__title">Pricing</h2>
-                <p className="pub-section__hint">
-                  Set a fair and competitive nightly rate in Moroccan dirhams.
-                </p>
-              </div>
-            </div>
-
-            <div className="pub-price-wrap">
-              <div className="pub-price-box">
-                <span className="pub-price-currency">MAD</span>
-                <input
-                  id="price"
-                  name="price"
-                  type="number"
-                  min="0"
-                  className={`pub-input pub-input--price ${
-                    errors.price ? "pub-input--error" : ""
-                  }`}
-                  placeholder="0"
-                  value={formData.price}
-                  onChange={handleChange}
-                  onWheel={stopWheelChange}
-                  onKeyDown={(e) => {
-                    if (["e", "E", "+", "-"].includes(e.key)) {
-                      e.preventDefault();
-                    }
-                  }}
-                />
-                {errors.price && (
-                  <p className="pub-field-error">{errors.price}</p>
+                {isSubmitting ? (
+                  <span className="pub-submit-btn__spinner" />
+                ) : (
+                  "Publish listing"
                 )}
-                <span className="pub-price-unit">/ night</span>
-              </div>
-
-              <div className="pub-price-tip">
-                <span className="pub-price-tip__icon">💡</span>
-                <p>
-                  Similar homes in Northern Morocco are typically priced between{" "}
-                  <strong>350</strong> and <strong>900 MAD</strong> per night.
-                </p>
-              </div>
+              </button>
             </div>
-          </section>
-
-          <div className="pub-submit-bar">
-            <div className="pub-submit-bar__text">
-              <strong>Ready to start hosting?</strong>
-              <span>
-                Your listing will soon be visible to thousands of travelers.
-              </span>
-            </div>
-
-            <button
-              type="submit"
-              className="pub-submit-btn"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <span className="pub-submit-btn__spinner" />
-              ) : (
-                "Publish listing"
-              )}
-            </button>
-          </div>
-        </form>
-      </main>
-    </div>
+          </form>
+        </main>
+      </div>
+      {showSuccess && (
+        <SuccessAlert
+          message="Property listed successfully!"
+          subMessage="Your listing has been submitted successfully and is now awaiting approval."
+          onClose={() => setShowSuccess(false)}
+        />
+      )}
+      <div className="pub-footer-wrap">
+        <Footer />
+      </div>
+    </>
   );
 }

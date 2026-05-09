@@ -1,13 +1,17 @@
 import { useToken } from "./Contexts/TokenContext"
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 
-export default function ProtectedRoute({children}){
+export default function ProtectedRoute({ children, requiredRole }){
 
-    const {token} = useToken();
+    const { token, user } = useToken();
 
 
     if(!token){
         return <Navigate to="/Authentication" replace />
+    }
+
+    if (requiredRole && user?.role !== requiredRole) {
+        return <Navigate to="/" replace />
     }
 
     return children;

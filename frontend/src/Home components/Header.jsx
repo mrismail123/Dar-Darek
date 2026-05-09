@@ -1,5 +1,5 @@
 // Importing the logo
-import Logo from "../assets/logo.png";
+import Logo from "../assets/dardarek-logo.png";
 // Importing the css file
 import "../Home.css";
 // Importing theme
@@ -148,7 +148,13 @@ export default function Header() {
 
       <Divider sx={{ my: 0.5 }} />
 
-      <MenuItem onClick={handleMenuClose} sx={{ py: 1.2, color: "#374151" }}>
+      <MenuItem
+        onClick={() => {
+          handleMenuClose();
+          navigate("/my-bookings");
+        }}
+        sx={{ py: 1.2, color: "#374151" }}
+      >
         <ReceiptLongOutlinedIcon
           sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
         />

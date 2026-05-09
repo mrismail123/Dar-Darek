@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import "./PropertyDetails.css";
 import { useToken } from "../Contexts/TokenContext";
@@ -6,9 +6,11 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 import chaouenImage from "../assets/chaouen-bg.jpg";
-import tetouanImage from "../assets/tetouan-hero.webp";
+import tetouanImage from "../assets/tetouan-hero.jpg";
 import Header from "../Home components/Header";
 import Footer from "../Footer";
+import { useThemeGlobal } from "../Contexts/ThemeContext";
+import { buildApiUrl } from "../lib/api";
 
 const mockProperty = {
   brand: "Dar Darek",
@@ -176,6 +178,50 @@ const parseLocalDate = (dateValue) => {
   return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
 };
 
+const normalizeBookedRange = (range) => ({
+  startDate: String(range.start_date || range.startDate || "").split("T")[0],
+  endDate: String(range.end_date || range.endDate || "").split("T")[0],
+  status: range.status,
+});
+
+const isDateInBookedRange = (dateValue, bookedRanges = []) => {
+  const selectedDate = parseLocalDate(dateValue);
+  if (!selectedDate) return false;
+
+  return bookedRanges.some((range) => {
+    const startDate = parseLocalDate(range.startDate);
+    const endDate = parseLocalDate(range.endDate);
+
+    return (
+      startDate &&
+      endDate &&
+      selectedDate >= startDate &&
+      selectedDate < endDate
+    );
+  });
+};
+
+const doesDateRangeOverlapBooking = (checkIn, checkOut, bookedRanges = []) => {
+  const requestedStart = parseLocalDate(checkIn);
+  const requestedEnd = parseLocalDate(checkOut);
+
+  if (!requestedStart || !requestedEnd || requestedEnd <= requestedStart) {
+    return false;
+  }
+
+  return bookedRanges.some((range) => {
+    const existingStart = parseLocalDate(range.startDate);
+    const existingEnd = parseLocalDate(range.endDate);
+
+    return (
+      existingStart &&
+      existingEnd &&
+      requestedStart < existingEnd &&
+      requestedEnd > existingStart
+    );
+  });
+};
+
 const formatPolicyDate = (date) =>
   new Intl.DateTimeFormat("en-US", {
     month: "long",
@@ -241,9 +287,7 @@ const normalizeImages = (images) => {
         return image?.url || image?.path || image?.src || "";
       }
 
-      return image.startsWith("/uploads")
-        ? `http://localhost:5000${image}`
-        : image;
+      return image.startsWith("/uploads") ? buildApiUrl(image) : image;
     })
     .filter(Boolean);
 
@@ -769,6 +813,12 @@ const normalizeProperty = (property) => {
       yearsHosting: null,
       bio: property.host?.bio || property.host_bio || null,
     },
+    host_name: withFallback(
+      property.host?.name || property.host_name || property.owner_name,
+      "Hôte Dar Darek",
+    ),
+    host_phone:
+      property.host_phone || property.host?.phone || property.phone || "",
   };
 };
 
@@ -851,7 +901,15 @@ const scrollToAvailability = () => {
     ?.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
-function BookingCard({ property, dates, guests, onDateChange, onGuestChange }) {
+function BookingCard({
+  property,
+  dates,
+  guests,
+  onDateChange,
+  onGuestChange,
+  bookedRanges = [],
+  bookingConflictMessage = "",
+}) {
   const { id } = useParams();
 
   const nights = getNightCount(dates.checkIn, dates.checkOut);
@@ -876,6 +934,7 @@ function BookingCard({ property, dates, guests, onDateChange, onGuestChange }) {
   };
 
   const isBookingValid = isValidDates();
+  const [bookingNotice, setBookingNotice] = useState(null);
 
   // navigate
   const navigate = useNavigate();
@@ -884,7 +943,10 @@ function BookingCard({ property, dates, guests, onDateChange, onGuestChange }) {
     const currentToken = localStorage.getItem("token");
 
     if (!currentToken) {
-      alert("Please sign in first...");
+      setBookingNotice({
+        type: "error",
+        text: "Please sign in before reserving this stay.",
+      });
 
       navigate("/Authentication", { state: { from: location.pathname } });
       return;
@@ -896,14 +958,39 @@ function BookingCard({ property, dates, guests, onDateChange, onGuestChange }) {
       id_property: id,
       checkIn: dates.checkIn,
       checkOut: dates.checkOut,
-      total_price: total,
+      total_price: nightsTotal,
       id_user: localStorage.getItem("user")
         ? JSON.parse(localStorage.getItem("user")).id
         : null,
     };
 
     if (!reservationData.checkIn || !reservationData.checkOut) {
-      alert("Please select check-in and check-out dates.");
+      setBookingNotice({
+        type: "error",
+        text: "Please select check-in and check-out dates.",
+      });
+      return;
+    }
+
+    if (!isBookingValid) {
+      setBookingNotice({
+        type: "error",
+        text: "Please choose dates inside this property's availability window.",
+      });
+      return;
+    }
+
+    if (
+      doesDateRangeOverlapBooking(
+        reservationData.checkIn,
+        reservationData.checkOut,
+        bookedRanges,
+      )
+    ) {
+      setBookingNotice({
+        type: "error",
+        text: "This property is already reserved for the selected dates.",
+      });
       return;
     }
 
@@ -915,38 +1002,41 @@ function BookingCard({ property, dates, guests, onDateChange, onGuestChange }) {
       };
 
       const response = await axios.post(
-        `${BASE_URL}/api/bookingProperty`,
+        buildApiUrl("/api/bookingProperty"),
         reservationData,
         config,
       );
       if (response.data) {
-        alert(
-          "Your reservation request has been sent successfully! The host will review it and get back to you soon.",
-        );
-        navigate("/MyBookings");
+        setBookingNotice({
+          type: "success",
+          text: "Your reservation request has been sent successfully. The host will review it soon.",
+        });
+        navigate("/my-bookings");
       }
     } catch (error) {
       if (
         error.response &&
         (error.response.status === 401 || error.response.status === 403)
       ) {
-        alert("Session expired. Please login again.");
+        setBookingNotice({
+          type: "error",
+          text: "Session expired. Please login again.",
+        });
         navigate("/Authentication", { state: { from: location.pathname } });
       } else if (
         error.response &&
         error.response.data &&
         error.response.data.message
       ) {
-        alert(error.response.data.message);
+        setBookingNotice({ type: "error", text: error.response.data.message });
       } else {
-        alert(
-          error.message || "An error occurred while making the reservation.",
-        );
+        setBookingNotice({
+          type: "error",
+          text: error.message || "An error occurred while making the reservation.",
+        });
       }
     }
   }
-
-  const { token, setToken } = useToken();
 
   return (
     <div className="pd-booking-wrap">
@@ -1021,12 +1111,27 @@ function BookingCard({ property, dates, guests, onDateChange, onGuestChange }) {
           </div>
         </div>
 
+        {(bookingConflictMessage || bookingNotice) && (
+          <div
+            className={`pd-booking-message pd-booking-message--${
+              bookingNotice?.type || "warning"
+            }`}
+            role="status"
+          >
+            <span aria-hidden="true">
+              {(bookingNotice?.type || "warning") === "success" ? "✓" : "!"}
+            </span>
+            <p>{bookingNotice?.text || bookingConflictMessage}</p>
+          </div>
+        )}
+
         <button
-          type="button"
+          // type="button"
           className="pd-primary-btn"
-          disabled={!isBookingValid}
+          onClick={handleReserveFunction}
+          disabled={!isBookingValid || Boolean(bookingConflictMessage)}
         >
-          {!isBookingValid ? "Select valid dates" : "Reserve"}
+          Reserve
         </button>
 
         <div className="pd-booking__total">
@@ -1104,89 +1209,334 @@ function AmenitiesSection({ amenities }) {
   );
 }
 
-function ReviewsSection({ property }) {
-  const hasReviews = property.reviews && property.reviews.length > 0;
+function StarRating({
+  value,
+  max = 5,
+  interactive = false,
+  onChange,
+  size = "md",
+}) {
+  const [hovered, setHovered] = useState(null);
+  const displayValue = hovered ?? value;
+  const sizePx = size === "lg" ? "1.7rem" : "1.1rem";
 
-  if (!hasReviews) {
-    return (
-      <section className="pd-section pd-reviews">
-        <div className="pd-section__head">
-          <h2 className="pd-section__title">Guest reviews</h2>
-          <p className="pd-section__hint">
-            This place hasn't received any reviews yet.
-          </p>
+  return (
+    <span
+      className="pd-star-rating"
+      aria-label={`Rating: ${value} out of ${max} stars`}
+      style={{ display: "inline-flex", gap: "2px" }}
+    >
+      {Array.from({ length: max }, (_, i) => {
+        const starValue = i + 1;
+        const filled = displayValue >= starValue;
+        return interactive ? (
+          <button
+            key={starValue}
+            type="button"
+            aria-label={`Rate ${starValue} out of ${max}`}
+            className={`pd-star ${filled ? "pd-star--filled" : "pd-star--empty"}`}
+            style={{ fontSize: sizePx }}
+            onMouseEnter={() => setHovered(starValue)}
+            onMouseLeave={() => setHovered(null)}
+            onClick={() => onChange?.(starValue)}
+          >
+            ★
+          </button>
+        ) : (
+          <span
+            key={starValue}
+            className={`pd-star ${filled ? "pd-star--filled" : "pd-star--empty"}`}
+            aria-hidden="true"
+            style={{ fontSize: sizePx }}
+          >
+            ★
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+function ReviewsSection({ propertyId }) {
+  const { token, user } = useToken();
+  const [reviews, setReviews] = useState([]);
+  const [avgRating, setAvgRating] = useState(null);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [loadingReviews, setLoadingReviews] = useState(true);
+  const [eligibility, setEligibility] = useState({
+    eligible: false,
+    alreadyReviewed: false,
+  });
+  const [formRating, setFormRating] = useState(0);
+  const [formComment, setFormComment] = useState("");
+  const [formError, setFormError] = useState("");
+  const [formSuccess, setFormSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+
+  useEffect(() => {
+    if (!propertyId) return;
+    const fetchReviews = async () => {
+      setLoadingReviews(true);
+      try {
+        const res = await axios.get(
+          buildApiUrl(`/api/properties/${propertyId}/reviews`),
+        );
+        setReviews(res.data.reviews || []);
+        setAvgRating(res.data.avgRating);
+        setReviewCount(res.data.count || 0);
+      } catch {
+        // silent
+      } finally {
+        setLoadingReviews(false);
+      }
+    };
+    fetchReviews();
+  }, [propertyId]);
+
+  useEffect(() => {
+    if (!propertyId || !token) return;
+    const checkEligibility = async () => {
+      try {
+        const res = await axios.get(
+          buildApiUrl(`/api/properties/${propertyId}/review-eligibility`),
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        setEligibility(res.data);
+      } catch {
+        setEligibility({ eligible: false, alreadyReviewed: false });
+      }
+    };
+    checkEligibility();
+  }, [propertyId, token]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setFormError("");
+    if (formRating === 0) {
+      setFormError("Please select a star rating.");
+      return;
+    }
+    if (formComment.trim().length < 10) {
+      setFormError("Your review must be at least 10 characters.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await axios.post(
+        buildApiUrl("/api/reviews"),
+        {
+          id_property: propertyId,
+          rating: formRating,
+          comment: formComment.trim(),
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const newReview = {
+        id_review: Date.now(),
+        rating: formRating,
+        comment: formComment.trim(),
+        created_at: new Date().toISOString(),
+        reviewer_name: user?.name || "You",
+      };
+      const updatedReviews = [newReview, ...reviews];
+      setReviews(updatedReviews);
+      const newAvg =
+        Math.round(
+          (updatedReviews.reduce((s, r) => s + Number(r.rating), 0) /
+            updatedReviews.length) *
+            10,
+        ) / 10;
+      setAvgRating(newAvg);
+      setReviewCount((c) => c + 1);
+      setFormSuccess(true);
+      setEligibility({ eligible: true, alreadyReviewed: true });
+      setFormRating(0);
+      setFormComment("");
+    } catch (err) {
+      setFormError(
+        err.response?.data?.message ||
+          "Failed to submit review. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const formatReviewDate = (dateStr) => {
+    if (!dateStr) return "";
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 4);
+  const hasReviews = reviewCount > 0;
+  const canSubmit =
+    token && eligibility.eligible && !eligibility.alreadyReviewed;
+
+  return (
+    <section className="pd-section pd-reviews" id="reviews-section">
+      <div className="pd-section__head">
+        <h2 className="pd-section__title">Guest reviews</h2>
+        <p className="pd-section__hint">
+          {hasReviews
+            ? "Authentic feedback from guests who have stayed here."
+            : "This place hasn't received any reviews yet."}
+        </p>
+      </div>
+
+      {hasReviews && (
+        <div className="pd-reviews__overview">
+          <div className="pd-reviews__score-card">
+            <div className="pd-reviews__score-badge">Excellent</div>
+            <div className="pd-reviews__score-main">
+              <span className="pd-reviews__score">{avgRating}</span>
+              <span className="pd-reviews__score-star" aria-hidden="true">
+                ★
+              </span>
+            </div>
+            <div className="pd-reviews__score-copy">
+              <p>
+                Based on {reviewCount} {reviewCount > 1 ? "reviews" : "review"}
+              </p>
+            </div>
+            <div className="pd-reviews__score-foot">
+              <span>✓ Satisfied guests</span>
+            </div>
+          </div>
+          <div />
         </div>
+      )}
 
+      {loadingReviews ? (
+        <p className="pd-reviews__loading">Loading reviews…</p>
+      ) : hasReviews ? (
+        <>
+          <div className="pd-comments">
+            {visibleReviews.map((review) => (
+              <article className="pd-comment" key={review.id_review}>
+                <div className="pd-comment__head">
+                  <span aria-hidden="true">
+                    {(review.reviewer_name || "?").slice(0, 1).toUpperCase()}
+                  </span>
+                  <div>
+                    <h3>{review.reviewer_name}</h3>
+                    <p>{formatReviewDate(review.created_at)}</p>
+                  </div>
+                </div>
+                <StarRating value={Number(review.rating)} />
+                <p className="pd-comment__text">{review.comment}</p>
+              </article>
+            ))}
+          </div>
+          {reviews.length > 4 && (
+            <button
+              type="button"
+              className="pd-secondary-btn"
+              onClick={() => setShowAllReviews((v) => !v)}
+              style={{ marginTop: "16px" }}
+            >
+              {showAllReviews
+                ? "Show fewer reviews"
+                : `Show all ${reviews.length} reviews`}
+            </button>
+          )}
+        </>
+      ) : (
         <div className="pd-empty-reviews">
           <span>⭐</span>
           <h3>No reviews yet</h3>
           <p>Reviews will appear here after the first guest stays.</p>
         </div>
-      </section>
-    );
-  }
-  return (
-    <section className="pd-section pd-reviews">
-      <div className="pd-section__head">
-        <h2 className="pd-section__title">Guest reviews</h2>
-        <p className="pd-section__hint">
-          Detailed guest ratings after their stay.
-        </p>
-      </div>
+      )}
 
-      <div className="pd-reviews__overview">
-        <div className="pd-reviews__score-card">
-          <div className="pd-reviews__score-badge">Excellent</div>
-          <div className="pd-reviews__score-main">
-            <span className="pd-reviews__score">{property.rating}</span>
-            <span className="pd-reviews__score-star" aria-hidden="true">
-              ★
-            </span>
-          </div>
-          <div className="pd-reviews__score-copy">
-            <p>
-              Based on {property.reviewCount}{" "}
-              {property.reviewCount > 1 ? "reviews" : "review"}
-            </p>
-          </div>
-          <div className="pd-reviews__score-foot">
-            <span>✓ Satisfied guests</span>
-          </div>
-        </div>
-
-        <div className="pd-rating-grid">
-          {property.ratingBreakdown.map((item) => (
-            <div className="pd-rating-row" key={item.label}>
-              <div>
-                <span>{item.label}</span>
-                <strong>{item.score}/5</strong>
-              </div>
-              <span className="pd-rating-bar">
-                <span style={{ width: `${(item.score / 5) * 100}%` }} />
+      {canSubmit && !formSuccess && (
+        <div className="pd-review-form pd-card">
+          <h3 className="pd-review-form__title">Leave a review</h3>
+          <p className="pd-review-form__hint">
+            You stayed here — share your experience with future guests.
+          </p>
+          <form onSubmit={handleSubmit} noValidate>
+            <div
+              className="pd-review-form__stars"
+              role="group"
+              aria-label="Star rating"
+            >
+              <span className="pd-review-form__label">Your rating</span>
+              <StarRating
+                value={formRating}
+                interactive
+                onChange={setFormRating}
+                size="lg"
+              />
+              {formRating > 0 && (
+                <span className="pd-review-form__rating-label">
+                  {
+                    ["", "Poor", "Fair", "Good", "Very good", "Excellent"][
+                      formRating
+                    ]
+                  }
+                </span>
+              )}
+            </div>
+            <div className="pd-review-form__field">
+              <label
+                htmlFor="pd-review-comment"
+                className="pd-review-form__label"
+              >
+                Your review
+              </label>
+              <textarea
+                id="pd-review-comment"
+                className="pd-review-form__textarea"
+                rows={4}
+                placeholder="What did you enjoy most about your stay? (min. 10 characters)"
+                value={formComment}
+                onChange={(e) => setFormComment(e.target.value)}
+                maxLength={1000}
+              />
+              <span className="pd-review-form__char-count">
+                {formComment.length}/1000
               </span>
             </div>
-          ))}
+            {formError && (
+              <p className="pd-review-form__error" role="alert">
+                {formError}
+              </p>
+            )}
+            <button
+              type="submit"
+              className="pd-primary-btn pd-review-form__submit"
+              disabled={submitting}
+            >
+              {submitting ? "Submitting…" : "Submit review"}
+            </button>
+          </form>
         </div>
-      </div>
+      )}
 
-      <div className="pd-comments">
-        {property.reviews.slice(0, 2).map((review) => (
-          <article className="pd-comment" key={review.name}>
-            <div className="pd-comment__head">
-              <span>{review.name.slice(0, 1)}</span>
-              <div>
-                <h3>{review.name}</h3>
-                <p>{review.date}</p>
-              </div>
-            </div>
-            <p>{review.text}</p>
-          </article>
-        ))}
-      </div>
-      {property.reviews.length > 2 && (
-        <button type="button" className="pd-secondary-btn">
-          Show all reviews
-        </button>
+      {token &&
+        eligibility.eligible &&
+        eligibility.alreadyReviewed &&
+        !formSuccess && (
+          <div className="pd-review-done">
+            <span>✓</span> You have already reviewed this property. Thank you!
+          </div>
+        )}
+
+      {formSuccess && (
+        <div className="pd-review-success" role="status">
+          <span>🎉</span> Your review has been published. Thank you!
+        </div>
+      )}
+
+      {!token && (
+        <p className="pd-reviews__login-nudge">
+          <a href="/Authentication">Sign in</a> to leave a review after your
+          stay.
+        </p>
       )}
     </section>
   );
@@ -1196,11 +1546,7 @@ function LocationSection({ property }) {
   const [mapKey, setMapKey] = useState(0);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const previewLength = 170;
-  const fullLocation = [
-    property.address,
-    property.neighborhood,
-    property.city,
-  ]
+  const fullLocation = [property.address, property.neighborhood, property.city]
     .filter(Boolean)
     .join(", ");
   const locationDetails = [
@@ -1322,9 +1668,16 @@ function LocationSection({ property }) {
   );
 }
 
-function HostSection({ host }) {
+function HostSection({ host, property }) {
   const hostName = getHostName(host);
   const hostSubline = getHostSubline(host);
+  const [showContactModal, setShowContactModal] = useState(false);
+
+  const handleContactButton = () => {
+    setShowContactModal(true);
+  };
+
+  const hostPhone = property?.host_phone || host?.phone || "";
 
   return (
     <section className="pd-section" id="host-section">
@@ -1355,10 +1708,66 @@ function HostSection({ host }) {
 
         {host.bio && <p className="pd-host__bio">{host.bio}</p>}
 
-        <button type="button" className="pd-primary-btn">
+        <button
+          type="button"
+          className="pd-primary-btn"
+          onClick={handleContactButton}
+        >
           Contact host
         </button>
       </div>
+
+      {showContactModal && (
+        <div
+          className="contact-modal-overlay"
+          onClick={() => setShowContactModal(false)}
+        >
+          <div
+            className="contact-modal-content"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              style={{ fontSize: "1.5rem" }}
+              className="close-btn"
+              onClick={() => setShowContactModal(false)}
+            >
+              ×
+            </button>
+
+            <div className="host-info">
+              <h3>Contact the Host</h3>
+              <p>
+                You are contacting <strong>{hostName}</strong> about{" "}
+                <strong>{property.title}</strong>
+              </p>
+            </div>
+
+            {hostPhone ? (
+              <div className="contact-options">
+                <a
+                  href={`https://wa.me/${hostPhone.replace(/\D/g, "")}?text=${encodeURIComponent(
+                    `Hello, I'm interested in your property "${property.title}" on Dar Darek.`,
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="whatsapp-btn"
+                >
+                  Chat on WhatsApp
+                </a>
+
+                <a href={`tel:${hostPhone}`} className="phone-btn">
+                  Call Now
+                </a>
+              </div>
+            ) : (
+              <p className="pd-section__hint">
+                The host phone number is not available yet.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -1419,7 +1828,12 @@ const formatDate = (year, month, day) => {
   )}`;
 };
 
-function AvailabilitySection({ property, dates, onDateChange }) {
+function AvailabilitySection({
+  property,
+  dates,
+  onDateChange,
+  bookedRanges = [],
+}) {
   const [currentMonth, setCurrentMonth] = useState(4); // May
   const year = 2026;
 
@@ -1430,16 +1844,22 @@ function AvailabilitySection({ property, dates, onDateChange }) {
   const maxDate = property.availableTo ? new Date(property.availableTo) : null;
 
   const isDisabled = (month, day) => {
-    const date = new Date(formatDate(year, month, day));
+    const dateValue = formatDate(year, month, day);
+    const date = new Date(dateValue);
 
     if (minDate && date < minDate) return true;
     if (maxDate && date > maxDate) return true;
+    if (isDateInBookedRange(dateValue, bookedRanges)) return true;
 
     return false;
   };
 
   const handleDayClick = (month, day) => {
     const selectedDate = formatDate(year, month, day);
+
+    if (isDateInBookedRange(selectedDate, bookedRanges)) {
+      return;
+    }
 
     if (!dates.checkIn || (dates.checkIn && dates.checkOut)) {
       onDateChange("checkIn", selectedDate);
@@ -1458,6 +1878,12 @@ function AvailabilitySection({ property, dates, onDateChange }) {
     }
   };
 
+  const selectedRangeUnavailable = doesDateRangeOverlapBooking(
+    dates.checkIn,
+    dates.checkOut,
+    bookedRanges,
+  );
+
   const isInRange = (month, day) => {
     if (!dates.checkIn || !dates.checkOut) return false;
 
@@ -1470,8 +1896,17 @@ function AvailabilitySection({ property, dates, onDateChange }) {
     <section className="pd-section" id="availability-section">
       <div className="pd-section__head">
         <h2 className="pd-section__title">Availability</h2>
-        <p className="pd-section__hint">Select your travel dates.</p>
+        <p className="pd-section__hint">
+          Select your travel dates. Reserved days are unavailable.
+        </p>
       </div>
+
+      {selectedRangeUnavailable && (
+        <div className="pd-availability-message" role="status">
+          <span aria-hidden="true">!</span>
+          <p>This property is already reserved for the selected dates.</p>
+        </div>
+      )}
 
       <div className="pd-calendar pd-card">
         <div className="pd-calendar__head">
@@ -1528,6 +1963,10 @@ function AvailabilitySection({ property, dates, onDateChange }) {
                   {days.map((day) => {
                     const disabled = isDisabled(month, day);
                     const isSelected = isInRange(month, day);
+                    const isBooked = isDateInBookedRange(
+                      formatDate(year, month, day),
+                      bookedRanges,
+                    );
 
                     return (
                       <button
@@ -1536,6 +1975,7 @@ function AvailabilitySection({ property, dates, onDateChange }) {
                           "pd-calendar__day",
                           isSelected ? "pd-calendar__day--selected" : "",
                           disabled ? "pd-calendar__day--disabled" : "",
+                          isBooked ? "pd-calendar__day--booked" : "",
                         ]
                           .filter(Boolean)
                           .join(" ")}
@@ -1662,10 +2102,13 @@ function AboutPlaceSection({ property, dates }) {
 }
 
 export default function PropertyDetails() {
+  // theme
+  const themeGlobal = useThemeGlobal();
   const { id } = useParams();
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [bookedRanges, setBookedRanges] = useState([]);
   const [dates, setDates] = useState({
     checkIn: mockProperty.bookingDefaults.checkIn,
     checkOut: mockProperty.bookingDefaults.checkOut,
@@ -1683,7 +2126,7 @@ export default function PropertyDetails() {
         setLoading(true);
         setError("");
 
-        const response = await fetch(`http://localhost:5000/api/houses/${id}`, {
+        const response = await fetch(buildApiUrl(`/api/houses/${id}`), {
           signal: controller.signal,
         });
         const data = await response.json().catch(() => null);
@@ -1704,6 +2147,37 @@ export default function PropertyDetails() {
     };
 
     fetchProperty();
+
+    return () => controller.abort();
+  }, [id]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const fetchBookedRanges = async () => {
+      try {
+        const response = await fetch(
+          buildApiUrl(`/api/properties/${id}/booked-dates`),
+          {
+            signal: controller.signal,
+          },
+        );
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(data?.message || "Unable to load booked dates.");
+        }
+
+        const ranges = Array.isArray(data?.bookedDates) ? data.bookedDates : [];
+        setBookedRanges(ranges.map(normalizeBookedRange));
+      } catch (fetchError) {
+        if (fetchError.name !== "AbortError") {
+          setBookedRanges([]);
+        }
+      }
+    };
+
+    fetchBookedRanges();
 
     return () => controller.abort();
   }, [id]);
@@ -1750,6 +2224,16 @@ export default function PropertyDetails() {
     });
   };
 
+  const bookingConflictMessage = useMemo(() => {
+    if (
+      doesDateRangeOverlapBooking(dates.checkIn, dates.checkOut, bookedRanges)
+    ) {
+      return "This property is already reserved for the selected dates.";
+    }
+
+    return "";
+  }, [dates.checkIn, dates.checkOut, bookedRanges]);
+
   if (loading) {
     return (
       <main className="pd-page">
@@ -1775,120 +2259,129 @@ export default function PropertyDetails() {
   }
 
   return (
-    <main className="pd-page">
+    <>
       <Header />
+      <main
+        style={{ background: themeGlobal.colors.white }}
+        className="pd-page"
+      >
+        <section
+          style={{ border: "none", boxShadow: "none", padding: "0" }}
+          className="pd-section pd-title-card"
+        >
+          <h1>{displayProperty.title}</h1>
+          <p className="pd-title-card__location">
+            {displayProperty.neighborhood}, {displayProperty.city}
+          </p>
+        </section>
 
-      <section className="pd-section pd-title-card">
-        <h1>{displayProperty.title}</h1>
-        <p className="pd-title-card__location">
-          {displayProperty.neighborhood}, {displayProperty.city}
-        </p>
-      </section>
+        <PropertyGallery property={displayProperty} />
 
-      <PropertyGallery property={displayProperty} />
-
-      <section className="pd-layout">
-        <div className="pd-content">
-          {/* Summary card */}
-          <section className="pd-summary" aria-label="Property summary">
-            <div className="pd-summary__content">
-              <h2 className="pd-summary__headline">
-                {displayProperty.propertyType} in {displayProperty.city}
-              </h2>
-              <div className="pd-summary__details">
-                <span>
-                  👥 {displayProperty.guests}{" "}
-                  {displayProperty.guests > 1 ? "guests" : "guest"}
-                </span>
-                <span>
-                  🛏️ {displayProperty.bedrooms}{" "}
-                  {displayProperty.bedrooms > 1 ? "bedrooms" : "bedroom"}
-                </span>
-                <span>
-                  🛌 {displayProperty.beds}{" "}
-                  {displayProperty.beds > 1 ? "beds" : "bed"}
-                </span>
-                <span>
-                  🚿 {displayProperty.bathrooms}{" "}
-                  {displayProperty.bathrooms > 1 ? "bathrooms" : "bathroom"}
-                </span>
-              </div>
-              <div className="pd-summary__rating">
-                {displayProperty.reviewCount > 0 ? (
-                  <>
-                    <strong>⭐ {displayProperty.rating}</strong>
-                    <span>·</span>
-                    <button type="button">
-                      {displayProperty.reviewCount}{" "}
-                      {displayProperty.reviewCount > 1 ? "reviews" : "review"}
-                    </button>
-                  </>
-                ) : (
-                  <span>No reviews yet</span>
-                )}
-              </div>
-              <button
-                type="button"
-                className="pd-summary__host-preview"
-                onClick={scrollToHost}
-              >
-                <span className="pd-summary__host-avatar" aria-hidden="true">
-                  {displayProperty.host.profilePicture ? (
-                    <img
-                      src={displayProperty.host.profilePicture}
-                      alt=""
-                    />
+        <section className="pd-layout">
+          <div className="pd-content">
+            {/* Summary card */}
+            <section className="pd-summary" aria-label="Property summary">
+              <div className="pd-summary__content">
+                <h2 className="pd-summary__headline">
+                  {displayProperty.propertyType} in {displayProperty.city}
+                </h2>
+                <div className="pd-summary__details">
+                  <span>
+                    👥 {displayProperty.guests}{" "}
+                    {displayProperty.guests > 1 ? "guests" : "guest"}
+                  </span>
+                  <span>
+                    🛏️ {displayProperty.bedrooms}{" "}
+                    {displayProperty.bedrooms > 1 ? "bedrooms" : "bedroom"}
+                  </span>
+                  <span>
+                    🛌 {displayProperty.beds}{" "}
+                    {displayProperty.beds > 1 ? "beds" : "bed"}
+                  </span>
+                  <span>
+                    🚿 {displayProperty.bathrooms}{" "}
+                    {displayProperty.bathrooms > 1 ? "bathrooms" : "bathroom"}
+                  </span>
+                </div>
+                <div className="pd-summary__rating">
+                  {displayProperty.reviewCount > 0 ? (
+                    <>
+                      <strong>⭐ {displayProperty.rating}</strong>
+                      <span>·</span>
+                      <button type="button">
+                        {displayProperty.reviewCount}{" "}
+                        {displayProperty.reviewCount > 1 ? "reviews" : "review"}
+                      </button>
+                    </>
                   ) : (
-                    displayProperty.host.avatarInitials
+                    <span>No reviews yet</span>
                   )}
-                </span>
-                <span className="pd-summary__host-copy">
-                  <strong>Hosted by {displayHostName}</strong>
-                  <span>{displayHostSubline}</span>
-                </span>
-              </button>
-            </div>
-          </section>
+                </div>
+                <button
+                  type="button"
+                  className="pd-summary__host-preview"
+                  onClick={scrollToHost}
+                >
+                  <span className="pd-summary__host-avatar" aria-hidden="true">
+                    {displayProperty.host.profilePicture ? (
+                      <img src={displayProperty.host.profilePicture} alt="" />
+                    ) : (
+                      displayProperty.host.avatarInitials
+                    )}
+                  </span>
+                  <span className="pd-summary__host-copy">
+                    <strong>Hosted by {displayHostName}</strong>
+                    <span>{displayHostSubline}</span>
+                  </span>
+                </button>
+              </div>
+            </section>
 
-          {/* Description */}
-          <section className="pd-section">
-            <div className="pd-section__head">
-              <h2 className="pd-section__title">Description</h2>
-              <p className="pd-section__hint">
-                A clear overview of the vibe, comfort, and neighborhood.
-              </p>
-            </div>
-            <p className="pd-description">{displayProperty.description}</p>
-          </section>
+            {/* Description */}
+            <section className="pd-section">
+              <div className="pd-section__head">
+                <h2 className="pd-section__title">Description</h2>
+                <p className="pd-section__hint">
+                  A clear overview of the vibe, comfort, and neighborhood.
+                </p>
+              </div>
 
-          <AmenitiesSection amenities={displayProperty.amenities} />
+              <p className="pd-description">{displayProperty.description}</p>
+            </section>
 
-          <AvailabilitySection
+            <AmenitiesSection amenities={displayProperty.amenities} />
+
+            <AvailabilitySection
+              property={displayProperty}
+              dates={dates}
+              onDateChange={updateDate}
+              bookedRanges={bookedRanges}
+            />
+
+            <LocationSection property={displayProperty} />
+
+            <ReviewsSection propertyId={id} />
+
+            <HostSection
+              host={displayProperty.host}
+              property={displayProperty}
+            />
+          </div>
+
+          <BookingCard
             property={displayProperty}
             dates={dates}
+            guests={guests}
             onDateChange={updateDate}
+            onGuestChange={updateGuests}
+            bookedRanges={bookedRanges}
+            bookingConflictMessage={bookingConflictMessage}
           />
+        </section>
 
-          <LocationSection property={displayProperty} />
-
-          <ReviewsSection property={displayProperty} />
-
-          <HostSection host={displayProperty.host} />
-        </div>
-
-        <BookingCard
-          property={displayProperty}
-          dates={dates}
-          guests={guests}
-          onDateChange={updateDate}
-          onGuestChange={updateGuests}
-        />
-      </section>
-
-      <AboutPlaceSection property={displayProperty} dates={dates} />
-
+        <AboutPlaceSection property={displayProperty} dates={dates} />
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }
-
