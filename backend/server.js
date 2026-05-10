@@ -1298,8 +1298,11 @@ app.patch("/api/rentalRequests/:id/status", verifyToken, async (req, res) => {
 
   try {
     // Ensure the logged-in user owns the property attached to this booking
+    // Also fetch tenant id_user and property title for the notification
     const [rows] = await db.query(
-      `SELECT b.id_booking FROM bookings b
+      `SELECT b.id_booking, b.id_user AS tenant_id, b.id_property,
+              p.title AS property_title
+       FROM bookings b
        JOIN properties p ON b.id_property = p.id_property
        WHERE b.id_booking = ? AND p.id_user = ?`,
       [bookingId, tokenUserId],
@@ -1313,6 +1316,28 @@ app.patch("/api/rentalRequests/:id/status", verifyToken, async (req, res) => {
       "UPDATE bookings SET status = ? WHERE id_booking = ?",
       [status, bookingId],
     );
+
+    // ── Trigger notification ──────────────────────────────────────────────
+    if (status === "approved" || status === "rejected") {
+      const { tenant_id, id_property, property_title } = rows[0];
+      const notifyType = status === "approved" ? "APPROVE" : "REJECT";
+      const notifyText =
+        status === "approved"
+          ? `Your request for "${property_title}" was approved! 🎉`
+          : `Your request for "${property_title}" was rejected.`;
+
+      try {
+        await db.execute(
+          `INSERT INTO notifications (id_user, id_property, id_booking, type, notify_text)
+           VALUES (?, ?, ?, ?, ?)`,
+          [tenant_id, id_property, bookingId, notifyType, notifyText],
+        );
+      } catch (notifyErr) {
+        // Non-fatal — log but don't fail the main response
+        console.error("Failed to insert notification:", notifyErr.message);
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────
 
     res.status(200).json({ message: `Booking ${status} successfully.` });
   } catch (error) {
@@ -1353,10 +1378,10 @@ app.get("/api/properties/:id/reviews", async (req, res) => {
     const avgRating =
       reviews.length > 0
         ? Math.round(
-            (reviews.reduce((sum, r) => sum + Number(r.rating), 0) /
-              reviews.length) *
-              10,
-          ) / 10
+          (reviews.reduce((sum, r) => sum + Number(r.rating), 0) /
+            reviews.length) *
+          10,
+        ) / 10
         : null;
 
     res.status(200).json({ reviews, avgRating, count: reviews.length });
@@ -1475,6 +1500,148 @@ app.get("/api/properties/:id/review-eligibility", verifyToken, async (req, res) 
     res.status(500).json({ message: "Server error.", details: error.message });
   }
 });
+
+/* =========================
+   NOTIFICATION ROUTES
+========================= */
+
+// GET /api/notifications — fetch all notifications for the logged-in user (newest first)
+app.get("/api/notifications", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+
+  try {
+    const [notifications] = await db.query(
+      `SELECT
+         n.id_notification,
+         n.id_booking,
+         n.id_property,
+         n.notify_text,
+         n.is_read,
+         n.type,
+         n.created_at,
+         p.title AS property_title
+       FROM notifications n
+       LEFT JOIN properties p ON n.id_property = p.id_property
+       WHERE n.id_user = ?
+       ORDER BY n.created_at DESC`,
+      [userId],
+    );
+
+    const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+    res.status(200).json({ notifications, unreadCount });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while fetching notifications.",
+      details: error.message,
+    });
+  }
+});
+
+// PUT /api/notifications/mark-all-read — mark ALL notifications as read for the user
+// NOTE: must be declared BEFORE /:id/read so Express matches it first
+app.put("/api/notifications/mark-all-read", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+
+  try {
+    await db.execute(
+      "UPDATE notifications SET is_read = 1 WHERE id_user = ? AND is_read = 0",
+      [userId],
+    );
+
+    res.status(200).json({ message: "All notifications marked as read." });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while marking notifications as read.",
+      details: error.message,
+    });
+  }
+});
+
+// PUT /api/notifications/:id/read — mark a single notification as read
+app.put("/api/notifications/:id/read", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+  const notificationId = Number(req.params.id);
+
+  if (!Number.isFinite(notificationId) || notificationId <= 0) {
+    return res.status(400).json({ message: "Invalid notification id." });
+  }
+
+  try {
+    // Verify ownership before updating
+    const [rows] = await db.query(
+      "SELECT id_notification FROM notifications WHERE id_notification = ? AND id_user = ?",
+      [notificationId, userId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(403).json({ message: "Not authorized to update this notification." });
+    }
+
+    await db.execute(
+      "UPDATE notifications SET is_read = 1 WHERE id_notification = ?",
+      [notificationId],
+    );
+
+    res.status(200).json({ message: "Notification marked as read." });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while updating notification.",
+      details: error.message,
+    });
+  }
+});
+
+// API for favorites
+app.post('/api/favorites/toggle', async (req, res) => {
+  const { id_user, id_property } = req.body;
+
+  try {
+    const [existing] = await db.execute(
+      'SELECT id_favorite FROM favorites WHERE id_user = ? AND id_property = ?',
+      [id_user, id_property]
+    );
+
+    if (existing.length > 0) {
+      await db.execute('DELETE FROM favorites WHERE id_user = ? AND id_property = ?', [id_user, id_property]);
+      return res.json({ message: 'Removed from favorites', saved: false });
+    } else {
+      await db.execute('INSERT INTO favorites (id_user, id_property) VALUES (?, ?)', [id_user, id_property]);
+      return res.json({ message: 'Added to favorites', saved: true });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/favorites/:userId
+app.get('/api/favorites/:userId', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const [rows] = await db.execute(`
+      SELECT
+        p.*,
+        c.name AS city_name,
+        (
+          SELECT image_url
+          FROM property_images
+          WHERE id_property = p.id_property
+          ORDER BY is_main DESC
+          LIMIT 1
+        ) AS main_image
+      FROM properties p
+      JOIN favorites f ON p.id_property = f.id_property
+      LEFT JOIN cities c ON p.id_city = c.id_city
+      WHERE f.id_user = ?
+      ORDER BY f.id_favorite DESC
+    `, [userId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 /* =========================
    START SERVER

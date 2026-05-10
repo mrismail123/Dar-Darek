@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
     AccessTimeOutlined,
     CheckCircleOutlineOutlined,
@@ -67,7 +67,28 @@ const getNightsCount = (checkIn, checkOut) => {
 export default function RentalRequests() {
     const themeGlobal = useThemeGlobal();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [requests, setRequests] = useState([]);
+
+    // Notification-driven highlight
+    const [highlightedId, setHighlightedId] = useState(() => {
+        const raw = searchParams.get("bookingId");
+        return raw ? Number(raw) : null;
+    });
+    const highlightRef = useRef(null);
+
+    // Auto-clear highlight after 3.5 s
+    useEffect(() => {
+        if (!highlightedId) return;
+        const t = setTimeout(() => setHighlightedId(null), 3500);
+        return () => clearTimeout(t);
+    }, [highlightedId]);
+
+    // Scroll highlighted row into view once requests are loaded
+    useEffect(() => {
+        if (!highlightedId || !highlightRef.current) return;
+        highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, [highlightedId, requests]);
 
     useEffect(() => {
         const fetchRequests = async () => {
@@ -378,6 +399,7 @@ export default function RentalRequests() {
                                         return (
                                             <TableRow
                                                 key={request.id}
+                                                ref={request.id === highlightedId ? highlightRef : null}
                                                 sx={{
                                                     display: { xs: "flex", md: "table-row" },
                                                     flexDirection: "column",
@@ -387,7 +409,12 @@ export default function RentalRequests() {
                                                     "&:last-child td": { borderBottom: 0 },
                                                     borderBottom: { xs: "1px solid rgba(226, 232, 240, 0.9)", md: "none" },
                                                     opacity: isRejected ? 0.55 : 1,
-                                                    transition: "opacity 0.3s",
+                                                    transition: "opacity 0.3s, box-shadow 0.4s, background-color 0.4s",
+                                                    ...(request.id === highlightedId && {
+                                                        boxShadow: "inset 0 0 0 2px rgba(0,169,181,0.55), 0 0 18px rgba(0,169,181,0.18)",
+                                                        backgroundColor: "rgba(0,169,181,0.05) !important",
+                                                        borderRadius: { md: "12px" },
+                                                    }),
                                                 }}
                                             >
                                                 {/* Property */}

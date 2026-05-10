@@ -18,6 +18,9 @@ import RentalRequests from "./RentalRequests";
 import { useToken } from "./Contexts/TokenContext";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
 
+import MyBookings from "./MyFavorites";
+import MyFavorites from "./MyFavorites";
+
 function App() {
   const themeGlobal = useThemeGlobal();
   const { setToken, setUser } = useToken();
@@ -66,6 +69,24 @@ function App() {
           element={
             <ProtectedRoute>
               <Publish />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/my-bookings"
+          element={
+            <ProtectedRoute>
+              <MyFavorites />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/my-favorites"
+          element={
+            <ProtectedRoute>
+              <MyFavorites />
             </ProtectedRoute>
           }
         />

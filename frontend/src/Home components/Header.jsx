@@ -44,6 +44,7 @@ import Divider from '@mui/material/Divider';
 // Avatar pictures
 import profilePicture1 from '../assets/1.jpg'
 import { useToken } from '../Contexts/TokenContext';
+import NotificationDropdown from './NotificationDropdown';
 
 
 
@@ -159,7 +160,9 @@ export default function Header() {
                 My properties
             </MenuItem>
 
-            <MenuItem onClick={handleMenuClose} sx={{ py: 1.2, color: '#374151' }}>
+            <MenuItem onClick={() => {
+                navigate("/my-favorites", { state: { from: location.pathname } });
+            }} sx={{ py: 1.2, color: '#374151' }}>
                 <FavoriteBorderOutlinedIcon sx={{ mr: 2, color: '#6B7280', fontSize: '1.3rem' }} />
                 Saved Favorites
             </MenuItem>
@@ -277,15 +280,7 @@ export default function Header() {
                                                 List your property
                                             </Button>
 
-                                            <IconButton
-                                                size="large"
-                                                aria-label="show 17 new notifications"
-                                                sx={{ color: themeGlobal.colors.primary, mr: 1 }}
-                                            >
-                                                <Badge badgeContent={17} color="error">
-                                                    <NotificationsIcon />
-                                                </Badge>
-                                            </IconButton>
+                                            <NotificationDropdown />
 
                                             <IconButton
                                                 size="large"

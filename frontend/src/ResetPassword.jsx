@@ -14,8 +14,7 @@ export default function ResetPassword() {
     const [searchParams] = useSearchParams();
     const token = searchParams.get("token");
     const navigate = useNavigate();
-
-
+    
     // theme context
     const theme = useThemeGlobal();
 
