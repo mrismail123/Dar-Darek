@@ -456,6 +456,13 @@
   font-size: 0.82rem;
   font-weight: 800;
   box-shadow: 0 6px 14px rgba(11, 33, 54, 0.11);
+  overflow: hidden;
+}
+
+.pd-summary__host-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .pd-summary__host-copy {
@@ -1512,6 +1519,13 @@ button.pd-calendar__day:hover:not(:disabled) {
   font-size: 1.1rem;
   font-weight: 800;
   box-shadow: 0 10px 24px rgba(11, 33, 54, 0.18);
+  overflow: hidden;
+}
+
+.pd-host__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .pd-host__verified-badge {
@@ -2116,6 +2130,83 @@ button.pd-calendar__day:hover:not(:disabled) {
   opacity: 0.3;
   cursor: not-allowed;
   background: transparent;
+}
+
+.pd-calendar__day--booked {
+  position: relative;
+  border-color: rgba(183, 50, 50, 0.16);
+  background: rgba(183, 50, 50, 0.08);
+  color: #b73232;
+  opacity: 0.72;
+  text-decoration: line-through;
+}
+
+.pd-availability-message,
+.pd-booking-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 16px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.55;
+  animation: slideUp 0.25s ease;
+}
+
+.pd-availability-message {
+  margin: -6px 0 18px;
+  padding: 13px 15px;
+  border: 1px solid rgba(183, 50, 50, 0.2);
+  background: rgba(183, 50, 50, 0.08);
+  color: #9f2c2c;
+}
+
+.pd-booking-message {
+  margin-top: 14px;
+  padding: 12px 14px;
+}
+
+.pd-booking-message span,
+.pd-availability-message span {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.pd-booking-message p,
+.pd-availability-message p {
+  margin: 0;
+}
+
+.pd-booking-message--error,
+.pd-booking-message--warning {
+  border: 1px solid rgba(183, 50, 50, 0.2);
+  background: rgba(183, 50, 50, 0.08);
+  color: #9f2c2c;
+}
+
+.pd-booking-message--error span,
+.pd-booking-message--warning span,
+.pd-availability-message span {
+  background: rgba(183, 50, 50, 0.12);
+  color: #b73232;
+}
+
+.pd-booking-message--success {
+  border: 1px solid rgba(20, 168, 157, 0.22);
+  background: rgba(20, 168, 157, 0.08);
+  color: #0e7063;
+}
+
+.pd-booking-message--success span {
+  background: rgba(20, 168, 157, 0.14);
+  color: #118f85;
 }
 
 .pd-photo-modal {

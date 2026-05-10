@@ -147,6 +147,706 @@ app.get("/api/test-db", async (req, res) => {
 });
 
 /* =========================
+   USER ACCOUNT ROUTES
+========================= */
+
+const USER_ACCOUNT_FIELDS = `
+  id_user,
+  name,
+  email,
+  phone_number,
+  role,
+  profile_picture,
+  bio,
+  nationality,
+  languages,
+  preferred_contact,
+  emergency_contact,
+  preferred_language,
+  preferred_currency,
+  preferred_city,
+  preferred_stay_type,
+  billing_name,
+  billing_address,
+  billing_city,
+  billing_postal_code,
+  billing_country,
+  date_of_birth,
+  password IS NOT NULL AS has_password
+`;
+
+const ACCOUNT_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ACCOUNT_PHONE_ALLOWED_REGEX = /^[\d\s()+-]+$/;
+const ACCOUNT_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const ACCOUNT_LANGUAGE_OPTIONS = new Set([
+  "Arabic",
+  "French",
+  "English",
+  "Spanish",
+  "Italian",
+  "German",
+  "Dutch",
+  "Portuguese",
+  "Turkish",
+  "Amazigh",
+]);
+const ACCOUNT_CONTACT_OPTIONS = new Set(["Email", "SMS", "Push notification"]);
+const ACCOUNT_PREFERENCE_LANGUAGE_OPTIONS = new Set([
+  "English",
+  "French",
+  "Arabic",
+  "Spanish",
+  "German",
+  "Italian",
+  "Dutch",
+  "Portuguese",
+  "Turkish",
+  "Amazigh",
+]);
+const ACCOUNT_CURRENCY_OPTIONS = new Set([
+  "MAD",
+  "EUR",
+  "USD",
+  "GBP",
+  "CAD",
+  "AED",
+  "SAR",
+]);
+const ACCOUNT_CITY_OPTIONS = new Set([
+  "Ajdir",
+  "Al Hoceima",
+  "Asilah",
+  "Belyounech",
+  "Bni Bouayach",
+  "Cabo Negro",
+  "Chefchaouen",
+  "Fnideq",
+  "Imzouren",
+  "Ksar El Kebir",
+  "Larache",
+  "Martil",
+  "M'diq",
+  "Oued Laou",
+  "Ouazzane",
+  "Tangier",
+  "Targuist",
+  "Tetouan",
+]);
+const ACCOUNT_STAY_TYPE_OPTIONS = new Set([
+  "Apartment",
+  "Studio",
+  "House",
+  "Villa",
+  "Riad",
+  "Guest house",
+]);
+
+const cleanText = (value, maxLength = 255) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+
+  const trimmedValue = String(value).trim();
+  return trimmedValue ? trimmedValue.slice(0, maxLength) : null;
+};
+
+const normalizePhoneForUsersTable = (value) => {
+  const cleanedValue = cleanText(value, 30);
+  if (!cleanedValue) return cleanedValue;
+  const hasLeadingPlus = cleanedValue.trim().startsWith("+");
+  const digitsOnly = cleanedValue.replace(/\D/g, "");
+  return `${hasLeadingPlus ? "+" : ""}${digitsOnly}`;
+};
+
+const isValidPhoneValue = (value) => {
+  if (!value) return true;
+  return (
+    ACCOUNT_PHONE_ALLOWED_REGEX.test(value) &&
+    value.replace(/\D/g, "").length >= 7 &&
+    value.replace(/\D/g, "").length <= 15
+  );
+};
+
+const isValidDateValue = (value) => {
+  if (!value) return true;
+  if (!ACCOUNT_DATE_REGEX.test(value)) return false;
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+};
+
+const getAgeFromDateValue = (value) => {
+  if (!value || !isValidDateValue(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  const birthdayThisYear = new Date(today.getFullYear(), month - 1, day);
+  if (today < birthdayThisYear) age -= 1;
+  return age;
+};
+
+const normalizeDateForResponse = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().split("T")[0];
+  return String(value).split("T")[0];
+};
+
+const normalizeLanguages = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+
+  let languageList = value;
+  if (typeof value === "string") {
+    try {
+      const parsedValue = JSON.parse(value);
+      languageList = Array.isArray(parsedValue) ? parsedValue : [value];
+    } catch {
+      languageList = value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+
+  if (!Array.isArray(languageList)) {
+    return null;
+  }
+
+  const cleanedLanguages = languageList
+    .map((language) => cleanText(language, 50))
+    .filter(Boolean)
+    .filter(
+      (language, index, list) =>
+        list.findIndex(
+          (item) => item.toLowerCase() === language.toLowerCase(),
+        ) === index,
+    );
+
+  return JSON.stringify(cleanedLanguages);
+};
+
+const validateAccountLanguages = (value) => {
+  const normalizedValue = normalizeLanguages(value);
+  if (!normalizedValue) return true;
+
+  try {
+    const parsedLanguages = JSON.parse(normalizedValue);
+    return parsedLanguages.every((language) =>
+      ACCOUNT_LANGUAGE_OPTIONS.has(language),
+    );
+  } catch {
+    return false;
+  }
+};
+
+const sendSafeUser = (res, user) => {
+  const safeUser = {
+    ...user,
+    date_of_birth: normalizeDateForResponse(user.date_of_birth),
+    has_password: Boolean(user.has_password),
+  };
+
+  return res.status(200).json({ user: safeUser });
+};
+
+const getUserIdFromRequest = (req) => {
+  const userId = Number(req.user?.id || req.user?.id_user);
+  return Number.isFinite(userId) && userId > 0 ? userId : null;
+};
+
+const getSafeUserById = async (userId) => {
+  const [rows] = await db.query(
+    `SELECT ${USER_ACCOUNT_FIELDS} FROM users WHERE id_user = ? LIMIT 1`,
+    [userId],
+  );
+
+  return rows[0] || null;
+};
+
+const updateUserFields = async (userId, fieldMap) => {
+  const entries = Object.entries(fieldMap).filter(
+    ([, value]) => value !== undefined,
+  );
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  const assignments = entries.map(([field]) => `${field} = ?`).join(", ");
+  const values = entries.map(([, value]) => value);
+
+  await db.execute(`UPDATE users SET ${assignments} WHERE id_user = ?`, [
+    ...values,
+    userId,
+  ]);
+
+  return getSafeUserById(userId);
+};
+
+app.get("/api/users/me", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const user = await getSafeUserById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    return sendSafeUser(res, user);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not load account settings.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/profile", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const {
+      name,
+      phone_number,
+      bio,
+      nationality,
+      languages,
+      preferred_contact,
+      emergency_contact,
+      date_of_birth,
+    } = req.body;
+
+    const nextName = cleanText(name, 100);
+    if (name !== undefined && (!nextName || nextName.length < 5)) {
+      return res
+        .status(400)
+        .json({ message: "Name must be at least 5 characters." });
+    }
+
+    const nextPhoneNumber = normalizePhoneForUsersTable(phone_number);
+    if (phone_number !== undefined && !isValidPhoneValue(phone_number)) {
+      return res.status(400).json({
+        message: "Phone number can only contain numbers and phone symbols.",
+      });
+    }
+
+    const nextEmergencyContact = cleanText(emergency_contact, 50);
+    if (
+      emergency_contact !== undefined &&
+      !isValidPhoneValue(nextEmergencyContact)
+    ) {
+      return res.status(400).json({
+        message:
+          "Emergency contact can only contain numbers and phone symbols.",
+      });
+    }
+
+    if (languages !== undefined && !validateAccountLanguages(languages)) {
+      return res.status(400).json({
+        message: "Choose languages from the supported language list.",
+      });
+    }
+
+    const nextPreferredContact = cleanText(preferred_contact, 50);
+    if (
+      preferred_contact !== undefined &&
+      nextPreferredContact &&
+      !ACCOUNT_CONTACT_OPTIONS.has(nextPreferredContact)
+    ) {
+      return res.status(400).json({
+        message: "Choose a valid preferred contact method.",
+      });
+    }
+
+    const nextDateOfBirth = cleanText(date_of_birth, 10);
+    if (date_of_birth !== undefined && !isValidDateValue(nextDateOfBirth)) {
+      return res
+        .status(400)
+        .json({ message: "Date of birth must use YYYY-MM-DD." });
+    }
+    if (
+      date_of_birth !== undefined &&
+      nextDateOfBirth &&
+      getAgeFromDateValue(nextDateOfBirth) < 18
+    ) {
+      return res
+        .status(400)
+        .json({ message: "You must be at least 18 years old." });
+    }
+
+    const user = await updateUserFields(userId, {
+      name: nextName,
+      phone_number: nextPhoneNumber,
+      bio: cleanText(bio, 250),
+      nationality: cleanText(nationality, 100),
+      languages: normalizeLanguages(languages),
+      preferred_contact: nextPreferredContact,
+      emergency_contact: nextEmergencyContact,
+      date_of_birth: nextDateOfBirth,
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "No profile fields provided." });
+    }
+
+    return sendSafeUser(res, user);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not update profile.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/email", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const email = cleanText(req.body.email, 255)?.toLowerCase();
+    if (!email || !ACCOUNT_EMAIL_REGEX.test(email)) {
+      return res
+        .status(400)
+        .json({ message: "Please enter a valid email address." });
+    }
+
+    const [existingUsers] = await db.query(
+      "SELECT id_user FROM users WHERE email = ? AND id_user != ? LIMIT 1",
+      [email, userId],
+    );
+
+    if (existingUsers.length > 0) {
+      return res
+        .status(409)
+        .json({ message: "An account with this email already exists." });
+    }
+
+    const user = await updateUserFields(userId, { email });
+    return sendSafeUser(res, user);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not update email.",
+      details: error.message,
+    });
+  }
+});
+
+app.put(
+  "/api/users/profile-picture",
+  verifyToken,
+  upload.single("profile_picture"),
+  async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Invalid authenticated user." });
+      }
+
+      if (!req.file) {
+        return res
+          .status(400)
+          .json({ message: "Profile picture is required." });
+      }
+
+      if (!req.file.mimetype.startsWith("image/")) {
+        fs.unlink(req.file.path, () => {});
+        return res
+          .status(400)
+          .json({ message: "Only image files are allowed." });
+      }
+
+      const profilePicture = `/uploads/${req.file.filename}`;
+      const user = await updateUserFields(userId, {
+        profile_picture: profilePicture,
+      });
+
+      return sendSafeUser(res, user);
+    } catch (error) {
+      return res.status(500).json({
+        message: "Could not update profile picture.",
+        details: error.message,
+      });
+    }
+  },
+);
+
+app.put("/api/users/preferences", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const preferredLanguage = cleanText(req.body.preferred_language, 50);
+    const preferredCurrency = cleanText(req.body.preferred_currency, 10);
+    const preferredCity = cleanText(req.body.preferred_city, 100);
+    const preferredStayType = cleanText(req.body.preferred_stay_type, 100);
+
+    if (
+      preferredLanguage &&
+      !ACCOUNT_PREFERENCE_LANGUAGE_OPTIONS.has(preferredLanguage)
+    ) {
+      return res.status(400).json({
+        message: "Choose a valid preferred language.",
+      });
+    }
+
+    if (preferredCurrency && !ACCOUNT_CURRENCY_OPTIONS.has(preferredCurrency)) {
+      return res.status(400).json({
+        message: "Choose a valid preferred currency.",
+      });
+    }
+
+    if (preferredCity && !ACCOUNT_CITY_OPTIONS.has(preferredCity)) {
+      return res.status(400).json({
+        message: "Choose a valid Northern Morocco city.",
+      });
+    }
+
+    if (
+      preferredStayType &&
+      !ACCOUNT_STAY_TYPE_OPTIONS.has(preferredStayType)
+    ) {
+      return res.status(400).json({
+        message: "Choose a valid preferred stay type.",
+      });
+    }
+
+    const user = await updateUserFields(userId, {
+      preferred_language: preferredLanguage,
+      preferred_currency: preferredCurrency,
+      preferred_city: preferredCity,
+      preferred_stay_type: preferredStayType,
+    });
+
+    if (!user) {
+      return res
+        .status(400)
+        .json({ message: "No preference fields provided." });
+    }
+
+    return sendSafeUser(res, user);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not update preferences.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/deactivate", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    await db.execute("UPDATE users SET is_active = 0 WHERE id_user = ?", [
+      userId,
+    ]);
+
+    return res.status(200).json({
+      message: "Account deactivated successfully.",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not deactivate account.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/billing", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const user = await updateUserFields(userId, {
+      billing_name: cleanText(req.body.billing_name, 150),
+      billing_address: cleanText(req.body.billing_address, 255),
+      billing_city: cleanText(req.body.billing_city, 100),
+      billing_postal_code: cleanText(req.body.billing_postal_code, 30),
+      billing_country: cleanText(req.body.billing_country, 100),
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "No billing fields provided." });
+    }
+
+    return sendSafeUser(res, user);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not update billing information.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/change-password", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const currentPassword =
+      typeof req.body.currentPassword === "string"
+        ? req.body.currentPassword
+        : "";
+    const newPassword =
+      typeof req.body.newPassword === "string" ? req.body.newPassword : "";
+
+    if (!currentPassword) {
+      return res.status(400).json({ message: "Current password is required." });
+    }
+
+    if (newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 8 characters." });
+    }
+
+    const [rows] = await db.query(
+      "SELECT password FROM users WHERE id_user = ? LIMIT 1",
+      [userId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (!rows[0].password) {
+      return res.status(400).json({
+        message: "Password login is not enabled for this account.",
+      });
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(
+      currentPassword,
+      rows[0].password,
+    );
+
+    if (!isCurrentPasswordValid) {
+      return res
+        .status(401)
+        .json({ message: "Current password is incorrect." });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await db.execute("UPDATE users SET password = ? WHERE id_user = ?", [
+      hashedPassword,
+      userId,
+    ]);
+
+    return res.status(200).json({ message: "Password updated successfully." });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not update password.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/create-password", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const newPassword =
+      typeof req.body.newPassword === "string" ? req.body.newPassword : "";
+
+    if (newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 8 characters." });
+    }
+
+    const [rows] = await db.query(
+      "SELECT password FROM users WHERE id_user = ? LIMIT 1",
+      [userId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (rows[0].password) {
+      return res
+        .status(409)
+        .json({ message: "Password login is already enabled." });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await db.query(
+      "UPDATE users SET password = ?, is_active = 1 WHERE id_user = ? AND password IS NULL",
+      [hashedPassword, userId],
+    );
+
+    return res.status(200).json({
+      message: "Password login enabled for this account.",
+      has_password: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not create password.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/become-host", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const [rows] = await db.query(
+      "SELECT role FROM users WHERE id_user = ? LIMIT 1",
+      [userId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const currentRole = rows[0].role;
+    const nextRole = currentRole === "admin" ? "admin" : "host";
+
+    if (currentRole !== nextRole) {
+      await db.execute("UPDATE users SET role = ? WHERE id_user = ?", [
+        nextRole,
+        userId,
+      ]);
+    }
+
+    return res.status(200).json({ role: nextRole });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not enable host mode.",
+      details: error.message,
+    });
+  }
+});
+
+/* =========================
    AUTH ROUTES
 ========================= */
 
@@ -460,7 +1160,9 @@ app.post("/api/login", async (req, res) => {
 
     if (user.is_active === 0) {
       return res.status(401).json({
-        message: "Please verify your account before logging in.",
+        message: "This account is deactivated.",
+        canReactivate: true,
+        email: user.email,
       });
     }
 
@@ -482,6 +1184,62 @@ app.post("/api/login", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "An error occurred during login.",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/reactivate-account", async (req, res) => {
+  const { email, password } = req.body;
+  const cleanEmail =
+    typeof email === "string" ? email.trim().toLowerCase() : "";
+  const safePassword = typeof password === "string" ? password : "";
+
+  try {
+    if (!cleanEmail) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+
+    if (!safePassword) {
+      return res.status(400).json({ message: "Password is required." });
+    }
+
+    const [rows] = await db.query(
+      "SELECT * FROM users WHERE email = ? LIMIT 1",
+      [cleanEmail],
+    );
+
+    if (rows.length === 0 || !rows[0].password) {
+      return res.status(401).json({
+        message: "Email or password is incorrect.",
+      });
+    }
+
+    const user = rows[0];
+    const isMatch = await bcrypt.compare(safePassword, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        message: "Email or password is incorrect.",
+      });
+    }
+
+    if (user.is_active !== 0) {
+      return res.status(200).json({
+        message: "This account is already active.",
+      });
+    }
+
+    await db.execute("UPDATE users SET is_active = 1 WHERE id_user = ?", [
+      user.id_user,
+    ]);
+
+    return res.status(200).json({
+      message: "Account reactivated successfully. You can sign in now.",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not reactivate account.",
       details: error.message,
     });
   }
@@ -662,10 +1420,11 @@ app.get("/api/houses/:id", async (req, res) => {
         p.status,
         c.name AS city,
         c.name AS city_name,
-        u.name AS host_name,
+        COALESCE(u.name, 'Dar Darek Host') AS host_name,
         u.phone_number AS host_phone,
-        SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1) AS host_first_name,
-        NULLIF(TRIM(SUBSTRING(COALESCE(u.name, ''), LENGTH(SUBSTRING_INDEX(COALESCE(u.name, ''), ' ', 1)) + 1)), '') AS host_last_name
+        u.profile_picture AS host_profile_picture,
+        u.bio AS host_bio,
+        COALESCE(u.role, 'host') AS host_role     
       FROM properties p
       LEFT JOIN cities c ON p.id_city = c.id_city
       LEFT JOIN users u ON p.id_user = u.id_user
@@ -906,6 +1665,7 @@ app.post("/api/cityForAbout", async (req, res) => {
 
 app.post(
   "/api/publishProperty",
+  verifyToken,
   upload.array("images", 12),
   async (req, res) => {
     try {
@@ -931,8 +1691,15 @@ app.post(
         checkOut,
         availableFrom,
         availableTo,
-        idUser,
       } = req.body;
+
+      const userId = getUserIdFromRequest(req);
+
+      if (!userId) {
+        return res.status(401).json({
+          message: "Invalid authenticated user.",
+        });
+      }
 
       const amenities = JSON.parse(req.body.amenities || "{}");
       const uploadedImages = req.files
@@ -1022,7 +1789,7 @@ app.post(
           longitude ? Number(longitude) : null,
           propertyType || null,
           id_city,
-          idUser || null,
+          userId,
           Number(price),
           Number(guests),
           Number(bedrooms || 0),
@@ -1094,9 +1861,13 @@ app.post("/api/houses", upload.array("images", 12), async (req, res) => {
    ADMIN ROUTES
 ========================= */
 
-app.get("/api/pendingProperties", verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const [result] = await db.query(`
+app.get(
+  "/api/pendingProperties",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const [result] = await db.query(`
         SELECT 
           p.*, 
         c.name AS city_name, 
@@ -1115,66 +1886,77 @@ app.get("/api/pendingProperties", verifyToken, verifyAdmin, async (req, res) => 
         WHERE p.status = 'pending'
       `);
 
-    const [statusCounts] = await db.query(`
+      const [statusCounts] = await db.query(`
         SELECT status, COUNT(*) AS total
         FROM properties
         GROUP BY status
       `);
 
-    const summary = statusCounts.reduce(
-      (acc, row) => {
-        const safeStatus = String(row.status || "").toLowerCase();
-        const total = Number(row.total) || 0;
+      const summary = statusCounts.reduce(
+        (acc, row) => {
+          const safeStatus = String(row.status || "").toLowerCase();
+          const total = Number(row.total) || 0;
 
-        acc.all += total;
+          acc.all += total;
 
-        if (safeStatus === "approved") {
-          acc.approved += total;
-        } else if (safeStatus === "rejected") {
-          acc.rejected += total;
-        } else if (safeStatus === "pending") {
-          acc.pending += total;
-        }
+          if (safeStatus === "approved") {
+            acc.approved += total;
+          } else if (safeStatus === "rejected") {
+            acc.rejected += total;
+          } else if (safeStatus === "pending") {
+            acc.pending += total;
+          }
 
-        return acc;
-      },
-      { all: 0, pending: 0, approved: 0, rejected: 0 },
-    );
+          return acc;
+        },
+        { all: 0, pending: 0, approved: 0, rejected: 0 },
+      );
 
-    res.status(200).json({
-      pendingProperties: result,
-      summary,
-    });
-  } catch (error) {
-    res.status(500).json({ details: error.message });
-  }
-});
+      res.status(200).json({
+        pendingProperties: result,
+        summary,
+      });
+    } catch (error) {
+      res.status(500).json({ details: error.message });
+    }
+  },
+);
 
-app.post("/api/admin/approve/:id", verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    await db.execute(
-      "UPDATE properties SET status = 'approved' WHERE id_property = ?",
-      [id],
-    );
-    res.status(200).json({ message: "Property approved successfully." });
-  } catch (error) {
-    res.status(500).json({ details: error.message });
-  }
-});
+app.post(
+  "/api/admin/approve/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(
+        "UPDATE properties SET status = 'approved' WHERE id_property = ?",
+        [id],
+      );
+      res.status(200).json({ message: "Property approved successfully." });
+    } catch (error) {
+      res.status(500).json({ details: error.message });
+    }
+  },
+);
 
-app.post("/api/admin/reject/:id", verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    await db.execute(
-      "UPDATE properties SET status = 'rejected' WHERE id_property = ?",
-      [id],
-    );
-    res.status(200).json({ message: "Property rejected successfully." });
-  } catch (error) {
-    res.status(500).json({ details: error.message });
-  }
-});
+app.post(
+  "/api/admin/reject/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(
+        "UPDATE properties SET status = 'rejected' WHERE id_property = ?",
+        [id],
+      );
+      res.status(200).json({ message: "Property rejected successfully." });
+    } catch (error) {
+      res.status(500).json({ details: error.message });
+    }
+  },
+);
 
 /* =========================
    BOOKING ROUTES
@@ -1182,9 +1964,14 @@ app.post("/api/admin/reject/:id", verifyToken, verifyAdmin, async (req, res) => 
 
 app.post("/api/bookingProperty", verifyToken, async (req, res) => {
   const { id_property, checkIn, checkOut, total_price, id_user } = req.body;
+  const tokenUserId = Number(req.user?.id);
+  const bookingUserId =
+    Number.isFinite(tokenUserId) && tokenUserId > 0
+      ? tokenUserId
+      : Number(id_user);
 
   try {
-    if (!id_property || !checkIn || !checkOut || !total_price || !id_user) {
+    if (!id_property || !checkIn || !checkOut || !total_price || !bookingUserId) {
       return res.status(400).json({ message: "All fields are required." });
     }
 
@@ -1194,20 +1981,41 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       });
     }
 
+    const [userActiveBooking] = await db.query(
+      `
+      SELECT id_booking
+      FROM bookings
+      WHERE id_property = ?
+        AND id_user = ?
+        AND (
+          status = 'pending'
+          OR (status = 'approved' AND end_date >= CURDATE())
+        )
+      LIMIT 1
+      `,
+      [id_property, bookingUserId],
+    );
+
+    if (userActiveBooking.length > 0) {
+      return res.status(409).json({
+        message: "You already have an active booking for this property.",
+      });
+    }
+
     const [bookingConflict] = await db.query(
       `
       SELECT id_booking 
       FROM bookings 
       WHERE id_property = ? 
-      AND status IN ('pending', 'confirmed')
+      AND status IN ('pending', 'approved')
       AND (start_date < ? AND end_date > ?)
       `,
       [id_property, checkOut, checkIn],
     );
 
     if (bookingConflict.length > 0) {
-      return res.status(400).json({
-        message: "Property is already booked for these dates.",
+      return res.status(409).json({
+        message: "This property is already reserved for the selected dates.",
       });
     }
 
@@ -1217,7 +2025,7 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       (id_property, id_user, start_date, end_date, total_price, status) 
       VALUES (?, ?, ?, ?, ?, 'pending')
       `,
-      [id_property, id_user, checkIn, checkOut, total_price],
+      [id_property, bookingUserId, checkIn, checkOut, total_price],
     );
 
     res.status(201).json({
@@ -1227,6 +2035,219 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
     console.error("Database Error:", error);
     res.status(500).json({
       message: "Server error while processing your booking.",
+    });
+  }
+});
+
+app.get("/api/properties/:id/booked-dates", async (req, res) => {
+  const propertyId = Number(req.params.id);
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
+
+  try {
+    const [bookedDates] = await db.query(
+      `
+      SELECT start_date, end_date, status
+      FROM bookings
+      WHERE id_property = ?
+        AND (
+          status = 'pending'
+          OR (status = 'approved' AND end_date >= CURDATE())
+        )
+      ORDER BY start_date ASC
+      `,
+      [propertyId],
+    );
+
+    res.status(200).json({ bookedDates });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while fetching booked dates.",
+      details: error.message,
+    });
+  }
+});
+
+app.get("/api/my-bookings", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+
+  if (!Number.isFinite(userId) || userId <= 0) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  try {
+    const [bookings] = await db.query(
+      `
+      SELECT
+        b.id_booking AS id,
+        b.id_property AS propertyId,
+        p.title AS propertyTitle,
+        COALESCE(c.name, '') AS city,
+        COALESCE(NULLIF(p.neighborhood, ''), NULLIF(p.address, ''), c.name, '') AS location,
+        (
+          SELECT pi.image_url
+          FROM property_images pi
+          WHERE pi.id_property = p.id_property
+          ORDER BY pi.is_main DESC, pi.id_image ASC
+          LIMIT 1
+        ) AS image,
+        b.start_date AS checkIn,
+        b.end_date AS checkOut,
+        p.guests_total AS guests,
+        b.total_price AS totalPrice,
+        CASE
+          WHEN b.status = 'pending' THEN 'pending'
+          WHEN b.status = 'rejected' THEN 'cancelled'
+          WHEN b.status = 'approved' AND b.end_date < CURDATE() THEN 'completed'
+          ELSE 'upcoming'
+        END AS status,
+        COALESCE(host.name, 'DarDarek host') AS hostName,
+        EXISTS (
+          SELECT 1
+          FROM reviews review_check
+          WHERE review_check.id_booking = b.id_booking
+            AND review_check.id_user = b.id_user
+          LIMIT 1
+        ) AS reviewed
+      FROM bookings b
+      JOIN properties p ON b.id_property = p.id_property
+      LEFT JOIN cities c ON p.id_city = c.id_city
+      LEFT JOIN users host ON p.id_user = host.id_user
+      WHERE b.id_user = ?
+      ORDER BY b.start_date DESC, b.created_at DESC
+      `,
+      [userId],
+    );
+
+    res.status(200).json({ bookings });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while fetching your bookings.",
+      details: error.message,
+    });
+  }
+});
+
+app.patch("/api/my-bookings/:id/cancel", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+  const bookingId = Number(req.params.id);
+
+  if (!Number.isFinite(userId) || userId <= 0) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  if (!Number.isFinite(bookingId) || bookingId <= 0) {
+    return res.status(400).json({ message: "Invalid booking id." });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `SELECT id_booking, status, end_date, end_date < CURDATE() AS isCompleted
+       FROM bookings
+       WHERE id_booking = ? AND id_user = ?
+       LIMIT 1`,
+      [bookingId, userId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Booking not found." });
+    }
+
+    const booking = rows[0];
+
+    if (booking.status === "rejected") {
+      return res.status(200).json({ message: "Booking is already cancelled." });
+    }
+
+    if (booking.status === "approved" && Number(booking.isCompleted) === 1) {
+      return res
+        .status(400)
+        .json({ message: "Completed bookings cannot be cancelled." });
+    }
+
+    await db.execute(
+      "UPDATE bookings SET status = 'rejected' WHERE id_booking = ? AND id_user = ?",
+      [bookingId, userId],
+    );
+
+    res.status(200).json({ message: "Booking cancelled successfully." });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while cancelling your booking.",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/my-bookings/:id/review", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+  const bookingId = Number(req.params.id);
+  const safeRating = Number(req.body?.rating);
+  const comment = String(req.body?.comment || "").trim();
+
+  if (!Number.isFinite(userId) || userId <= 0) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  if (!Number.isFinite(bookingId) || bookingId <= 0) {
+    return res.status(400).json({ message: "Invalid booking id." });
+  }
+
+  if (!Number.isFinite(safeRating) || safeRating < 1 || safeRating > 5) {
+    return res.status(400).json({ message: "Rating must be between 1 and 5." });
+  }
+
+  if (comment.length < 10) {
+    return res
+      .status(400)
+      .json({ message: "Review comment must be at least 10 characters." });
+  }
+
+  try {
+    const [eligibleBookings] = await db.query(
+      `SELECT id_booking, id_property
+       FROM bookings
+       WHERE id_booking = ?
+         AND id_user = ?
+         AND status = 'approved'
+         AND end_date < CURDATE()
+       LIMIT 1`,
+      [bookingId, userId],
+    );
+
+    if (eligibleBookings.length === 0) {
+      return res.status(403).json({
+        message:
+          "You can only leave a review after a completed, approved stay.",
+      });
+    }
+
+    const booking = eligibleBookings[0];
+
+    const [existingReview] = await db.query(
+      "SELECT id_review FROM reviews WHERE id_booking = ? AND id_user = ?",
+      [bookingId, userId],
+    );
+
+    if (existingReview.length > 0) {
+      return res
+        .status(409)
+        .json({ message: "You have already reviewed this booking." });
+    }
+
+    await db.execute(
+      `INSERT INTO reviews (id_property, id_user, id_booking, rating, comment)
+       VALUES (?, ?, ?, ?, ?)`,
+      [booking.id_property, userId, bookingId, safeRating, comment],
+    );
+
+    res.status(201).json({ message: "Review submitted successfully." });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error while submitting your review.",
+      details: error.message,
     });
   }
 });
@@ -1309,13 +2330,15 @@ app.patch("/api/rentalRequests/:id/status", verifyToken, async (req, res) => {
     );
 
     if (rows.length === 0) {
-      return res.status(403).json({ message: "Not authorized to update this booking." });
+      return res
+        .status(403)
+        .json({ message: "Not authorized to update this booking." });
     }
 
-    await db.execute(
-      "UPDATE bookings SET status = ? WHERE id_booking = ?",
-      [status, bookingId],
-    );
+    await db.execute("UPDATE bookings SET status = ? WHERE id_booking = ?", [
+      status,
+      bookingId,
+    ]);
 
     // ── Trigger notification ──────────────────────────────────────────────
     if (status === "approved" || status === "rejected") {
@@ -1462,44 +2485,52 @@ app.post("/api/reviews", verifyToken, async (req, res) => {
 });
 
 // Check whether a user is eligible to leave a review for a property
-app.get("/api/properties/:id/review-eligibility", verifyToken, async (req, res) => {
-  const userId = Number(req.user?.id);
-  const propertyId = Number(req.params.id);
+app.get(
+  "/api/properties/:id/review-eligibility",
+  verifyToken,
+  async (req, res) => {
+    const userId = Number(req.user?.id);
+    const propertyId = Number(req.params.id);
 
-  if (!Number.isFinite(propertyId) || propertyId <= 0) {
-    return res.status(400).json({ message: "Invalid property id." });
-  }
+    if (!Number.isFinite(propertyId) || propertyId <= 0) {
+      return res.status(400).json({ message: "Invalid property id." });
+    }
 
-  try {
-    const [eligibleBookings] = await db.query(
-      `SELECT b.id_booking FROM bookings b
+    try {
+      const [eligibleBookings] = await db.query(
+        `SELECT b.id_booking FROM bookings b
        WHERE b.id_user = ?
          AND b.id_property = ?
          AND b.status = 'approved'
          AND b.end_date < CURDATE()
        LIMIT 1`,
-      [userId, propertyId],
-    );
+        [userId, propertyId],
+      );
 
-    if (eligibleBookings.length === 0) {
-      return res.status(200).json({ eligible: false, alreadyReviewed: false });
+      if (eligibleBookings.length === 0) {
+        return res
+          .status(200)
+          .json({ eligible: false, alreadyReviewed: false });
+      }
+
+      const bookingId = eligibleBookings[0].id_booking;
+
+      const [existing] = await db.query(
+        "SELECT id_review FROM reviews WHERE id_booking = ? AND id_user = ?",
+        [bookingId, userId],
+      );
+
+      res.status(200).json({
+        eligible: true,
+        alreadyReviewed: existing.length > 0,
+      });
+    } catch (error) {
+      res
+        .status(500)
+        .json({ message: "Server error.", details: error.message });
     }
-
-    const bookingId = eligibleBookings[0].id_booking;
-
-    const [existing] = await db.query(
-      "SELECT id_review FROM reviews WHERE id_booking = ? AND id_user = ?",
-      [bookingId, userId],
-    );
-
-    res.status(200).json({
-      eligible: true,
-      alreadyReviewed: existing.length > 0,
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Server error.", details: error.message });
-  }
-});
+  },
+);
 
 /* =========================
    NOTIFICATION ROUTES

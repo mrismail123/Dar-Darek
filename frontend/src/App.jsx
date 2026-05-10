@@ -14,11 +14,12 @@ import AdminDashboard from "./AdminDashboard";
 import PropertyDetails from "./pages/PropertyDetails";
 import Publish from "./pages/Publish";
 import RentalRequests from "./RentalRequests";
+import AccountSettings from "./pages/AccountSettings";
+import MyBookings from "./pages/MyBookings";
 
 import { useToken } from "./Contexts/TokenContext";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
 
-import MyBookings from "./MyFavorites";
 import MyFavorites from "./MyFavorites";
 
 function App() {
@@ -77,7 +78,7 @@ function App() {
           path="/my-bookings"
           element={
             <ProtectedRoute>
-              <MyFavorites />
+              <MyBookings />
             </ProtectedRoute>
           }
         />
@@ -105,6 +106,24 @@ function App() {
           element={
             <ProtectedRoute>
               <RentalRequests />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/account-settings"
+          element={
+            <ProtectedRoute>
+              <AccountSettings />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/my-bookings"
+          element={
+            <ProtectedRoute>
+              <MyBookings />
             </ProtectedRoute>
           }
         />
