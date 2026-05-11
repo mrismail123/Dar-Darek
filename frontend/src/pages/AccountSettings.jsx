@@ -22,6 +22,7 @@ import { useNavigate } from "react-router-dom";
 import { useToken } from "../Contexts/TokenContext";
 import Footer from "../Footer";
 import "./AccountSettings.css";
+import Header from "../Home components/Header";
 
 const API_BASE_URL = "http://localhost:5000";
 const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
@@ -540,9 +541,8 @@ function SettingsModal({
                     setOpenBirthDropdown(null);
                   }}
                   placeholder="Day"
-                  className={`settings-birth-dropdown ${
-                    errors.day ? "settings-birth-dropdown--error" : ""
-                  }`}
+                  className={`settings-birth-dropdown ${errors.day ? "settings-birth-dropdown--error" : ""
+                    }`}
                   menuClassName="settings-birth-dropdown__menu"
                 />
                 {errors.day && (
@@ -567,9 +567,8 @@ function SettingsModal({
                     setOpenBirthDropdown(null);
                   }}
                   placeholder="Month"
-                  className={`settings-birth-dropdown ${
-                    errors.month ? "settings-birth-dropdown--error" : ""
-                  }`}
+                  className={`settings-birth-dropdown ${errors.month ? "settings-birth-dropdown--error" : ""
+                    }`}
                   menuClassName="settings-birth-dropdown__menu"
                   getOptionValue={(month) => month.value}
                   getOptionLabel={(month) => month.label}
@@ -596,9 +595,8 @@ function SettingsModal({
                     setOpenBirthDropdown(null);
                   }}
                   placeholder="Year"
-                  className={`settings-birth-dropdown ${
-                    errors.year ? "settings-birth-dropdown--error" : ""
-                  }`}
+                  className={`settings-birth-dropdown ${errors.year ? "settings-birth-dropdown--error" : ""
+                    }`}
                   menuClassName="settings-birth-dropdown__menu"
                 />
                 {errors.year && (
@@ -822,9 +820,8 @@ function AvatarPhotoModal({ photo, isSaving, onClose, onSave }) {
         <p>Drag to reposition your photo. Use the slider to zoom.</p>
 
         <div
-          className={`settings-avatar-preview ${
-            isDragging ? "settings-avatar-preview--dragging" : ""
-          }`}
+          className={`settings-avatar-preview ${isDragging ? "settings-avatar-preview--dragging" : ""
+            }`}
           onMouseDown={handleDragStart}
           onMouseMove={handleDragMove}
           onMouseUp={handleDragEnd}
@@ -1102,9 +1099,8 @@ function PayoutSetupPreviewModal({ onClose }) {
         <div className="settings-payout-steps" aria-label="Payout setup step">
           {[1, 2, 3].map((item) => (
             <span
-              className={`settings-payout-step ${
-                item <= step ? "settings-payout-step--active" : ""
-              }`}
+              className={`settings-payout-step ${item <= step ? "settings-payout-step--active" : ""
+                }`}
               key={item}
             >
               {item}
@@ -1118,9 +1114,8 @@ function PayoutSetupPreviewModal({ onClose }) {
             <div className="settings-payout-choice-grid">
               {billingCountryOptions.map((option) => (
                 <button
-                  className={`settings-payout-choice ${
-                    country === option ? "settings-payout-choice--active" : ""
-                  }`}
+                  className={`settings-payout-choice ${country === option ? "settings-payout-choice--active" : ""
+                    }`}
                   key={option}
                   type="button"
                   onClick={() => setCountry(option)}
@@ -1138,9 +1133,8 @@ function PayoutSetupPreviewModal({ onClose }) {
             <div className="settings-payout-choice-grid">
               {payoutMethodOptions.map((option) => (
                 <button
-                  className={`settings-payout-choice ${
-                    method === option ? "settings-payout-choice--active" : ""
-                  }`}
+                  className={`settings-payout-choice ${method === option ? "settings-payout-choice--active" : ""
+                    }`}
                   key={option}
                   type="button"
                   onClick={() => setMethod(option)}
@@ -1216,9 +1210,8 @@ function ProfileRow({
         <p>{description}</p>
       </div>
       <div
-        className={`settings-profile-row__value ${
-          isEmptyValue ? "settings-profile-row__value--empty" : ""
-        }`}
+        className={`settings-profile-row__value ${isEmptyValue ? "settings-profile-row__value--empty" : ""
+          }`}
       >
         {formatValue(value)}
       </div>
@@ -1290,9 +1283,8 @@ function PreferenceDropdown({
 
   return (
     <div
-      className={`settings-preference-dropdown ${
-        open ? "settings-preference-dropdown--open" : ""
-      } ${className}`}
+      className={`settings-preference-dropdown ${open ? "settings-preference-dropdown--open" : ""
+        } ${className}`}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) {
           onClose();
@@ -1326,11 +1318,10 @@ function PreferenceDropdown({
             const optionLabel = getOptionLabel(option);
             return (
               <button
-                className={`settings-preference-dropdown__option ${
-                  optionValue === value
-                    ? "settings-preference-dropdown__option--active"
-                    : ""
-                }`}
+                className={`settings-preference-dropdown__option ${optionValue === value
+                  ? "settings-preference-dropdown__option--active"
+                  : ""
+                  }`}
                 key={optionValue}
                 type="button"
                 role="option"
@@ -1836,10 +1827,10 @@ export default function AccountSettings() {
           : type === "phone"
             ? { phone: profile.phone, step: 1, code: "" }
             : {
-                day: birthDay,
-                month: birthMonth,
-                year: birthYear,
-              };
+              day: birthDay,
+              month: birthMonth,
+              year: birthYear,
+            };
 
     setModal({ type, draft });
     setModalErrors({});
@@ -1920,11 +1911,11 @@ export default function AccountSettings() {
           today.getFullYear() -
           selectedDate.getFullYear() -
           (today <
-          new Date(
-            today.getFullYear(),
-            selectedDate.getMonth(),
-            selectedDate.getDate(),
-          )
+            new Date(
+              today.getFullYear(),
+              selectedDate.getMonth(),
+              selectedDate.getDate(),
+            )
             ? 1
             : 0);
 
@@ -2029,9 +2020,9 @@ export default function AccountSettings() {
         : "/api/users/create-password";
       const passwordBody = hasPassword
         ? {
-            currentPassword: security.currentPassword,
-            newPassword: security.newPassword,
-          }
+          currentPassword: security.currentPassword,
+          newPassword: security.newPassword,
+        }
         : { newPassword: security.newPassword };
 
       const data = await accountRequest(passwordPath, {
@@ -2258,13 +2249,13 @@ export default function AccountSettings() {
     const visibleError = shouldShowFeedback ? passwordErrors[key] : "";
 
     return (
+
       <label className="settings-field">
         <span className="settings-label">{label}</span>
         <div className="settings-password-input">
           <input
-            className={`settings-input ${visibleError || hasMismatch ? "settings-input--error" : ""} ${
-              hasMatch ? "settings-input--success" : ""
-            }`}
+            className={`settings-input ${visibleError || hasMismatch ? "settings-input--error" : ""} ${hasMatch ? "settings-input--success" : ""
+              }`}
             type={showPassword[key] ? "text" : "password"}
             value={security[key]}
             disabled={passwordSaving}
@@ -2307,7 +2298,9 @@ export default function AccountSettings() {
   };
 
   return (
-    <div className="account-settings-page">
+
+    <div style={{ background: "white", paddingTop: "0" }} className="account-settings-page">
+      <Header />
       <Toast toast={toast} />
       <SettingsModal
         modal={modal}
@@ -2358,7 +2351,7 @@ export default function AccountSettings() {
         />
       )}
 
-      <div className="account-settings-wrapper">
+      <div style={{ marginTop: "50px" }} className="account-settings-wrapper">
         <header className="account-settings-header-card">
           <div className="account-settings-avatar-wrap">
             <div className="account-settings-avatar">
@@ -2652,13 +2645,12 @@ export default function AccountSettings() {
                           <div className="settings-emergency-contact">
                             <div className="settings-emergency-contact__row">
                               <input
-                                className={`settings-input ${
-                                  emergencyContactError ||
+                                className={`settings-input ${emergencyContactError ||
                                   (emergencyVerification.error &&
                                     emergencyVerification.step === "idle")
-                                    ? "settings-input--error"
-                                    : ""
-                                }`}
+                                  ? "settings-input--error"
+                                  : ""
+                                  }`}
                                 type="tel"
                                 value={profile.emergencyContact}
                                 onChange={(event) => {
@@ -2697,11 +2689,11 @@ export default function AccountSettings() {
                           </span>
                           {(emergencyContactError ||
                             emergencyVerification.error) && (
-                            <span className="settings-error">
-                              {emergencyVerification.error ||
-                                "Enter a valid emergency phone number."}
-                            </span>
-                          )}
+                              <span className="settings-error">
+                                {emergencyVerification.error ||
+                                  "Enter a valid emergency phone number."}
+                              </span>
+                            )}
                         </ProfileFieldCard>
 
                       </div>
@@ -2965,9 +2957,8 @@ export default function AccountSettings() {
 
                     <div className="settings-host-grid">
                       <div
-                        className={`settings-card settings-host-card ${
-                          hostModeActive ? "settings-host-card--active" : ""
-                        }`}
+                        className={`settings-card settings-host-card ${hostModeActive ? "settings-host-card--active" : ""
+                          }`}
                       >
                         {hostModeActive ? (
                           <>
@@ -3552,7 +3543,7 @@ export default function AccountSettings() {
           </main>
         </div>
       </div>
-      <Footer />
+      {/* <Footer /> */}
     </div>
   );
 }

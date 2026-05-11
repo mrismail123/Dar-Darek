@@ -244,7 +244,10 @@ export default function PendingPropertiesTable() {
         setModalLoading(true);
         setModalData(null);
         try {
-            const response = await axios.get(buildApiUrl(`/api/houses/${property.id_property}`));
+            const response = await axios.get(
+                buildApiUrl(`/api/houses/${property.id_property}`),
+                createAuthConfig(token),
+            );
             // Merge the host_email from the table row since /api/properties/:id doesn't return it separately
             const normalizedProperty = response.data?.property || {};
 
@@ -319,8 +322,6 @@ export default function PendingPropertiesTable() {
             alert("Failed to reject property.");
         }
     };
-
-    console.log(modalData);
 
     const summaryCards = [
         {
@@ -630,7 +631,7 @@ export default function PendingPropertiesTable() {
                                     {modalData.price_per_day && (
                                         <Chip
                                             icon={<NightlightIcon sx={{ fontSize: '0.85rem !important' }} />}
-                                            label={`$${modalData.price_per_day} / night`}
+                                            label={`${Number(modalData.price_per_day).toLocaleString('en-MA')} MAD / night`}
                                             size="small"
                                             sx={{ backgroundColor: '#ecfdf5', color: '#059669', fontWeight: 600 }}
                                         />
@@ -647,7 +648,7 @@ export default function PendingPropertiesTable() {
                                     {[
                                         { icon: <BedIcon sx={{ fontSize: '1.1rem', color: '#64748b' }} />, label: 'Bedrooms', value: modalData.bedrooms },
                                         { icon: <BathtubIcon sx={{ fontSize: '1.1rem', color: '#64748b' }} />, label: 'Bathrooms', value: modalData.bathrooms },
-                                        { icon: <PeopleIcon sx={{ fontSize: '1.1rem', color: '#64748b' }} />, label: 'Guests', value: modalData.guests },
+                                        { icon: <PeopleIcon sx={{ fontSize: '1.1rem', color: '#64748b' }} />, label: 'Guests', value: modalData.guests ?? modalData.guests_total },
                                     ].map((stat) => (
                                         <Box key={stat.label} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                             {stat.icon}
@@ -679,7 +680,7 @@ export default function PendingPropertiesTable() {
 
                                 {/* Access details */}
                                 <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', mb: 1 }}>
-                                    Acess Details
+                                    Access Details
                                 </Typography>
                                 <Typography variant="body2" sx={{ color: '#475569', lineHeight: 1.75, mb: 3 }}>
                                     {modalData.access_instructions || 'No access instructions provided by the host.'}

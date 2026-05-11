@@ -224,6 +224,18 @@
   box-shadow: 0 8px 18px rgba(20, 168, 157, 0.12);
 }
 
+.pd-action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
+}
+
+.pd-action-btn--active {
+  border-color: rgba(183, 50, 50, 0.28);
+  background: rgba(183, 50, 50, 0.08);
+  color: #9f2c2c;
+}
+
 .pd-title-block,
 .pd-title-card {
   margin-bottom: 16px;
@@ -2207,6 +2219,85 @@ button.pd-calendar__day:hover:not(:disabled) {
 .pd-booking-message--success span {
   background: rgba(20, 168, 157, 0.14);
   color: #118f85;
+}
+
+.pd-report-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  background: rgba(11, 33, 54, 0.62);
+  backdrop-filter: blur(8px);
+}
+
+.pd-report-modal__panel {
+  position: relative;
+  width: min(100%, 520px);
+  max-height: calc(100vh - 44px);
+  overflow-y: auto;
+  border-radius: 18px;
+  background: #fff;
+  padding: 26px;
+  box-shadow: 0 24px 70px rgba(11, 33, 54, 0.28);
+}
+
+.pd-report-modal__panel h3 {
+  margin: 0 0 8px;
+  color: var(--navy-900);
+  font-size: 1.35rem;
+}
+
+.pd-report-modal__panel p {
+  margin: 0 0 18px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.pd-report-modal__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 800;
+}
+
+.pd-report-form {
+  display: grid;
+  gap: 14px;
+}
+
+.pd-report-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--navy-900);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.pd-report-form select,
+.pd-report-form textarea {
+  width: 100%;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--navy-900);
+  font: inherit;
+  font-weight: 600;
+  padding: 12px 13px;
+}
+
+.pd-report-form textarea {
+  resize: vertical;
+  min-height: 128px;
+  line-height: 1.55;
 }
 
 .pd-photo-modal {

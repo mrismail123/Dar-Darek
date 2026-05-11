@@ -120,15 +120,6 @@ function App() {
         />
 
         <Route
-          path="/my-bookings"
-          element={
-            <ProtectedRoute>
-              <MyBookings />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
           path="/Authentication/forgot-password"
           element={<ForgotPassword />}
         />

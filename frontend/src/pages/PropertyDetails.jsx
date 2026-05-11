@@ -10,7 +10,7 @@ import tetouanImage from "../assets/tetouan-hero.jpg";
 import Header from "../Home components/Header";
 import Footer from "../Footer";
 import { useThemeGlobal } from "../Contexts/ThemeContext";
-import { buildApiUrl } from "../lib/api";
+import { buildApiUrl, createAuthConfig } from "../lib/api";
 
 const mockProperty = {
   brand: "Dar Darek",
@@ -610,7 +610,7 @@ const getInitials = (name = "") =>
 
 const normalizePublicImageUrl = (image) => {
   if (!image || typeof image !== "string") return "";
-  return image.startsWith("/uploads") ? `http://localhost:5000${image}` : image;
+  return image.startsWith("/uploads") ? buildApiUrl(image) : image;
 };
 
 const scrollToHost = () => {
@@ -912,29 +912,123 @@ function BookingCard({
 }) {
 
   // state for favorites
-  const { user } = useToken();
+  const { token, user } = useToken();
   const [isSaved, setIsSaved] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportCategory, setReportCategory] = useState("property_accuracy");
+  const [reportReason, setReportReason] = useState("");
+  const [reportNotice, setReportNotice] = useState(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!token || !property.id) {
+      setIsSaved(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    const fetchFavoriteState = async () => {
+      try {
+        const response = await axios.get(
+          buildApiUrl("/api/favorites"),
+          createAuthConfig(token),
+        );
+        if (isMounted) {
+          const favorites = Array.isArray(response.data) ? response.data : [];
+          setIsSaved(
+            favorites.some(
+              (favorite) => Number(favorite.id_property) === Number(property.id),
+            ),
+          );
+        }
+      } catch {
+        if (isMounted) setIsSaved(false);
+      }
+    };
+
+    fetchFavoriteState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token, property.id]);
 
   // function for favorites hear click handling 
   const handleFavoriteClick = async (e) => {
     if (e) e.stopPropagation();
 
     // login required error
-    if (!user) {
+    if (!token || !user) {
       alert("Please login to save favorites!");
       return;
     }
 
+    setFavoriteLoading(true);
     try {
-      const response = await axios.post('http://localhost:5000/api/favorites/toggle', {
-        id_user: user.id,
-        id_property: property.id
-      });
+      const response = await axios.post(
+        buildApiUrl("/api/favorites/toggle"),
+        { id_property: property.id },
+        createAuthConfig(token),
+      );
 
       setIsSaved(response.data.saved);
-      alert(isSaved);
     } catch (error) {
       console.error("Error toggling favorite:", error);
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
+
+  const handleReportSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!token) {
+      setReportNotice({
+        type: "error",
+        text: "Please sign in before submitting a report.",
+      });
+      navigate("/Authentication", { state: { from: location.pathname } });
+      return;
+    }
+
+    if (reportReason.trim().length < 20) {
+      setReportNotice({
+        type: "error",
+        text: "Please describe the issue in at least 20 characters.",
+      });
+      return;
+    }
+
+    setReportSubmitting(true);
+    setReportNotice(null);
+
+    try {
+      const response = await axios.post(
+        buildApiUrl("/api/reports"),
+        {
+          id_property: property.id,
+          category: reportCategory,
+          reason: reportReason.trim(),
+        },
+        createAuthConfig(token),
+      );
+
+      setReportNotice({
+        type: "success",
+        text: response.data?.message || "Report submitted for review.",
+      });
+      setReportReason("");
+    } catch (error) {
+      setReportNotice({
+        type: "error",
+        text:
+          error.response?.data?.message ||
+          "Could not submit the report. Please try again.",
+      });
+    } finally {
+      setReportSubmitting(false);
     }
   };
 
@@ -986,12 +1080,8 @@ function BookingCard({
       id_property: id,
       checkIn: dates.checkIn,
       checkOut: dates.checkOut,
-      total_price: nightsTotal,
-      id_user: localStorage.getItem("user")
-        ? JSON.parse(localStorage.getItem("user")).id
-        : null,
     };
-
+    
     if (!reservationData.checkIn || !reservationData.checkOut) {
       setBookingNotice({
         type: "error",
@@ -999,6 +1089,7 @@ function BookingCard({
       });
       return;
     }
+
 
     if (!isBookingValid) {
       setBookingNotice({
@@ -1072,8 +1163,23 @@ function BookingCard({
         <button type="button" className="pd-action-btn">
           🔗 Share
         </button>
-        <button onClick={handleFavoriteClick} type="button" className="pd-action-btn">
+        <button
+          onClick={handleFavoriteClick}
+          type="button"
+          className={`pd-action-btn${isSaved ? " pd-action-btn--active" : ""}`}
+          disabled={favoriteLoading}
+        >
           ❤️ Save
+        </button>
+        <button
+          type="button"
+          className="pd-action-btn"
+          onClick={() => {
+            setReportOpen(true);
+            setReportNotice(null);
+          }}
+        >
+          ! Report
         </button>
       </div>
       <aside className="pd-booking pd-card" aria-label="Booking card">
@@ -1157,7 +1263,7 @@ function BookingCard({
           // type="button"
           className="pd-primary-btn"
           onClick={handleReserveFunction}
-          disabled={!isBookingValid || Boolean(bookingConflictMessage)}
+          // disabled={!isBookingValid || Boolean(bookingConflictMessage)}
         >
           Reserve
         </button>
@@ -1172,6 +1278,70 @@ function BookingCard({
           </div>
         </div>
       </aside>
+
+      {reportOpen && (
+        <div className="pd-report-modal" role="dialog" aria-modal="true">
+          <div className="pd-report-modal__panel">
+            <button
+              type="button"
+              className="pd-report-modal__close"
+              onClick={() => setReportOpen(false)}
+              aria-label="Close report dialog"
+            >
+              x
+            </button>
+            <h3>Report this listing</h3>
+            <p>
+              Share the issue with Dar Darek moderation. Reports are private and reviewed by admins.
+            </p>
+
+            {reportNotice && (
+              <div
+                className={`pd-booking-message pd-booking-message--${reportNotice.type}`}
+                role="status"
+              >
+                <span aria-hidden="true">{reportNotice.type === "success" ? "✓" : "!"}</span>
+                <p>{reportNotice.text}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleReportSubmit} className="pd-report-form">
+              <label>
+                <span>Reason</span>
+                <select
+                  value={reportCategory}
+                  onChange={(event) => setReportCategory(event.target.value)}
+                >
+                  <option value="property_accuracy">Incorrect listing details</option>
+                  <option value="safety">Safety concern</option>
+                  <option value="fraud">Fraud or suspicious behavior</option>
+                  <option value="host_behavior">Host behavior</option>
+                  <option value="inappropriate">Inappropriate content</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label>
+                <span>Details</span>
+                <textarea
+                  value={reportReason}
+                  onChange={(event) => setReportReason(event.target.value)}
+                  rows={5}
+                  minLength={20}
+                  maxLength={2000}
+                  placeholder="Describe what happened or what looks wrong."
+                />
+              </label>
+              <button
+                type="submit"
+                className="pd-primary-btn"
+                disabled={reportSubmitting}
+              >
+                {reportSubmitting ? "Submitting..." : "Submit report"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

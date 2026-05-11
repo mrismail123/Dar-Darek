@@ -347,13 +347,17 @@ CREATE TABLE `users` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_active` tinyint(1) DEFAULT '0',
+  `is_suspended` tinyint(1) NOT NULL DEFAULT '0',
+  `suspension_reason` varchar(255) DEFAULT NULL,
+  `suspended_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id_user`),
   UNIQUE KEY `email` (`email`),
   UNIQUE KEY `email_2` (`email`),
   CONSTRAINT `check_email_format` CHECK (regexp_like(`email`,_utf8mb4'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$')),
   CONSTRAINT `check_name_length` CHECK ((char_length(trim(`name`)) >= 5)),
   CONSTRAINT `check_phoneNumber_format` CHECK (regexp_like(`phone_number`,_utf8mb4'^\\+?[0-9]{7,15}$')),
-  CONSTRAINT `users_chk_1` CHECK ((`is_active` in (0,1)))
+  CONSTRAINT `users_chk_1` CHECK ((`is_active` in (0,1))),
+  CONSTRAINT `users_chk_2` CHECK ((`is_suspended` in (0,1)))
 ) ENGINE=InnoDB AUTO_INCREMENT=101 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -363,9 +367,45 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (98,'ISMAIL OURDAN','ourdanismail666@gmail.com','$2b$10$kKEoo5dqpkuOZLJT1cyz/u9UMx2qE4HvfuEhKL/tQI/PhTlD49c2S','user','+212691756209',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'English','MAD',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2026-05-02 13:53:40','2026-05-04 22:47:13',1),(99,'imran ourdan','binaryinsight999@gmail.com','$2b$10$Pjy57KnbapqCuqB5KUmqQ.vsb4a0cr8cEcejasx9Qmx.rIhvBKvIK','user','+212691756209',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'English','MAD',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2026-05-03 18:16:03','2026-05-03 18:16:17',1),(100,'abdo Test','nillahohohaha@gmail.com','$2b$10$jbmTp9v.91OMJYlcCdqWcOXlqSSuMkOwAxvLzChAFjNXFpFL09nPe','host','0612345678','2006-01-08','/uploads/1778090337135-532237588.jpg','walo lhad sa3a','Moroccan','[\"Arabic\", \"English\", \"French\"]','SMS',NULL,'Arabic','EUR','Chefchaouen','Studio',NULL,NULL,NULL,NULL,NULL,'2026-05-03 23:26:44','2026-05-06 17:58:57',1);
+INSERT INTO `users` VALUES (98,'ISMAIL OURDAN','ourdanismail666@gmail.com','$2b$10$kKEoo5dqpkuOZLJT1cyz/u9UMx2qE4HvfuEhKL/tQI/PhTlD49c2S','user','+212691756209',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'English','MAD',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2026-05-02 13:53:40','2026-05-04 22:47:13',1,0,NULL,NULL),(99,'imran ourdan','binaryinsight999@gmail.com','$2b$10$Pjy57KnbapqCuqB5KUmqQ.vsb4a0cr8cEcejasx9Qmx.rIhvBKvIK','user','+212691756209',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'English','MAD',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2026-05-03 18:16:03','2026-05-03 18:16:17',1,0,NULL,NULL),(100,'abdo Test','nillahohohaha@gmail.com','$2b$10$jbmTp9v.91OMJYlcCdqWcOXlqSSuMkOwAxvLzChAFjNXFpFL09nPe','host','0612345678','2006-01-08','/uploads/1778090337135-532237588.jpg','walo lhad sa3a','Moroccan','[\"Arabic\", \"English\", \"French\"]','SMS',NULL,'Arabic','EUR','Chefchaouen','Studio',NULL,NULL,NULL,NULL,NULL,'2026-05-03 23:26:44','2026-05-06 17:58:57',1,0,NULL,NULL);
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Table structure for table `reports`
+--
+
+DROP TABLE IF EXISTS `reports`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `reports` (
+  `id_report` int NOT NULL AUTO_INCREMENT,
+  `reporter_id` int NOT NULL,
+  `reported_user_id` int DEFAULT NULL,
+  `id_property` int DEFAULT NULL,
+  `id_booking` int DEFAULT NULL,
+  `category` varchar(50) NOT NULL DEFAULT 'other',
+  `reason` text NOT NULL,
+  `status` enum('pending','reviewed','dismissed','action_taken') NOT NULL DEFAULT 'pending',
+  `admin_notes` text DEFAULT NULL,
+  `reviewed_by` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_report`),
+  KEY `idx_reports_status` (`status`),
+  KEY `idx_reports_property` (`id_property`),
+  KEY `idx_reports_reporter` (`reporter_id`),
+  KEY `idx_reports_reported_user` (`reported_user_id`),
+  KEY `reports_booking_fk` (`id_booking`),
+  KEY `reports_reviewer_fk` (`reviewed_by`),
+  CONSTRAINT `reports_booking_fk` FOREIGN KEY (`id_booking`) REFERENCES `bookings` (`id_booking`) ON DELETE SET NULL,
+  CONSTRAINT `reports_property_fk` FOREIGN KEY (`id_property`) REFERENCES `properties` (`id_property`) ON DELETE SET NULL,
+  CONSTRAINT `reports_reported_user_fk` FOREIGN KEY (`reported_user_id`) REFERENCES `users` (`id_user`) ON DELETE SET NULL,
+  CONSTRAINT `reports_reporter_fk` FOREIGN KEY (`reporter_id`) REFERENCES `users` (`id_user`) ON DELETE CASCADE,
+  CONSTRAINT `reports_reviewer_fk` FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`id_user`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
 SET @@SESSION.SQL_LOG_BIN = @MYSQLDUMP_TEMP_LOG_BIN;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 

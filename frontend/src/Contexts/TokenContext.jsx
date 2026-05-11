@@ -1,4 +1,4 @@
-import { Children, createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 
 
 
@@ -10,7 +10,14 @@ export function TokenProvider({ children }) {
     const [token, setToken] = useState(() => localStorage.getItem("token"));
     const [user, setUser] = useState(() => {
         const savedUser = localStorage.getItem("user");
-        return savedUser ? JSON.parse(savedUser) : null;
+        if (!savedUser) return null;
+
+        try {
+            return JSON.parse(savedUser);
+        } catch {
+            localStorage.removeItem("user");
+            return null;
+        }
     });
 
     return (

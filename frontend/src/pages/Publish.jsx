@@ -1671,9 +1671,9 @@ export default function Publish() {
           onClose={() => setShowSuccess(false)}
         />
       )}
-      <div className="pub-footer-wrap">
+      {/* <div className="pub-footer-wrap">
         <Footer />
-      </div>
+      </div> */}
     </>
   );
 }

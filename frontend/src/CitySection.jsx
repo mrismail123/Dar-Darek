@@ -17,13 +17,14 @@ import BedIcon from '@mui/icons-material/Bed';
 import StarIcon from '@mui/icons-material/Star';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { buildApiUrl } from "./lib/api";
+import { buildApiUrl, createAuthConfig } from "./lib/api";
 import { useToken } from "./Contexts/TokenContext";
 import axios from "axios";
 
 export default function CitySection({ title, properties, message }) {
     // theme state
     const themeGlobal = useThemeGlobal();
+    const { token, user } = useToken();
 
     // ref
     const sliderRef = React.useRef(null);
@@ -58,8 +59,6 @@ export default function CitySection({ title, properties, message }) {
 
         const imageUrl = imagePath ? buildApiUrl(imagePath) : tangier;
 
-
-        const { user } = useToken();
         // function for favorites hear click handling 
         const handleFavoriteClick = async (e) => {
             if (e) e.stopPropagation();
@@ -67,19 +66,19 @@ export default function CitySection({ title, properties, message }) {
 
             console.log(user);
             // login required error
-            if (!user) {
+            if (!token || !user) {
                 alert("Please login to save favorites!");
                 return;
             }
 
             try {
-                const response = await axios.post('http://localhost:5000/api/favorites/toggle', {
-                    id_user: user.id,
-                    id_property: property.id_property
-                });
+                const response = await axios.post(
+                    buildApiUrl('/api/favorites/toggle'),
+                    { id_property: property.id_property },
+                    createAuthConfig(token),
+                );
 
                 setIsSaved(response.data.saved);
-                alert(isSaved);
             } catch (error) {
                 console.error("Error toggling favorite:", error);
             }

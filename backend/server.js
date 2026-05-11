@@ -15,12 +15,26 @@ const db = require("./db");
 const app = express();
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const CORS_ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || FRONTEND_URL)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 const GOOGLE_CLIENT_ID =
   process.env.GOOGLE_CLIENT_ID ||
   "1053795619331-gldssns0qs9dol9j9rrfouf8ajkqkmj6.apps.googleusercontent.com";
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
-app.use(cors());
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || CORS_ALLOWED_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
+  }),
+);
 app.use(express.json());
 
 const uploadDir = path.join(__dirname, "uploads");
@@ -31,7 +45,161 @@ if (!fs.existsSync(uploadDir)) {
 
 app.use("/uploads", express.static(uploadDir));
 
-const verifyToken = (req, res, next) => {
+let moderationSchemaReady = false;
+
+const ensureModerationSchema = async () => {
+  if (moderationSchemaReady) return;
+
+  const [userColumns] = await db.query(
+    `
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'users'
+      AND COLUMN_NAME IN ('is_suspended', 'suspension_reason', 'suspended_at')
+    `,
+  );
+
+  const existingUserColumns = new Set(
+    userColumns.map((column) => column.COLUMN_NAME),
+  );
+
+  if (!existingUserColumns.has("is_suspended")) {
+    await db.query(
+      "ALTER TABLE users ADD COLUMN is_suspended TINYINT(1) NOT NULL DEFAULT 0",
+    );
+  }
+
+  if (!existingUserColumns.has("suspension_reason")) {
+    await db.query(
+      "ALTER TABLE users ADD COLUMN suspension_reason VARCHAR(255) DEFAULT NULL",
+    );
+  }
+
+  if (!existingUserColumns.has("suspended_at")) {
+    await db.query(
+      "ALTER TABLE users ADD COLUMN suspended_at TIMESTAMP NULL DEFAULT NULL",
+    );
+  }
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id_report INT NOT NULL AUTO_INCREMENT,
+      reporter_id INT NOT NULL,
+      reported_user_id INT DEFAULT NULL,
+      id_property INT DEFAULT NULL,
+      id_booking INT DEFAULT NULL,
+      category VARCHAR(50) NOT NULL DEFAULT 'other',
+      reason TEXT NOT NULL,
+      status ENUM('pending', 'reviewed', 'dismissed', 'action_taken') NOT NULL DEFAULT 'pending',
+      admin_notes TEXT DEFAULT NULL,
+      reviewed_by INT DEFAULT NULL,
+      created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id_report),
+      KEY idx_reports_status (status),
+      KEY idx_reports_property (id_property),
+      KEY idx_reports_reporter (reporter_id),
+      KEY idx_reports_reported_user (reported_user_id),
+      CONSTRAINT reports_reporter_fk FOREIGN KEY (reporter_id) REFERENCES users (id_user) ON DELETE CASCADE,
+      CONSTRAINT reports_reported_user_fk FOREIGN KEY (reported_user_id) REFERENCES users (id_user) ON DELETE SET NULL,
+      CONSTRAINT reports_property_fk FOREIGN KEY (id_property) REFERENCES properties (id_property) ON DELETE SET NULL,
+      CONSTRAINT reports_booking_fk FOREIGN KEY (id_booking) REFERENCES bookings (id_booking) ON DELETE SET NULL,
+      CONSTRAINT reports_reviewer_fk FOREIGN KEY (reviewed_by) REFERENCES users (id_user) ON DELETE SET NULL
+    )
+  `);
+
+  moderationSchemaReady = true;
+};
+
+let notificationsSchemaReady = false;
+
+const ensureNotificationsSchema = async () => {
+  if (notificationsSchemaReady) return;
+
+  const [notificationColumns] = await db.query(
+    `
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'notifications'
+      AND COLUMN_NAME IN ('is_read', 'type', 'created_at', 'id_booking')
+    `,
+  );
+
+  const existingNotificationColumns = new Set(
+    notificationColumns.map((column) => column.COLUMN_NAME),
+  );
+
+  if (!existingNotificationColumns.has("is_read")) {
+    await db.query(
+      "ALTER TABLE notifications ADD COLUMN is_read TINYINT(1) NOT NULL DEFAULT 0",
+    );
+  }
+
+  if (!existingNotificationColumns.has("type")) {
+    await db.query(
+      "ALTER TABLE notifications ADD COLUMN type VARCHAR(50) DEFAULT NULL",
+    );
+  }
+
+  if (!existingNotificationColumns.has("created_at")) {
+    await db.query(
+      "ALTER TABLE notifications ADD COLUMN created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP",
+    );
+  }
+
+  if (!existingNotificationColumns.has("id_booking")) {
+    await db.query(
+      "ALTER TABLE notifications ADD COLUMN id_booking INT DEFAULT NULL",
+    );
+    await db.query(
+      "ALTER TABLE notifications ADD CONSTRAINT notifications_booking_fk FOREIGN KEY (id_booking) REFERENCES bookings (id_booking) ON DELETE SET NULL",
+    );
+  }
+
+  notificationsSchemaReady = true;
+};
+
+const sendAdminReportEmail = async (report) => {
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+
+  if (!adminEmail || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const escapeHtml = (value) =>
+    String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  await transporter.sendMail({
+    from: `"Dar Darek Moderation" <${process.env.EMAIL_USER}>`,
+    to: adminEmail,
+    subject: "New Dar Darek report needs review",
+    html: `
+      <h2>New report submitted</h2>
+      <p><strong>Category:</strong> ${escapeHtml(report.category)}</p>
+      <p><strong>Property:</strong> ${escapeHtml(report.propertyId || "N/A")}</p>
+      <p><strong>Reporter:</strong> ${escapeHtml(report.reporterId)}</p>
+      <p>${escapeHtml(report.reason)}</p>
+      <p>Open the admin dashboard to review and take action.</p>
+    `,
+  });
+};
+
+const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(" ")[1];
 
@@ -42,14 +210,58 @@ const verifyToken = (req, res, next) => {
   }
 
   try {
+    await ensureModerationSchema();
+    await ensureNotificationsSchema();
+
     const verified = jwt.verify(
       token,
       process.env.JWT_SECRET || "your_secret_key",
     );
-    req.user = verified;
+
+    const userId = Number(verified?.id || verified?.id_user);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const [users] = await db.query(
+      `SELECT id_user, name, email, role, is_active, is_suspended
+       FROM users
+       WHERE id_user = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    if (users.length === 0) {
+      return res.status(401).json({ message: "Authenticated user not found." });
+    }
+
+    const currentUser = users[0];
+    if (Number(currentUser.is_active) !== 1) {
+      return res.status(403).json({ message: "This account is deactivated." });
+    }
+
+    if (Number(currentUser.is_suspended) === 1) {
+      return res.status(403).json({ message: "This account is suspended." });
+    }
+
+    req.user = {
+      ...verified,
+      id: currentUser.id_user,
+      id_user: currentUser.id_user,
+      name: currentUser.name,
+      email: currentUser.email,
+      role: currentUser.role,
+    };
     next();
   } catch (error) {
-    return res.status(403).json({ message: "Invalid or Expired Token" });
+    if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
+      return res.status(403).json({ message: "Invalid or Expired Token" });
+    }
+
+    return res.status(500).json({
+      message: "Could not verify your session.",
+      details: error.message,
+    });
   }
 };
 
@@ -59,6 +271,42 @@ const verifyAdmin = (req, res, next) => {
   }
 
   next();
+};
+
+const getOptionalAuthenticatedUser = async (req) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) return null;
+
+  try {
+    await ensureModerationSchema();
+    const verified = jwt.verify(token, process.env.JWT_SECRET || "your_secret_key");
+    const userId = Number(verified?.id || verified?.id_user);
+
+    if (!Number.isFinite(userId) || userId <= 0) return null;
+
+    const [users] = await db.query(
+      `SELECT id_user, name, email, role, is_active, is_suspended
+       FROM users
+       WHERE id_user = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    const currentUser = users[0];
+    if (
+      !currentUser ||
+      Number(currentUser.is_active) !== 1 ||
+      Number(currentUser.is_suspended) === 1
+    ) {
+      return null;
+    }
+
+    return currentUser;
+  } catch {
+    return null;
+  }
 };
 
 const storage = multer.diskStorage({
@@ -71,9 +319,16 @@ const storage = multer.diskStorage({
   },
 });
 
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith("image/")) cb(null, true);
-  else cb(new Error("Only image files are allowed."), false);
+  if (ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) cb(null, true);
+  else cb(new Error("Only JPG, PNG, WEBP, or GIF images are allowed."), false);
 };
 
 const upload = multer({
@@ -562,7 +817,7 @@ app.put(
       }
 
       if (!req.file.mimetype.startsWith("image/")) {
-        fs.unlink(req.file.path, () => {});
+        fs.unlink(req.file.path, () => { });
         return res
           .status(400)
           .json({ message: "Only image files are allowed." });
@@ -870,7 +1125,9 @@ app.post("/api/forgot-password", async (req, res) => {
     ]);
 
     if (rows.length === 0) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(200).json({
+        message: "If that email exists, a reset link has been sent.",
+      });
     }
 
     const user = rows[0];
@@ -1131,6 +1388,8 @@ app.post("/api/login", async (req, res) => {
   const safePassword = typeof password === "string" ? password : "";
 
   try {
+    await ensureModerationSchema();
+
     if (!cleanEmail) {
       return res.status(400).json({ message: "Email is required." });
     }
@@ -1163,6 +1422,12 @@ app.post("/api/login", async (req, res) => {
         message: "This account is deactivated.",
         canReactivate: true,
         email: user.email,
+      });
+    }
+
+    if (Number(user.is_suspended) === 1) {
+      return res.status(403).json({
+        message: "This account is suspended. Please contact Dar Darek support.",
       });
     }
 
@@ -1249,6 +1514,8 @@ app.post("/api/google-auth", async (req, res) => {
   const { idToken } = req.body;
 
   try {
+    await ensureModerationSchema();
+
     const ticket = await client.verifyIdToken({
       idToken,
       audience: GOOGLE_CLIENT_ID,
@@ -1265,7 +1532,7 @@ app.post("/api/google-auth", async (req, res) => {
 
     if (rows.length === 0) {
       const [result] = await db.execute(
-        "INSERT INTO users (name, email, role) VALUES (?, ?, 'user')",
+        "INSERT INTO users (name, email, role, is_active) VALUES (?, ?, 'user', 1)",
         [name, email],
       );
 
@@ -1277,6 +1544,18 @@ app.post("/api/google-auth", async (req, res) => {
       };
     } else {
       user = rows[0];
+    }
+
+    if (Number(user.is_active) !== 1) {
+      return res.status(401).json({
+        message: "This account is deactivated.",
+      });
+    }
+
+    if (Number(user.is_suspended) === 1) {
+      return res.status(403).json({
+        message: "This account is suspended. Please contact Dar Darek support.",
+      });
     }
 
     const token = jwt.sign(
@@ -1369,7 +1648,7 @@ app.get("/api/houses", async (req, res) => {
         ) AS main_image
       FROM properties p
       LEFT JOIN cities c ON p.id_city = c.id_city
-      WHERE p.status IN ('approved', 'pending')
+      WHERE p.status = 'approved'
       ORDER BY p.created_at DESC
     `);
 
@@ -1418,6 +1697,7 @@ app.get("/api/houses/:id", async (req, res) => {
         p.available_from,
         p.available_to,
         p.status,
+        p.id_user,
         c.name AS city,
         c.name AS city_name,
         COALESCE(u.name, 'Dar Darek Host') AS host_name,
@@ -1439,6 +1719,18 @@ app.get("/api/houses/:id", async (req, res) => {
     }
 
     const property = rows[0];
+
+    if (property.status !== "approved") {
+      const currentUser = await getOptionalAuthenticatedUser(req);
+      const canViewModeratedListing =
+        currentUser &&
+        (currentUser.role === "admin" ||
+          Number(currentUser.id_user) === Number(property.id_user));
+
+      if (!canViewModeratedListing) {
+        return res.status(404).json({ message: "Property not found." });
+      }
+    }
 
     const [images] = await db.query(
       `
@@ -1474,21 +1766,20 @@ app.get("/api/houses/:id", async (req, res) => {
 });
 
 app.get("/api/properties/:id", async (req, res) => {
-  req.url = `/api/houses/${req.params.id}`;
-  return app._router.handle(req, res);
+  return res.redirect(307, `/api/houses/${req.params.id}`);
 });
 
 app.get("/api/extractHomePageProperties", async (req, res) => {
   try {
     const cityQuery = (cityName) => `
-      SELECT p.*, c.name AS city_name, img.image_url AS main_image
-      FROM properties p
-      JOIN cities c ON p.id_city = c.id_city
-      LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
+        SELECT p.*, c.name AS city_name, img.image_url AS main_image
+        FROM properties p
+        JOIN cities c ON p.id_city = c.id_city
+        LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
       WHERE c.name = '${cityName}'
-      AND p.status = 'approved'
-      ORDER BY p.created_at DESC
-      LIMIT 10
+        AND p.status = 'approved'
+        ORDER BY p.created_at DESC
+        LIMIT 10
     `;
 
     const [latestRows] = await db.query(`
@@ -1929,10 +2220,39 @@ app.post(
   async (req, res) => {
     try {
       const { id } = req.params;
-      await db.execute(
+      const propertyId = Number(id);
+
+      if (!Number.isFinite(propertyId) || propertyId <= 0) {
+        return res.status(400).json({ message: "Invalid property id." });
+      }
+
+      const [result] = await db.execute(
         "UPDATE properties SET status = 'approved' WHERE id_property = ?",
-        [id],
+        [propertyId],
       );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "Property not found." });
+      }
+
+      // Notify the property host
+      const [propertyData] = await db.query(
+        "SELECT id_user, title FROM properties WHERE id_property = ?",
+        [propertyId],
+      );
+      if (propertyData.length > 0) {
+        const { id_user: hostId, title: propertyTitle } = propertyData[0];
+        try {
+          await db.execute(
+            `INSERT INTO notifications (id_user, id_property, type, notify_text)
+             VALUES (?, ?, ?, ?)`,
+            [hostId, propertyId, "APPROVE", `Your property "${propertyTitle}" has been approved and is now live! 🎉`],
+          );
+        } catch (notifyErr) {
+          console.error("Failed to notify host about property approval:", notifyErr.message);
+        }
+      }
+
       res.status(200).json({ message: "Property approved successfully." });
     } catch (error) {
       res.status(500).json({ details: error.message });
@@ -1947,13 +2267,345 @@ app.post(
   async (req, res) => {
     try {
       const { id } = req.params;
-      await db.execute(
+      const propertyId = Number(id);
+
+      if (!Number.isFinite(propertyId) || propertyId <= 0) {
+        return res.status(400).json({ message: "Invalid property id." });
+      }
+
+      const [result] = await db.execute(
         "UPDATE properties SET status = 'rejected' WHERE id_property = ?",
-        [id],
+        [propertyId],
       );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "Property not found." });
+      }
+
+      // Notify the property host
+      const [propertyData] = await db.query(
+        "SELECT id_user, title FROM properties WHERE id_property = ?",
+        [propertyId],
+      );
+      if (propertyData.length > 0) {
+        const { id_user: hostId, title: propertyTitle } = propertyData[0];
+        try {
+          await db.execute(
+            `INSERT INTO notifications (id_user, id_property, type, notify_text)
+             VALUES (?, ?, ?, ?)`,
+            [hostId, propertyId, "REJECT", `Your property "${propertyTitle}" has been rejected. Please check the requirements and resubmit.`],
+          );
+        } catch (notifyErr) {
+          console.error("Failed to notify host about property rejection:", notifyErr.message);
+        }
+      }
+
       res.status(200).json({ message: "Property rejected successfully." });
     } catch (error) {
       res.status(500).json({ details: error.message });
+    }
+  },
+);
+
+/* =========================
+   MODERATION ROUTES
+========================= */
+
+const REPORT_CATEGORIES = new Set([
+  "safety",
+  "fraud",
+  "inappropriate",
+  "property_accuracy",
+  "host_behavior",
+  "guest_behavior",
+  "payment",
+  "other",
+]);
+
+app.post("/api/reports", verifyToken, async (req, res) => {
+  const reporterId = getUserIdFromRequest(req);
+  const propertyId = Number(req.body?.id_property);
+  const bookingId = req.body?.id_booking ? Number(req.body.id_booking) : null;
+  const category = cleanText(req.body?.category, 50) || "other";
+  const reason = cleanText(req.body?.reason, 2000);
+
+  if (!reporterId) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "A valid property is required." });
+  }
+
+  if (bookingId !== null && (!Number.isFinite(bookingId) || bookingId <= 0)) {
+    return res.status(400).json({ message: "Invalid booking id." });
+  }
+
+  if (!REPORT_CATEGORIES.has(category)) {
+    return res.status(400).json({ message: "Choose a valid report category." });
+  }
+
+  if (!reason || reason.length < 20) {
+    return res
+      .status(400)
+      .json({ message: "Please describe the issue in at least 20 characters." });
+  }
+
+  try {
+    const [properties] = await db.query(
+      `SELECT p.id_property, p.id_user AS host_id, p.title
+       FROM properties p
+       WHERE p.id_property = ?
+       LIMIT 1`,
+      [propertyId],
+    );
+
+    if (properties.length === 0) {
+      return res.status(404).json({ message: "Property not found." });
+    }
+
+    const property = properties[0];
+    if (Number(property.host_id) === reporterId) {
+      return res
+        .status(400)
+        .json({ message: "You cannot report your own listing." });
+    }
+
+    if (bookingId) {
+      const [bookings] = await db.query(
+        `SELECT b.id_booking
+         FROM bookings b
+         JOIN properties p ON b.id_property = p.id_property
+         WHERE b.id_booking = ?
+           AND b.id_property = ?
+           AND (b.id_user = ? OR p.id_user = ?)
+         LIMIT 1`,
+        [bookingId, propertyId, reporterId, reporterId],
+      );
+
+      if (bookings.length === 0) {
+        return res.status(403).json({
+          message: "You are not authorized to report this booking.",
+        });
+      }
+    }
+
+    const [result] = await db.execute(
+      `INSERT INTO reports
+       (reporter_id, reported_user_id, id_property, id_booking, category, reason)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [reporterId, property.host_id || null, propertyId, bookingId, category, reason],
+    );
+
+    try {
+      const [admins] = await db.query(
+        "SELECT id_user FROM users WHERE role = 'admin' AND is_active = 1",
+      );
+
+      await Promise.all(
+        admins.map((admin) =>
+          db.execute(
+            `INSERT INTO notifications (id_user, id_property, notify_text)
+             VALUES (?, ?, ?)`,
+            [
+              admin.id_user,
+              propertyId,
+              `New report for "${property.title}" needs review.`,
+            ],
+          ),
+        ),
+      );
+    } catch (notifyError) {
+      console.error("Failed to notify admins about report:", notifyError.message);
+    }
+
+    sendAdminReportEmail({
+      category,
+      propertyId,
+      reporterId,
+      reason,
+    }).catch((emailError) => {
+      console.error("Failed to email admin about report:", emailError.message);
+    });
+
+    return res.status(201).json({
+      message: "Report submitted. Dar Darek moderation will review it.",
+      reportId: result.insertId,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not submit report.",
+      details: error.message,
+    });
+  }
+});
+
+app.get("/api/admin/reports", verifyToken, verifyAdmin, async (req, res) => {
+  const status = cleanText(req.query?.status, 30);
+  const allowedStatuses = new Set([
+    "pending",
+    "reviewed",
+    "dismissed",
+    "action_taken",
+  ]);
+  const whereClauses = [];
+  const queryParams = [];
+
+  if (status && allowedStatuses.has(status)) {
+    whereClauses.push("r.status = ?");
+    queryParams.push(status);
+  }
+
+  const whereString = whereClauses.length
+    ? `WHERE ${whereClauses.join(" AND ")}`
+    : "";
+
+  try {
+    const [reports] = await db.query(
+      `
+      SELECT
+        r.id_report,
+        r.category,
+        r.reason,
+        r.status,
+        r.admin_notes,
+        r.created_at,
+        r.updated_at,
+        p.id_property,
+        p.title AS property_title,
+        reporter.id_user AS reporter_id,
+        reporter.name AS reporter_name,
+        reporter.email AS reporter_email,
+        reported.id_user AS reported_user_id,
+        reported.name AS reported_user_name,
+        reported.email AS reported_user_email,
+        reported.is_suspended AS reported_user_suspended,
+        reviewer.name AS reviewed_by_name
+      FROM reports r
+      LEFT JOIN properties p ON r.id_property = p.id_property
+      LEFT JOIN users reporter ON r.reporter_id = reporter.id_user
+      LEFT JOIN users reported ON r.reported_user_id = reported.id_user
+      LEFT JOIN users reviewer ON r.reviewed_by = reviewer.id_user
+      ${whereString}
+      ORDER BY
+        CASE WHEN r.status = 'pending' THEN 0 ELSE 1 END,
+        r.created_at DESC
+      LIMIT 100
+      `,
+      queryParams,
+    );
+
+    const [counts] = await db.query(
+      `SELECT status, COUNT(*) AS total FROM reports GROUP BY status`,
+    );
+
+    const summary = counts.reduce(
+      (acc, row) => ({
+        ...acc,
+        [row.status]: Number(row.total) || 0,
+      }),
+      { pending: 0, reviewed: 0, dismissed: 0, action_taken: 0 },
+    );
+
+    return res.status(200).json({ reports, summary });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not load moderation reports.",
+      details: error.message,
+    });
+  }
+});
+
+app.patch("/api/admin/reports/:id", verifyToken, verifyAdmin, async (req, res) => {
+  const reportId = Number(req.params.id);
+  const status = cleanText(req.body?.status, 30);
+  const adminNotes = cleanText(req.body?.admin_notes, 2000);
+  const allowedStatuses = new Set([
+    "pending",
+    "reviewed",
+    "dismissed",
+    "action_taken",
+  ]);
+
+  if (!Number.isFinite(reportId) || reportId <= 0) {
+    return res.status(400).json({ message: "Invalid report id." });
+  }
+
+  if (!allowedStatuses.has(status)) {
+    return res.status(400).json({ message: "Choose a valid report status." });
+  }
+
+  try {
+    const [result] = await db.execute(
+      `UPDATE reports
+       SET status = ?, admin_notes = ?, reviewed_by = ?
+       WHERE id_report = ?`,
+      [status, adminNotes, getUserIdFromRequest(req), reportId],
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Report not found." });
+    }
+
+    return res.status(200).json({ message: "Report updated." });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not update report.",
+      details: error.message,
+    });
+  }
+});
+
+app.patch(
+  "/api/admin/users/:id/suspension",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    const targetUserId = Number(req.params.id);
+    const adminId = getUserIdFromRequest(req);
+    const suspend = Boolean(req.body?.suspend);
+    const reason = cleanText(req.body?.reason, 255);
+
+    if (!Number.isFinite(targetUserId) || targetUserId <= 0) {
+      return res.status(400).json({ message: "Invalid user id." });
+    }
+
+    if (targetUserId === adminId && suspend) {
+      return res
+        .status(400)
+        .json({ message: "Admins cannot suspend their own account." });
+    }
+
+    if (suspend && (!reason || reason.length < 8)) {
+      return res
+        .status(400)
+        .json({ message: "A suspension reason is required." });
+    }
+
+    try {
+      const [result] = await db.execute(
+        `UPDATE users
+         SET is_suspended = ?,
+             suspension_reason = ?,
+             suspended_at = ${suspend ? "CURRENT_TIMESTAMP" : "NULL"}
+         WHERE id_user = ? AND role != 'admin'`,
+        [suspend ? 1 : 0, suspend ? reason : null, targetUserId],
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          message: "User not found or cannot be moderated.",
+        });
+      }
+
+      return res.status(200).json({
+        message: suspend ? "User suspended." : "User suspension removed.",
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Could not update user suspension.",
+        details: error.message,
+      });
     }
   },
 );
@@ -1963,16 +2615,23 @@ app.post(
 ========================= */
 
 app.post("/api/bookingProperty", verifyToken, async (req, res) => {
-  const { id_property, checkIn, checkOut, total_price, id_user } = req.body;
+  const { id_property, checkIn, checkOut } = req.body;
+  const propertyId = Number(id_property);
   const tokenUserId = Number(req.user?.id);
-  const bookingUserId =
-    Number.isFinite(tokenUserId) && tokenUserId > 0
-      ? tokenUserId
-      : Number(id_user);
+  const bookingUserId = Number.isFinite(tokenUserId) && tokenUserId > 0
+    ? tokenUserId
+    : null;
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
   try {
-    if (!id_property || !checkIn || !checkOut || !total_price || !bookingUserId) {
+    if (!propertyId || !checkIn || !checkOut || !bookingUserId) {
       return res.status(400).json({ message: "All fields are required." });
+    }
+
+    if (!dateRegex.test(checkIn) || !dateRegex.test(checkOut)) {
+      return res
+        .status(400)
+        .json({ message: "Dates must use YYYY-MM-DD format." });
     }
 
     if (new Date(checkOut) <= new Date(checkIn)) {
@@ -1980,6 +2639,50 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
         message: "Check-out date must be after check-in date.",
       });
     }
+
+    const [properties] = await db.query(
+      `SELECT id_property, id_user, price_per_day, available_from, available_to, status
+       FROM properties
+       WHERE id_property = ?
+       LIMIT 1`,
+      [propertyId],
+    );
+
+    if (properties.length === 0) {
+      return res.status(404).json({ message: "Property not found." });
+    }
+
+    const property = properties[0];
+
+    if (property.status !== "approved") {
+      return res
+        .status(403)
+        .json({ message: "This property is not available for booking." });
+    }
+
+    if (Number(property.id_user) === bookingUserId) {
+      return res
+        .status(400)
+        .json({ message: "You cannot book your own property." });
+    }
+
+    // const availableFrom = String(property.available_from || "").split("T")[0];
+    // const availableTo = String(property.available_to || "").split("T")[0];
+    const availableFrom = new Date(property.available_to);
+    const availableTo = new Date(property.available_from)
+    
+
+    if ((availableFrom && checkIn < availableFrom) || (availableTo && checkOut > availableTo)) {
+      return res.status(400).json({
+        message: "Please choose dates inside this property's availability window.",
+      });
+    }
+
+    const nights = Math.ceil(
+      (new Date(checkOut).getTime() - new Date(checkIn).getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+    const totalPrice = Number(property.price_per_day) * nights;
 
     const [userActiveBooking] = await db.query(
       `
@@ -1993,7 +2696,7 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
         )
       LIMIT 1
       `,
-      [id_property, bookingUserId],
+      [propertyId, bookingUserId],
     );
 
     if (userActiveBooking.length > 0) {
@@ -2010,7 +2713,7 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       AND status IN ('pending', 'approved')
       AND (start_date < ? AND end_date > ?)
       `,
-      [id_property, checkOut, checkIn],
+      [propertyId, checkOut, checkIn],
     );
 
     if (bookingConflict.length > 0) {
@@ -2019,14 +2722,31 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       });
     }
 
-    await db.query(
+    const [insertResult] = await db.query(
       `
       INSERT INTO bookings 
       (id_property, id_user, start_date, end_date, total_price, status) 
       VALUES (?, ?, ?, ?, ?, 'pending')
       `,
-      [id_property, bookingUserId, checkIn, checkOut, total_price],
+      [propertyId, bookingUserId, checkIn, checkOut, totalPrice],
     );
+
+    // Notify the property host about the new booking request
+    try {
+      await db.execute(
+        `INSERT INTO notifications (id_user, id_property, id_booking, type, notify_text)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          property.id_user,
+          propertyId,
+          insertResult.insertId,
+          "general",
+          `New booking request for your property! Check your rental requests.`,
+        ],
+      );
+    } catch (notifyErr) {
+      console.error("Failed to notify host about new booking:", notifyErr.message);
+    }
 
     res.status(201).json({
       message: "Booking request submitted successfully!",
@@ -2624,10 +3344,30 @@ app.put("/api/notifications/:id/read", verifyToken, async (req, res) => {
 });
 
 // API for favorites
-app.post('/api/favorites/toggle', async (req, res) => {
-  const { id_user, id_property } = req.body;
+app.post('/api/favorites/toggle', verifyToken, async (req, res) => {
+  const id_user = getUserIdFromRequest(req);
+  const id_property = Number(req.body?.id_property);
+
+  if (!id_user) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  if (!Number.isFinite(id_property) || id_property <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
 
   try {
+    const [properties] = await db.execute(
+      "SELECT id_property FROM properties WHERE id_property = ? AND status = 'approved' LIMIT 1",
+      [id_property],
+    );
+
+    if (properties.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Property not found or not available." });
+    }
+
     const [existing] = await db.execute(
       'SELECT id_favorite FROM favorites WHERE id_user = ? AND id_property = ?',
       [id_user, id_property]
@@ -2645,9 +3385,14 @@ app.post('/api/favorites/toggle', async (req, res) => {
   }
 });
 
-// GET /api/favorites/:userId
-app.get('/api/favorites/:userId', async (req, res) => {
-  const { userId } = req.params;
+// GET /api/favorites and legacy /api/favorites/:userId
+const getFavoritesForCurrentUser = async (req, res) => {
+  const userId = getUserIdFromRequest(req);
+
+  if (!userId) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
   try {
     const [rows] = await db.execute(`
       SELECT
@@ -2664,13 +3409,17 @@ app.get('/api/favorites/:userId', async (req, res) => {
       JOIN favorites f ON p.id_property = f.id_property
       LEFT JOIN cities c ON p.id_city = c.id_city
       WHERE f.id_user = ?
+        AND p.status = 'approved'
       ORDER BY f.id_favorite DESC
     `, [userId]);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+};
+
+app.get('/api/favorites', verifyToken, getFavoritesForCurrentUser);
+app.get('/api/favorites/:userId', verifyToken, getFavoritesForCurrentUser);
 
 
 
