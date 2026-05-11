@@ -174,7 +174,13 @@ export default function Header() {
         Rental Requests
       </MenuItem>
 
-      <MenuItem onClick={handleMenuClose} sx={{ py: 1.2, color: "#374151" }}>
+      <MenuItem
+        onClick={() => {
+          handleMenuClose();
+          navigate("/my-properties");
+        }}
+        sx={{ py: 1.2, color: "#374151" }}
+      >
         <HomeWorkOutlinedIcon
           sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
         />

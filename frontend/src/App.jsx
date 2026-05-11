@@ -16,6 +16,7 @@ import Publish from "./pages/Publish";
 import RentalRequests from "./RentalRequests";
 import AccountSettings from "./pages/AccountSettings";
 import MyBookings from "./pages/MyBookings";
+import MyProperties from "./pages/MyProperties";
 
 import { useToken } from "./Contexts/TokenContext";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
@@ -43,7 +44,7 @@ function App() {
           setUser(decodedToken);
         }
       }
-    } catch (error) {
+    } catch {
       console.error("Invalid token format");
       localStorage.removeItem("token");
     }
@@ -104,6 +105,15 @@ function App() {
           element={
             <ProtectedRoute>
               <MyBookings />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/my-properties"
+          element={
+            <ProtectedRoute>
+              <MyProperties />
             </ProtectedRoute>
           }
         />
