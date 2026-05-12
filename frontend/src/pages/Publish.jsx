@@ -759,6 +759,7 @@ export default function Publish() {
     const userId = storedUser?.id;
 
     if (!userId) {
+      
       setPublishNotice({
         type: "error",
         text: "Session expired. Please log in again.",
@@ -812,6 +813,7 @@ export default function Publish() {
     navigate("/", { replace: true });
   };
 
+  
   useEffect(() => {
     fetch(buildApiUrl("/api/cities"))
       .then((r) => r.json())

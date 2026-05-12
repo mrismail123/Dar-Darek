@@ -1537,13 +1537,14 @@ app.post("/api/google-auth", async (req, res) => {
       );
 
       user = {
-        id_user: result.insertId,
+        id: result.insertId,
         name,
         email,
         role: "user",
       };
     } else {
       user = rows[0];
+      user['id'] = user['id_user'];
     }
 
     if (Number(user.is_active) !== 1) {
@@ -1559,7 +1560,7 @@ app.post("/api/google-auth", async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id_user, name: user.name, role: user.role },
+      { id: user.id, name: user.name, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "1d" },
     );
@@ -2158,6 +2159,14 @@ app.get(
   verifyAdmin,
   async (req, res) => {
     try {
+      const requestedStatus = String(req.query?.status || "pending").toLowerCase();
+      const allowedStatuses = new Set(["all", "pending", "approved", "rejected"]);
+      const statusFilter = allowedStatuses.has(requestedStatus)
+        ? requestedStatus
+        : "pending";
+      const propertyWhere = statusFilter === "all" ? "" : "WHERE p.status = ?";
+      const propertyParams = statusFilter === "all" ? [] : [statusFilter];
+
       const [result] = await db.query(`
         SELECT 
           p.*, 
@@ -2174,8 +2183,12 @@ app.get(
       FROM properties p
       JOIN cities c ON c.id_city = p.id_city
       LEFT JOIN users ON users.id_user = p.id_user
-        WHERE p.status = 'pending'
-      `);
+      ${propertyWhere}
+      ORDER BY
+        CASE WHEN p.status = 'pending' THEN 0 ELSE 1 END,
+        p.created_at DESC,
+        p.id_property DESC
+      `, propertyParams);
 
       const [statusCounts] = await db.query(`
         SELECT status, COUNT(*) AS total
