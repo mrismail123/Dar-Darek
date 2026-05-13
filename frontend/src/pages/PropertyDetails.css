@@ -191,21 +191,29 @@
 .pd-action-btn,
 .pd-secondary-btn {
   appearance: none;
-  border: 1px solid rgba(20, 168, 157, 0.22);
-  border-radius: 999px;
-  background: rgba(20, 168, 157, 0.08);
+  border: 1px solid rgba(20, 168, 157, 0.18);
+  border-radius: 14px;
+  background: #ffffff;
   color: var(--navy-900);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 700;
   transition:
     transform var(--transition),
     box-shadow var(--transition),
     background var(--transition),
-    border-color var(--transition);
+    border-color var(--transition),
+    color var(--transition);
 }
 
 .pd-action-btn {
-  padding: 10px 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 14px 18px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 6px 18px rgba(11, 33, 54, 0.04);
 }
 
 .pd-secondary-btn {
@@ -219,21 +227,33 @@
 .pd-action-btn:hover,
 .pd-secondary-btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(20, 168, 157, 0.34);
-  background: rgba(20, 168, 157, 0.13);
-  box-shadow: 0 8px 18px rgba(20, 168, 157, 0.12);
+  border-color: rgba(20, 168, 157, 0.32);
+  background: rgba(20, 168, 157, 0.08);
+  box-shadow: 0 10px 25px rgba(11, 33, 54, 0.08);
+}
+
+.pd-action-btn--danger {
+  border-color: rgba(183, 50, 50, 0.24);
+  background: rgba(183, 50, 50, 0.08);
+  color: #9f2c2c;
+}
+
+.pd-action-btn--danger:hover {
+  border-color: rgba(183, 50, 50, 0.4);
+  background: rgba(183, 50, 50, 0.12);
+  box-shadow: 0 10px 25px rgba(183, 50, 50, 0.12);
+}
+
+.pd-action-btn--active {
+  border-color: rgba(0, 169, 181, 0.32);
+  background: rgba(0, 169, 181, 0.12);
+  color: var(--tanger-teal);
 }
 
 .pd-action-btn:disabled {
   cursor: not-allowed;
   opacity: 0.65;
   transform: none;
-}
-
-.pd-action-btn--active {
-  border-color: rgba(183, 50, 50, 0.28);
-  background: rgba(183, 50, 50, 0.08);
-  color: #9f2c2c;
 }
 
 .pd-title-block,
@@ -2123,7 +2143,7 @@ button.pd-calendar__day:hover:not(:disabled) {
 
 .pd-booking__actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: auto;
   gap: 10px;
   margin-bottom: 12px;
 }

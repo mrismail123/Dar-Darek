@@ -18,6 +18,7 @@ import {
     MenuItem,
     Select,
     Stack,
+    TextField,
 } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
@@ -220,6 +221,10 @@ export default function PendingPropertiesTable() {
     const [modalOpen, setModalOpen] = useState(false);
     const [modalData, setModalData] = useState(null);
     const [modalLoading, setModalLoading] = useState(false);
+    const [rejectDialogProperty, setRejectDialogProperty] = useState(null);
+    const [rejectFeedback, setRejectFeedback] = useState('');
+    const [rejectError, setRejectError] = useState('');
+    const [rejectSubmitting, setRejectSubmitting] = useState(false);
 
     const selectedStatusLabel = useMemo(
         () => statusOptions.find((option) => option.value === statusFilter)?.label || 'Properties',
@@ -325,20 +330,50 @@ export default function PendingPropertiesTable() {
         }
     };
 
+    const handleOpenRejectDialog = (property) => {
+        setRejectDialogProperty(property);
+        setRejectFeedback(property?.admin_notes || '');
+        setRejectError('');
+    };
+
+    const handleCloseRejectDialog = () => {
+        if (rejectSubmitting) return;
+
+        setRejectDialogProperty(null);
+        setRejectFeedback('');
+        setRejectError('');
+    };
+
     const handleReject = async (id) => {
+        const cleanFeedback = rejectFeedback.trim();
+
+        if (cleanFeedback.length < 10) {
+            setRejectError('Please add a helpful feedback note with at least 10 characters.');
+            return;
+        }
+
         console.log(`Rejecting property with ID: ${id}`);
+        setRejectSubmitting(true);
+        setRejectError('');
+
         try {
             await axios.post(
                 buildApiUrl(`/api/admin/reject/${id}`),
-                {},
+                { admin_notes: cleanFeedback },
                 createAuthConfig(token),
             );
             await fetchProperties();
+            setRejectDialogProperty(null);
+            setRejectFeedback('');
+            setModalOpen(false);
+            setModalData(null);
             // Trigger a storage event to update AdminDashboard badge immediately
             window.dispatchEvent(new Event('storage'));
         } catch (error) {
             console.error("Error rejecting property:", error);
-            alert("Failed to reject property.");
+            setRejectError(error.response?.data?.message || "Failed to reject property.");
+        } finally {
+            setRejectSubmitting(false);
         }
     };
 
@@ -618,7 +653,7 @@ export default function PendingPropertiesTable() {
                                                         color="error"
                                                         size="small"
                                                         startIcon={<HighlightOffIcon />}
-                                                        onClick={() => handleReject(property.id_property)}
+                                                        onClick={() => handleOpenRejectDialog(property)}
                                                         sx={{ textTransform: 'none', borderRadius: 1.5, minWidth: 112 }}
                                                     >
                                                         Reject
@@ -840,7 +875,7 @@ export default function PendingPropertiesTable() {
                             </Button>
                             {(modalData.status || 'pending') !== 'rejected' && (
                                 <Button
-                                    onClick={async () => { await handleReject(modalData.id_property); handleCloseModal(); }}
+                                    onClick={() => handleOpenRejectDialog(modalData)}
                                     variant="outlined"
                                     color="error"
                                     startIcon={<HighlightOffIcon />}
@@ -869,6 +904,167 @@ export default function PendingPropertiesTable() {
                         </DialogActions>
                     </>
                 )}
+            </Dialog>
+
+            <Dialog
+                open={Boolean(rejectDialogProperty)}
+                onClose={handleCloseRejectDialog}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        borderRadius: '22px',
+                        overflow: 'hidden',
+                        boxShadow: '0 28px 80px rgba(15, 23, 42, 0.28)',
+                        border: '1px solid rgba(226, 232, 240, 0.9)',
+                    },
+                }}
+                BackdropProps={{
+                    sx: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.42)',
+                        backdropFilter: 'blur(8px)',
+                    },
+                }}
+            >
+                <Box
+                    sx={{
+                        p: { xs: 2.5, sm: 3.5 },
+                        background:
+                            'linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.95))',
+                    }}
+                >
+                    <IconButton
+                        onClick={handleCloseRejectDialog}
+                        disabled={rejectSubmitting}
+                        sx={{
+                            position: 'absolute',
+                            top: 16,
+                            right: 16,
+                            width: 38,
+                            height: 38,
+                            backgroundColor: '#F8FAFC',
+                            color: '#334155',
+                            boxShadow: '0 8px 22px rgba(15, 23, 42, 0.08)',
+                            '&:hover': { backgroundColor: '#F1F5F9' },
+                        }}
+                    >
+                        <CloseIcon fontSize="small" />
+                    </IconButton>
+
+                    <Box
+                        sx={{
+                            width: 58,
+                            height: 58,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '18px',
+                            border: '1px solid rgba(180, 83, 9, 0.22)',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            color: '#B45309',
+                            mb: 2.5,
+                        }}
+                    >
+                        <HighlightOffIcon />
+                    </Box>
+
+                    <Typography
+                        sx={{
+                            color: '#0D9488',
+                            fontSize: '0.76rem',
+                            fontWeight: 800,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                            mb: 1,
+                        }}
+                    >
+                        Rejection feedback
+                    </Typography>
+                    <Typography
+                        variant="h5"
+                        sx={{
+                            color: '#0F172A',
+                            fontFamily: '"Cormorant Garamond", serif',
+                            fontSize: { xs: '2rem', sm: '2.35rem' },
+                            lineHeight: 1.05,
+                            mb: 1,
+                        }}
+                    >
+                        Tell the host what needs revision.
+                    </Typography>
+                    <Typography sx={{ color: '#64748B', lineHeight: 1.7, mb: 2.5 }}>
+                        These notes will appear in the host's My Properties feedback modal for{' '}
+                        <strong>{rejectDialogProperty?.title || 'this listing'}</strong>.
+                    </Typography>
+
+                    {rejectError ? (
+                        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                            {rejectError}
+                        </Alert>
+                    ) : null}
+
+                    <TextField
+                        label="Feedback and revision notes"
+                        value={rejectFeedback}
+                        onChange={(event) => setRejectFeedback(event.target.value)}
+                        placeholder={"Example:\nUpload a readable ownership document.\nReplace the cover image with a brighter room photo.\nConfirm the guest capacity matches the beds."}
+                        multiline
+                        minRows={6}
+                        fullWidth
+                        autoFocus
+                        helperText="Tip: write each requested change on a new line so it appears as clear bullets to the host."
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                borderRadius: 3,
+                                backgroundColor: '#FFFFFF',
+                                alignItems: 'flex-start',
+                            },
+                            '& .MuiOutlinedInput-root.Mui-focused fieldset': {
+                                borderColor: '#0D9488',
+                            },
+                            '& .MuiInputLabel-root.Mui-focused': {
+                                color: '#0D9488',
+                            },
+                        }}
+                    />
+                </Box>
+
+                <DialogActions
+                    sx={{
+                        px: { xs: 2.5, sm: 3.5 },
+                        py: 2.25,
+                        gap: 1.25,
+                        flexWrap: 'wrap',
+                        borderTop: '1px solid #E2E8F0',
+                        backgroundColor: '#F8FAFC',
+                    }}
+                >
+                    <Button
+                        onClick={handleCloseRejectDialog}
+                        disabled={rejectSubmitting}
+                        variant="outlined"
+                        color="inherit"
+                        sx={{ textTransform: 'none', borderRadius: 999, px: 3, fontWeight: 700 }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={() => handleReject(rejectDialogProperty?.id_property)}
+                        disabled={rejectSubmitting || !rejectDialogProperty}
+                        variant="contained"
+                        color="error"
+                        startIcon={<HighlightOffIcon />}
+                        sx={{
+                            textTransform: 'none',
+                            borderRadius: 999,
+                            px: 3,
+                            fontWeight: 800,
+                            boxShadow: '0 12px 24px rgba(220, 38, 38, 0.18)',
+                        }}
+                    >
+                        {rejectSubmitting ? 'Saving feedback...' : 'Reject and send feedback'}
+                    </Button>
+                </DialogActions>
             </Dialog>
         </>
     );

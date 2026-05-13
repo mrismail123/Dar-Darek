@@ -82,6 +82,51 @@ const ensureModerationSchema = async () => {
     );
   }
 
+  const [propertyColumns] = await db.query(
+    `
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'properties'
+      AND COLUMN_NAME IN ('admin_notes', 'reviewed_by')
+    `,
+  );
+
+  const existingPropertyColumns = new Set(
+    propertyColumns.map((column) => column.COLUMN_NAME),
+  );
+
+  if (!existingPropertyColumns.has("admin_notes")) {
+    await db.query(
+      "ALTER TABLE properties ADD COLUMN admin_notes TEXT DEFAULT NULL",
+    );
+  }
+
+  if (!existingPropertyColumns.has("reviewed_by")) {
+    await db.query(
+      "ALTER TABLE properties ADD COLUMN reviewed_by INT DEFAULT NULL",
+    );
+  }
+
+  const [statusColumns] = await db.query(
+    `
+    SELECT COLUMN_TYPE
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'properties'
+      AND COLUMN_NAME = 'status'
+    LIMIT 1
+    `,
+  );
+
+  const propertyStatusType = statusColumns[0]?.COLUMN_TYPE || "";
+
+  if (propertyStatusType.includes("enum") && !propertyStatusType.includes("'draft'")) {
+    await db.query(
+      "ALTER TABLE properties MODIFY COLUMN status ENUM('draft','pending','approved','rejected') NOT NULL DEFAULT 'pending'",
+    );
+  }
+
   await db.query(`
     CREATE TABLE IF NOT EXISTS reports (
       id_report INT NOT NULL AUTO_INCREMENT,
@@ -1613,6 +1658,784 @@ app.get("/api/extractCities", async (req, res) => {
   }
 });
 
+const normalizeDateOnly = (value) => {
+  if (!value) return null;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().split("T")[0];
+  }
+
+  return String(value).split("T")[0];
+};
+
+const normalizeTimeOnly = (value) => {
+  if (!value) return null;
+  return String(value).split(".")[0].slice(0, 5);
+};
+
+const isSafeDateValue = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value));
+
+const isDraftRequest = (value) => String(value || "").toLowerCase() === "true";
+
+const getPublishCityId = async (city, allowFallback = false) => {
+  const cleanCity = cleanText(city, 120);
+
+  if (cleanCity) {
+    const [cities] = await db.query(
+      "SELECT id_city FROM cities WHERE name = ? LIMIT 1",
+      [cleanCity],
+    );
+
+    if (cities.length > 0) {
+      return cities[0].id_city;
+    }
+  }
+
+  if (!allowFallback) {
+    return null;
+  }
+
+  const [fallbackCities] = await db.query(
+    "SELECT id_city FROM cities ORDER BY id_city ASC LIMIT 1",
+  );
+
+  return fallbackCities[0]?.id_city || null;
+};
+
+const hasPropertyUnavailableDatesTable = async () => {
+  const [tables] = await db.query("SHOW TABLES LIKE 'property_unavailable_dates'");
+  return tables.length > 0;
+};
+
+const mapPropertyStatusForHost = (status) => {
+  if (status === "approved") return "active";
+  if (status === "pending") return "pending";
+  if (status === "rejected") return "rejected";
+  return status || "pending";
+};
+
+const getAvailabilitySummary = (property) => {
+  const from = normalizeDateOnly(property.available_from);
+  const to = normalizeDateOnly(property.available_to);
+
+  if (from && to) return `Available ${from} to ${to}`;
+  if (from) return `Available from ${from}`;
+  if (to) return `Available until ${to}`;
+  return "Availability not set";
+};
+
+const mapHostPropertyRow = (property) => ({
+  id: property.id_property,
+  title: property.title || "DarDarek listing",
+  description: property.description || "",
+  city: property.city || "Northern Morocco",
+  location:
+    property.neighborhood || property.address || property.city || "Location not provided",
+  neighborhood: property.neighborhood || "",
+  address: property.address || "",
+  image: property.main_image || null,
+  propertyType: property.property_type || "Appartement",
+  pricePerNight: Number(property.price_per_day) || 0,
+  guests: Number(property.guests_total) || 0,
+  bedrooms: Number(property.bedrooms) || 0,
+  bathrooms: Number(property.bathrooms) || 0,
+  beds: Number(property.beds) || 0,
+  status: mapPropertyStatusForHost(property.status),
+  dbStatus: property.status,
+  totalBookings: Number(property.totalBookings) || 0,
+  upcomingBookings: Number(property.upcomingBookings) || 0,
+  monthlyRevenue: Number(property.monthlyRevenue) || 0,
+  rating:
+    property.averageRating === null || property.averageRating === undefined
+      ? null
+      : Math.round(Number(property.averageRating) * 10) / 10,
+  reviewCount: Number(property.reviewCount) || 0,
+  availabilitySummary: getAvailabilitySummary(property),
+  availableFrom: normalizeDateOnly(property.available_from),
+  availableTo: normalizeDateOnly(property.available_to),
+  checkIn: normalizeTimeOnly(property.check_in),
+  checkOut: normalizeTimeOnly(property.check_out),
+  createdAt: normalizeDateOnly(property.created_at),
+  adminNotes: property.admin_notes || "",
+});
+
+const getOwnedProperty = async (propertyId, userId) => {
+  const [rows] = await db.query(
+    `SELECT * FROM properties WHERE id_property = ? AND id_user = ? LIMIT 1`,
+    [propertyId, userId],
+  );
+
+  return rows[0] || null;
+};
+
+app.get("/api/my-properties", verifyToken, async (req, res) => {
+  const userId = getUserIdFromRequest(req);
+
+  if (!userId) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  try {
+    const [properties] = await db.query(
+      `
+      SELECT
+        p.id_property,
+        p.title,
+        p.description,
+        p.address,
+        p.neighborhood,
+        p.property_type,
+        p.price_per_day,
+        p.guests_total,
+        p.bedrooms,
+        p.bathrooms,
+        p.beds,
+        p.status,
+        p.check_in,
+        p.check_out,
+        p.available_from,
+        p.available_to,
+        p.created_at,
+        p.admin_notes,
+        c.name AS city,
+        u.name AS host_name,
+        (
+          SELECT pi.image_url
+          FROM property_images pi
+          WHERE pi.id_property = p.id_property
+          ORDER BY pi.is_main DESC, pi.id_image ASC
+          LIMIT 1
+        ) AS main_image,
+        (
+          SELECT COUNT(*)
+          FROM bookings b
+          WHERE b.id_property = p.id_property
+        ) AS totalBookings,
+        (
+          SELECT COUNT(*)
+          FROM bookings b
+          WHERE b.id_property = p.id_property
+            AND b.status IN ('pending', 'approved')
+            AND b.end_date >= CURDATE()
+        ) AS upcomingBookings,
+        (
+          SELECT COALESCE(SUM(b.total_price), 0)
+          FROM bookings b
+          WHERE b.id_property = p.id_property
+            AND b.status = 'approved'
+            AND b.start_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+            AND b.start_date < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+        ) AS monthlyRevenue,
+        (
+          SELECT AVG(r.rating)
+          FROM reviews r
+          WHERE r.id_property = p.id_property
+        ) AS averageRating,
+        (
+          SELECT COUNT(*)
+          FROM reviews r
+          WHERE r.id_property = p.id_property
+        ) AS reviewCount
+      FROM properties p
+      LEFT JOIN cities c ON p.id_city = c.id_city
+      LEFT JOIN users u ON p.id_user = u.id_user
+      WHERE p.id_user = ?
+      ORDER BY p.created_at DESC
+      `,
+      [userId],
+    );
+
+    return res.status(200).json({
+      properties: properties.map(mapHostPropertyRow),
+    });
+  } catch (error) {
+    console.error("Error fetching host properties:", error);
+    return res.status(500).json({
+      message: "Server error while fetching your properties.",
+      details: error.message,
+    });
+  }
+});
+
+app.get("/api/properties/:id/edit", verifyToken, async (req, res) => {
+  const userId = getUserIdFromRequest(req);
+  const propertyId = Number(req.params.id);
+
+  if (!userId) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `
+      SELECT
+        p.*,
+        c.name AS city
+      FROM properties p
+      LEFT JOIN cities c ON p.id_city = c.id_city
+      WHERE p.id_property = ?
+      LIMIT 1
+      `,
+      [propertyId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Property not found." });
+    }
+
+    const property = rows[0];
+
+    if (Number(property.id_user) !== Number(userId)) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to edit this property." });
+    }
+
+    const [images] = await db.query(
+      `
+      SELECT id_image, image_url, is_main
+      FROM property_images
+      WHERE id_property = ?
+      ORDER BY is_main DESC, id_image ASC
+      `,
+      [propertyId],
+    );
+
+    const [amenities] = await db.query(
+      `
+      SELECT a.name
+      FROM property_amenities pa
+      JOIN amenities a ON pa.id_amenity = a.id_amenity
+      WHERE pa.id_property = ?
+      `,
+      [propertyId],
+    );
+
+    return res.status(200).json({
+      property: {
+        id: property.id_property,
+        title: property.title || "",
+        description: property.description || "",
+        hostDescription: property.host_description || "",
+        neighborhoodDescription: property.neighborhood_description || "",
+        city: property.city || "",
+        address: property.address || "",
+        neighborhood: property.neighborhood || "",
+        postalCode: property.postal_code || "",
+        accessInstructions: property.access_instructions || "",
+        latitude: property.latitude,
+        longitude: property.longitude,
+        propertyType: property.property_type || "Appartement",
+        guests: property.guests_total,
+        bedrooms: property.bedrooms,
+        bathrooms: property.bathrooms,
+        beds: property.beds,
+        price: property.price_per_day,
+        checkIn: normalizeTimeOnly(property.check_in) || "15:00",
+        checkOut: normalizeTimeOnly(property.check_out) || "11:00",
+        availableFrom: normalizeDateOnly(property.available_from),
+        availableTo: normalizeDateOnly(property.available_to),
+        status: property.status,
+        images: images.map((image) => image.image_url).filter(Boolean),
+        amenities: amenities.map((amenity) => amenity.name),
+      },
+    });
+  } catch (error) {
+    console.error("Error loading property for edit:", error);
+    return res.status(500).json({
+      message: "Server error while loading this property.",
+      details: error.message,
+    });
+  }
+});
+
+app.delete("/api/my-properties/:id/draft", verifyToken, async (req, res) => {
+  const userId = getUserIdFromRequest(req);
+  const propertyId = Number(req.params.id);
+
+  if (!userId) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
+
+  try {
+    const [propertyRows] = await db.query(
+      "SELECT status FROM properties WHERE id_property = ? AND id_user = ? LIMIT 1",
+      [propertyId, userId],
+    );
+
+    if (propertyRows.length === 0) {
+      return res.status(404).json({ message: "Draft not found." });
+    }
+
+    if (propertyRows[0].status !== "draft") {
+      return res.status(400).json({ message: "Only drafts can be deleted here." });
+    }
+
+    await db.query("DELETE FROM property_amenities WHERE id_property = ?", [propertyId]);
+    await db.query("DELETE FROM property_images WHERE id_property = ?", [propertyId]);
+    await db.query("DELETE FROM properties WHERE id_property = ? AND id_user = ?", [
+      propertyId,
+      userId,
+    ]);
+
+    return res.status(200).json({ message: "Draft deleted." });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not delete this draft.",
+      details: error.message,
+    });
+  }
+});
+
+app.put(
+  "/api/properties/:id",
+  verifyToken,
+  upload.array("images", 12),
+  async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    const propertyId = Number(req.params.id);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    if (!Number.isFinite(propertyId) || propertyId <= 0) {
+      return res.status(400).json({ message: "Invalid property id." });
+    }
+
+    const connection = await db.getConnection();
+
+    try {
+      const [ownedRows] = await connection.query(
+        "SELECT status FROM properties WHERE id_property = ? AND id_user = ? LIMIT 1",
+        [propertyId, userId],
+      );
+
+      if (ownedRows.length === 0) {
+        const [existsRows] = await connection.query(
+          "SELECT id_property FROM properties WHERE id_property = ? LIMIT 1",
+          [propertyId],
+        );
+
+        return res.status(existsRows.length === 0 ? 404 : 403).json({
+          message:
+            existsRows.length === 0
+              ? "Property not found."
+              : "Not authorized to update this property.",
+        });
+      }
+
+      const {
+        title,
+        description,
+        hostDescription,
+        neighborhoodDescription,
+        city,
+        address,
+        neighborhood,
+        postalCode,
+        accessInstructions,
+        latitude,
+        longitude,
+        propertyType,
+        guests,
+        bedrooms,
+        bathrooms,
+        beds,
+        price,
+        checkIn,
+        checkOut,
+        availableFrom,
+        availableTo,
+      } = req.body;
+      const saveAsDraft = isDraftRequest(req.body?.saveAsDraft);
+
+      if (!saveAsDraft && (!title || !description || !city || !address || !price || !guests)) {
+        return res.status(400).json({
+          message: "Some required fields are missing.",
+        });
+      }
+
+      if (availableFrom && availableTo && availableTo < availableFrom) {
+        return res.status(400).json({
+          message:
+            "The availability end date must be later than the start date.",
+        });
+      }
+
+      const idCity = await getPublishCityId(city, saveAsDraft);
+
+      if (!idCity) {
+        return res.status(400).json({
+          message: "Invalid city. Please choose a valid city.",
+        });
+      }
+
+      const amenities = JSON.parse(req.body.amenities || "{}");
+      let keepImages = [];
+
+      try {
+        keepImages = JSON.parse(req.body.keepImages || "[]");
+      } catch {
+        keepImages = [];
+      }
+
+      const uploadedImages = req.files
+        ? req.files.map((file) => `/uploads/${file.filename}`)
+        : [];
+      const cleanKeepImages = Array.isArray(keepImages)
+        ? keepImages.filter((image) => typeof image === "string" && image)
+        : [];
+      const finalImages = [...cleanKeepImages, ...uploadedImages];
+
+      if (!saveAsDraft && finalImages.length < 4) {
+        return res.status(400).json({
+          message: "Please keep or upload at least 4 images.",
+        });
+      }
+
+      const nextStatus =
+        saveAsDraft
+          ? "draft"
+          : ["rejected", "draft"].includes(ownedRows[0].status)
+            ? "pending"
+            : ownedRows[0].status;
+
+      await connection.beginTransaction();
+
+      await connection.query(
+        `
+        UPDATE properties
+        SET
+          title = ?,
+          description = ?,
+          host_description = ?,
+          neighborhood_description = ?,
+          address = ?,
+          neighborhood = ?,
+          postal_code = ?,
+          access_instructions = ?,
+          latitude = ?,
+          longitude = ?,
+          property_type = ?,
+          id_city = ?,
+          price_per_day = ?,
+          guests_total = ?,
+          bedrooms = ?,
+          bathrooms = ?,
+          beds = ?,
+          check_in = ?,
+          check_out = ?,
+          available_from = ?,
+          available_to = ?,
+          status = ?,
+          admin_notes = CASE WHEN ? = 'pending' THEN NULL ELSE admin_notes END
+        WHERE id_property = ? AND id_user = ?
+        `,
+        [
+          title?.trim() || "Untitled draft",
+          description?.trim() || null,
+          hostDescription?.trim() || null,
+          neighborhoodDescription?.trim() || null,
+          address?.trim() || null,
+          neighborhood?.trim() || null,
+          postalCode?.trim() || null,
+          accessInstructions?.trim() || null,
+          latitude ? Number(latitude) : null,
+          longitude ? Number(longitude) : null,
+          propertyType || null,
+          idCity,
+          Number(price || 0),
+          Number(guests || 0),
+          Number(bedrooms || 0),
+          Number(bathrooms || 0),
+          Number(beds || 0),
+          checkIn || null,
+          checkOut || null,
+          availableFrom || null,
+          availableTo || null,
+          nextStatus,
+          nextStatus,
+          propertyId,
+          userId,
+        ],
+      );
+
+      await connection.query("DELETE FROM property_images WHERE id_property = ?", [
+        propertyId,
+      ]);
+
+      for (let i = 0; i < finalImages.length; i++) {
+        await connection.query(
+          `INSERT INTO property_images (id_property, image_url, is_main)
+           VALUES (?, ?, ?)`,
+          [propertyId, finalImages[i], i === 0],
+        );
+      }
+
+      await connection.query(
+        "DELETE FROM property_amenities WHERE id_property = ?",
+        [propertyId],
+      );
+
+      const selectedAmenities = Object.keys(amenities).filter(
+        (key) => amenities[key] === true,
+      );
+
+      for (const amenityKey of selectedAmenities) {
+        const dbAmenityName = AMENITY_NAME_MAP[amenityKey] || amenityKey;
+        const [amenityRows] = await connection.query(
+          "SELECT id_amenity FROM amenities WHERE name = ?",
+          [dbAmenityName],
+        );
+
+        if (amenityRows.length > 0) {
+          await connection.query(
+            `INSERT INTO property_amenities (id_property, id_amenity)
+             VALUES (?, ?)`,
+            [propertyId, amenityRows[0].id_amenity],
+          );
+        }
+      }
+
+      await connection.commit();
+
+      return res.status(200).json({
+        message:
+          nextStatus === "draft"
+            ? "Draft saved. You can continue it from My Properties."
+            :
+          nextStatus === "pending" && ownedRows[0].status === "rejected"
+            ? "Listing updated and resubmitted for approval."
+            : nextStatus === "pending" && ownedRows[0].status === "draft"
+              ? "Draft submitted for approval."
+            : "Listing updated successfully.",
+        propertyId,
+      });
+    } catch (error) {
+      await connection.rollback();
+      console.error("Error updating property:", error);
+      return res.status(500).json({
+        message: "A server error occurred while updating the listing.",
+        details: error.message,
+      });
+    } finally {
+      connection.release();
+    }
+  },
+);
+
+app.get("/api/my-properties/:id/availability", verifyToken, async (req, res) => {
+  const userId = getUserIdFromRequest(req);
+  const propertyId = Number(req.params.id);
+
+  if (!userId) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
+
+  try {
+    const property = await getOwnedProperty(propertyId, userId);
+
+    if (!property) {
+      const [existsRows] = await db.query(
+        "SELECT id_property FROM properties WHERE id_property = ? LIMIT 1",
+        [propertyId],
+      );
+
+      return res.status(existsRows.length === 0 ? 404 : 403).json({
+        message:
+          existsRows.length === 0
+            ? "Property not found."
+            : "Not authorized to manage this property's availability.",
+      });
+    }
+
+    const [bookedRanges] = await db.query(
+      `
+      SELECT start_date AS startDate, end_date AS endDate, status
+      FROM bookings
+      WHERE id_property = ?
+        AND status IN ('pending', 'approved')
+        AND end_date >= CURDATE()
+      ORDER BY start_date ASC
+      `,
+      [propertyId],
+    );
+
+    const supportsUnavailableDates = await hasPropertyUnavailableDatesTable();
+    let unavailableDates = [];
+
+    if (supportsUnavailableDates) {
+      const [rows] = await db.query(
+        `
+        SELECT unavailable_date AS date, reason
+        FROM property_unavailable_dates
+        WHERE id_property = ?
+        ORDER BY unavailable_date ASC
+        `,
+        [propertyId],
+      );
+
+      unavailableDates = rows.map((row) => ({
+        date: normalizeDateOnly(row.date),
+        reason: row.reason || "host_blocked",
+      }));
+    }
+
+    return res.status(200).json({
+      property: {
+        id: property.id_property,
+        title: property.title || "DarDarek listing",
+        availableFrom: normalizeDateOnly(property.available_from),
+        availableTo: normalizeDateOnly(property.available_to),
+        checkIn: normalizeTimeOnly(property.check_in),
+        checkOut: normalizeTimeOnly(property.check_out),
+      },
+      bookedRanges: bookedRanges.map((range) => ({
+        startDate: normalizeDateOnly(range.startDate),
+        endDate: normalizeDateOnly(range.endDate),
+        status: range.status,
+      })),
+      unavailableDates,
+      supportsUnavailableDates,
+    });
+  } catch (error) {
+    console.error("Error loading property availability:", error);
+    return res.status(500).json({
+      message: "Server error while loading availability.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/my-properties/:id/availability", verifyToken, async (req, res) => {
+  const userId = getUserIdFromRequest(req);
+  const propertyId = Number(req.params.id);
+  const { availableFrom, availableTo, unavailableDates = [] } = req.body || {};
+
+  if (!userId) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
+
+  if (availableFrom && !isSafeDateValue(availableFrom)) {
+    return res.status(400).json({ message: "Invalid availability start date." });
+  }
+
+  if (availableTo && !isSafeDateValue(availableTo)) {
+    return res.status(400).json({ message: "Invalid availability end date." });
+  }
+
+  if (availableFrom && availableTo && availableTo < availableFrom) {
+    return res.status(400).json({
+      message: "The availability end date must be later than the start date.",
+    });
+  }
+
+  try {
+    const property = await getOwnedProperty(propertyId, userId);
+
+    if (!property) {
+      const [existsRows] = await db.query(
+        "SELECT id_property FROM properties WHERE id_property = ? LIMIT 1",
+        [propertyId],
+      );
+
+      return res.status(existsRows.length === 0 ? 404 : 403).json({
+        message:
+          existsRows.length === 0
+            ? "Property not found."
+            : "Not authorized to manage this property's availability.",
+      });
+    }
+
+    await db.query(
+      `
+      UPDATE properties
+      SET available_from = ?, available_to = ?
+      WHERE id_property = ? AND id_user = ?
+      `,
+      [availableFrom || null, availableTo || null, propertyId, userId],
+    );
+
+    const supportsUnavailableDates = await hasPropertyUnavailableDatesTable();
+
+    if (supportsUnavailableDates) {
+      const [bookedRanges] = await db.query(
+        `
+        SELECT start_date AS startDate, end_date AS endDate
+        FROM bookings
+        WHERE id_property = ?
+          AND status IN ('pending', 'approved')
+          AND end_date >= CURDATE()
+        `,
+        [propertyId],
+      );
+
+      const isBookedDate = (date) =>
+        bookedRanges.some((range) => {
+          const start = normalizeDateOnly(range.startDate);
+          const end = normalizeDateOnly(range.endDate);
+          return start && end && date >= start && date < end;
+        });
+
+      const cleanDates = Array.from(
+        new Set(
+          (Array.isArray(unavailableDates) ? unavailableDates : [])
+            .map(normalizeDateOnly)
+            .filter(
+              (date) => date && isSafeDateValue(date) && !isBookedDate(date),
+            ),
+        ),
+      );
+
+      await db.query(
+        "DELETE FROM property_unavailable_dates WHERE id_property = ? AND reason = 'host_blocked'",
+        [propertyId],
+      );
+
+      for (const date of cleanDates) {
+        await db.query(
+          `
+          INSERT IGNORE INTO property_unavailable_dates
+            (id_property, unavailable_date, reason)
+          VALUES (?, ?, 'host_blocked')
+          `,
+          [propertyId, date],
+        );
+      }
+    }
+
+    return res.status(200).json({
+      message: supportsUnavailableDates
+        ? "Availability saved successfully."
+        : "Availability range saved. Host-blocked days require the optional unavailable dates table.",
+      supportsUnavailableDates,
+    });
+  } catch (error) {
+    console.error("Error saving property availability:", error);
+    return res.status(500).json({
+      message: "Server error while saving availability.",
+      details: error.message,
+    });
+  }
+});
+
 app.get("/api/houses", async (req, res) => {
   try {
     const [properties] = await db.query(`
@@ -2020,6 +2843,7 @@ app.post(
       } = req.body;
 
       const userId = getUserIdFromRequest(req);
+      const saveAsDraft = isDraftRequest(req.body?.saveAsDraft);
 
       if (!userId) {
         return res.status(401).json({
@@ -2033,45 +2857,41 @@ app.post(
         : [];
 
       if (
-        !title ||
-        !description ||
-        !city ||
-        !address ||
-        !price ||
-        !guests ||
-        !availableFrom ||
-        !availableTo
+        !saveAsDraft &&
+        (!title ||
+          !description ||
+          !city ||
+          !address ||
+          !price ||
+          !guests ||
+          !availableFrom ||
+          !availableTo)
       ) {
         return res.status(400).json({
           message: "Some required fields are missing.",
         });
       }
 
-      if (availableTo < availableFrom) {
+      if (availableFrom && availableTo && availableTo < availableFrom) {
         return res.status(400).json({
           message:
             "The availability end date must be later than the start date.",
         });
       }
 
-      if (uploadedImages.length < 4) {
+      if (!saveAsDraft && uploadedImages.length < 4) {
         return res.status(400).json({
           message: "Please upload at least 4 images.",
         });
       }
 
-      const [cities] = await db.query(
-        "SELECT id_city FROM cities WHERE name = ?",
-        [city.trim()],
-      );
+      const id_city = await getPublishCityId(city, saveAsDraft);
 
-      if (cities.length === 0) {
+      if (!id_city) {
         return res.status(400).json({
           message: "Invalid city. Please choose a valid city.",
         });
       }
-
-      const id_city = cities[0].id_city;
 
       const [result] = await db.query(
         `
@@ -2103,7 +2923,7 @@ app.post(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
-          title?.trim() || null,
+          title?.trim() || "Untitled draft",
           description?.trim() || null,
           hostDescription?.trim() || null,
           neighborhoodDescription?.trim() || null,
@@ -2116,8 +2936,8 @@ app.post(
           propertyType || null,
           id_city,
           userId,
-          Number(price),
-          Number(guests),
+          Number(price || 0),
+          Number(guests || 0),
           Number(bedrooms || 0),
           Number(bathrooms || 0),
           Number(beds || 0),
@@ -2125,7 +2945,7 @@ app.post(
           checkOut || null,
           availableFrom || null,
           availableTo || null,
-          "pending",
+          saveAsDraft ? "draft" : "pending",
         ],
       );
 
@@ -2166,7 +2986,9 @@ app.post(
 
       res.status(201).json({
         message:
-          "Your listing has been submitted successfully and is now awaiting approval.",
+          saveAsDraft
+            ? "Draft saved. You can continue it from My Properties."
+            : "Your listing has been submitted successfully and is now awaiting approval.",
         propertyId,
       });
     } catch (error) {
@@ -2274,8 +3096,8 @@ app.post(
       }
 
       const [result] = await db.execute(
-        "UPDATE properties SET status = 'approved' WHERE id_property = ?",
-        [propertyId],
+        "UPDATE properties SET status = 'approved', admin_notes = NULL, reviewed_by = ? WHERE id_property = ?",
+        [getUserIdFromRequest(req), propertyId],
       );
 
       if (result.affectedRows === 0) {
@@ -2320,9 +3142,20 @@ app.post(
         return res.status(400).json({ message: "Invalid property id." });
       }
 
+      const adminNotes = cleanText(
+        req.body?.admin_notes || req.body?.feedback || req.body?.notes,
+        2000,
+      );
+
+      if (!adminNotes || adminNotes.length < 10) {
+        return res.status(400).json({
+          message: "Please add rejection feedback with at least 10 characters.",
+        });
+      }
+
       const [result] = await db.execute(
-        "UPDATE properties SET status = 'rejected' WHERE id_property = ?",
-        [propertyId],
+        "UPDATE properties SET status = 'rejected', admin_notes = ?, reviewed_by = ? WHERE id_property = ?",
+        [adminNotes, getUserIdFromRequest(req), propertyId],
       );
 
       if (result.affectedRows === 0) {
@@ -2340,14 +3173,17 @@ app.post(
           await db.execute(
             `INSERT INTO notifications (id_user, id_property, type, notify_text)
              VALUES (?, ?, ?, ?)`,
-            [hostId, propertyId, "REJECT", `Your property "${propertyTitle}" has been rejected. Please check the requirements and resubmit.`],
+            [hostId, propertyId, "REJECT", `Your property "${propertyTitle}" needs revisions. Please review the admin feedback and resubmit.`],
           );
         } catch (notifyErr) {
           console.error("Failed to notify host about property rejection:", notifyErr.message);
         }
       }
 
-      res.status(200).json({ message: "Property rejected successfully." });
+      res.status(200).json({
+        message: "Property rejected and feedback saved.",
+        admin_notes: adminNotes,
+      });
     } catch (error) {
       res.status(500).json({ details: error.message });
     }

@@ -1237,7 +1237,7 @@ function BookingCard({
     <div className="pd-booking-wrap">
       <div className="pd-booking__actions">
         <button type="button" className="pd-action-btn">
-          🔗 Share
+          Share
         </button>
         <button
           onClick={handleFavoriteClick}
@@ -1245,17 +1245,17 @@ function BookingCard({
           className={`pd-action-btn${isSaved ? " pd-action-btn--active" : ""}`}
           disabled={favoriteLoading}
         >
-          ❤️ Save
+          {isSaved ? "Saved" : "Save"}
         </button>
         <button
           type="button"
-          className="pd-action-btn"
+          className="pd-action-btn pd-action-btn--danger"
           onClick={() => {
             setReportOpen(true);
             setReportNotice(null);
           }}
         >
-          ! Report
+          Report
         </button>
       </div>
       <aside className="pd-booking pd-card" aria-label="Booking card">

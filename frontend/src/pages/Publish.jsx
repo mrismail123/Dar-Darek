@@ -7,7 +7,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { buildApiUrl } from "../lib/api";
 import Footer from "../Footer";
 
-import logoImage from "../assets/dardarek-logo.png";
 import {
   MapContainer,
   Marker,
@@ -218,6 +217,57 @@ const PROPERTY_TYPES = [
   { value: "Maison d'hôtes", label: "Guest house", icon: "🛎️" },
 ];
 
+const API_AMENITY_TO_FORM_KEY = {
+  WiFi: "wifi",
+  wifi: "wifi",
+  hotWater: "hotWater",
+  sheets: "sheets",
+  towels: "towels",
+  toiletries: "toiletries",
+  refrigerator: "refrigerator",
+  Kitchen: "kitchen",
+  kitchen: "kitchen",
+  microwave: "microwave",
+  oven: "oven",
+  kettle: "kettle",
+  coffeeMachine: "coffeeMachine",
+  dishes: "dishes",
+  "Air Conditioning": "airConditioning",
+  airConditioning: "airConditioning",
+  heating: "heating",
+  washingMachine: "washingMachine",
+  dryer: "dryer",
+  tv: "tv",
+  sofa: "sofa",
+  workspace: "workspace",
+  desk: "desk",
+  fastWifi: "fastWifi",
+  smartTv: "smartTv",
+  balcony: "balcony",
+  terrace: "terrace",
+  "Sea View": "seaView",
+  seaView: "seaView",
+  mountainView: "mountainView",
+  medinaView: "medinaView",
+  natureView: "natureView",
+  beachAccess: "beachAccess",
+  Pool: "pool",
+  pool: "pool",
+  bbq: "bbq",
+  garden: "garden",
+  breakfast: "breakfast",
+  Parking: "parking",
+  parking: "parking",
+  petFriendly: "petFriendly",
+  housekeeping: "housekeeping",
+  airportShuttle: "airportShuttle",
+  reception: "reception",
+  smokeDetector: "smokeDetector",
+  fireExtinguisher: "fireExtinguisher",
+  outdoorCamera: "outdoorCamera",
+  safeBox: "safeBox",
+};
+
 const NORTH_MOROCCO_CITIES = [
   "Ajdir",
   "Al Hoceima",
@@ -257,6 +307,32 @@ const isWithinNorthernMorocco = (lat, lng) =>
 const getLocationFieldValue = (...values) =>
   values.find((value) => typeof value === "string" && value.trim())?.trim() ||
   "";
+
+const normalizeEditDate = (value) =>
+  value ? String(value).split("T")[0] : "";
+
+const normalizeEditTime = (value, fallback) =>
+  value ? String(value).slice(0, 5) : fallback;
+
+const normalizeExistingImageUrl = (imagePath) => {
+  if (!imagePath) return "";
+  if (/^https?:\/\//i.test(imagePath)) return imagePath;
+  return buildApiUrl(imagePath.startsWith("/") ? imagePath : `/${imagePath}`);
+};
+
+const buildEditAmenities = (apiAmenities = []) => {
+  const nextAmenities = { ...INITIAL_FORM_DATA.amenities };
+
+  apiAmenities.forEach((amenityName) => {
+    const key = API_AMENITY_TO_FORM_KEY[amenityName] || amenityName;
+
+    if (Object.prototype.hasOwnProperty.call(nextAmenities, key)) {
+      nextAmenities[key] = true;
+    }
+  });
+
+  return nextAmenities;
+};
 
 const buildReverseGeocodePatch = (result) => {
   const address = result?.address || {};
@@ -358,8 +434,12 @@ export default function Publish() {
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isEditLoading, setIsEditLoading] = useState(false);
+  const [editingStatus, setEditingStatus] = useState("");
   const [cities, setCities] = useState([]);
   const [errors, setErrors] = useState({});
+  const [existingImageUrls, setExistingImageUrls] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
   const [publishNotice, setPublishNotice] = useState(null);
   const [locationMessage, setLocationMessage] = useState({
@@ -370,6 +450,8 @@ export default function Publish() {
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
   const fileInputRef = useRef(null);
   const reverseGeocodeRequestRef = useRef(0);
+  const editPropertyId = new URLSearchParams(location.search).get("edit");
+  const isEditMode = Boolean(editPropertyId);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -414,26 +496,6 @@ export default function Publish() {
     setFormData({
       ...formData,
       propertyType: value,
-    });
-  };
-
-  const upsertCityOption = (name) => {
-    if (!name) return;
-
-    setCities((prev) => {
-      const exists = prev.some(
-        (city) => city.name.toLowerCase() === name.toLowerCase(),
-      );
-
-      if (exists) return prev;
-
-      return [
-        ...prev,
-        {
-          id_city: `geo-${prev.length + 1}`,
-          name,
-        },
-      ];
     });
   };
 
@@ -571,7 +633,8 @@ export default function Publish() {
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length === 0) return;
 
-    const totalImages = formData.images.length + selectedFiles.length;
+    const totalImages =
+      existingImageUrls.length + formData.images.length + selectedFiles.length;
     if (totalImages > 35) {
       setPublishNotice({
         type: "error",
@@ -592,11 +655,20 @@ export default function Publish() {
   };
 
   const handleRemoveImage = (idx) => {
+    const isExistingImage = idx < existingImageUrls.length;
+
+    if (isExistingImage) {
+      setExistingImageUrls(existingImageUrls.filter((_, i) => i !== idx));
+      setImagePreviews(imagePreviews.filter((_, i) => i !== idx));
+      return;
+    }
+
+    const newImageIndex = idx - existingImageUrls.length;
     URL.revokeObjectURL(imagePreviews[idx]);
 
     setFormData({
       ...formData,
-      images: formData.images.filter((_, i) => i !== idx),
+      images: formData.images.filter((_, i) => i !== newImageIndex),
     });
 
     setImagePreviews(imagePreviews.filter((_, i) => i !== idx));
@@ -694,11 +766,45 @@ export default function Publish() {
       newErrors.availableTo = "The end date must be later than the start date.";
     }
 
-    if (formData.images.length < 4) {
+    if (existingImageUrls.length + formData.images.length < 4) {
       newErrors.images = "Please upload at least 4 images.";
     }
 
     return newErrors;
+  };
+
+  const buildPropertyPayload = (saveAsDraft = false) => {
+    const formPayload = new FormData();
+
+    Object.entries(formData).forEach(([key, value]) => {
+      if (key === "amenities") {
+        formPayload.append(key, JSON.stringify(value));
+      } else if (key !== "images") {
+        formPayload.append(
+          key,
+          typeof value === "string" ? value.trim() : value,
+        );
+      }
+    });
+
+    formData.images.forEach((file) => formPayload.append("images", file));
+
+    if (isEditMode) {
+      formPayload.append("keepImages", JSON.stringify(existingImageUrls));
+    }
+
+    if (saveAsDraft) {
+      formPayload.append("saveAsDraft", "true");
+    }
+
+    const storedUser = JSON.parse(localStorage.getItem("user"));
+    const userId = storedUser?.id;
+
+    if (userId) {
+      formPayload.append("idUser", userId);
+    }
+
+    return { formPayload, userId };
   };
 
   const handleSubmit = async (e) => {
@@ -740,23 +846,7 @@ export default function Publish() {
       return;
     }
 
-    const formPayload = new FormData();
-
-    Object.entries(formData).forEach(([key, value]) => {
-      if (key === "amenities") {
-        formPayload.append(key, JSON.stringify(value));
-      } else if (key !== "images") {
-        formPayload.append(
-          key,
-          typeof value === "string" ? value.trim() : value,
-        );
-      }
-    });
-
-    formData.images.forEach((file) => formPayload.append("images", file));
-
-    const storedUser = JSON.parse(localStorage.getItem("user"));
-    const userId = storedUser?.id;
+    const { formPayload, userId } = buildPropertyPayload(false);
 
     if (!userId) {
       
@@ -766,21 +856,23 @@ export default function Publish() {
       });
       return;
     }
-
-    formPayload.append("idUser", userId);
-
     setIsSubmitting(true);
 
     try {
       const token = localStorage.getItem("token");
 
-      const response = await fetch(buildApiUrl("/api/publishProperty"), {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        buildApiUrl(
+          isEditMode ? `/api/properties/${editPropertyId}` : "/api/publishProperty",
+        ),
+        {
+          method: isEditMode ? "PUT" : "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formPayload,
         },
-        body: formPayload,
-      });
+      );
 
       const data = await response.json();
 
@@ -791,9 +883,12 @@ export default function Publish() {
       setShowSuccess(true);
       setPublishNotice(null);
 
-      imagePreviews.forEach((url) => URL.revokeObjectURL(url));
-      setImagePreviews([]);
-      setFormData(INITIAL_FORM_DATA);
+      if (!isEditMode) {
+        imagePreviews.forEach((url) => URL.revokeObjectURL(url));
+        setImagePreviews([]);
+        setExistingImageUrls([]);
+        setFormData(INITIAL_FORM_DATA);
+      }
 
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -806,6 +901,83 @@ export default function Publish() {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    const currentToken = localStorage.getItem("token");
+
+    if (!currentToken) {
+      setPublishNotice({
+        type: "error",
+        text: "Please sign in before saving a draft.",
+      });
+
+      navigate("/Authentication", { state: { from: location.pathname } });
+      return;
+    }
+
+    if (
+      formData.availableFrom &&
+      formData.availableTo &&
+      formData.availableTo < formData.availableFrom
+    ) {
+      setPublishNotice({
+        type: "error",
+        text: "The availability end date must be later than the start date.",
+      });
+      return;
+    }
+
+    const { formPayload, userId } = buildPropertyPayload(true);
+
+    if (!userId) {
+      setPublishNotice({
+        type: "error",
+        text: "Session expired. Please log in again.",
+      });
+      return;
+    }
+
+    setIsSavingDraft(true);
+    setPublishNotice(null);
+
+    try {
+      const response = await fetch(
+        buildApiUrl(
+          isEditMode ? `/api/properties/${editPropertyId}` : "/api/publishProperty",
+        ),
+        {
+          method: isEditMode ? "PUT" : "POST",
+          headers: {
+            Authorization: `Bearer ${currentToken}`,
+          },
+          body: formPayload,
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Could not save your draft.");
+      }
+
+      setPublishNotice({
+        type: "success",
+        text: data.message || "Draft saved. You can continue it from My Properties.",
+      });
+      setErrors({});
+
+      if (!isEditMode && data.propertyId) {
+        navigate(`/new-listing?edit=${data.propertyId}`, { replace: true });
+      }
+    } catch (err) {
+      setPublishNotice({
+        type: "error",
+        text: err.message || "Could not save your draft.",
+      });
+    } finally {
+      setIsSavingDraft(false);
     }
   };
 
@@ -838,7 +1010,102 @@ export default function Publish() {
       });
   }, []);
 
+  useEffect(() => {
+    if (!isEditMode) {
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      navigate("/Authentication", { state: { from: location.pathname } });
+      return;
+    }
+
+    let isMounted = true;
+
+    async function loadPropertyForEdit() {
+      setIsEditLoading(true);
+      setPublishNotice(null);
+
+      try {
+        const response = await fetch(
+          buildApiUrl(`/api/properties/${editPropertyId}/edit`),
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Could not load this listing.");
+        }
+
+        if (!isMounted) return;
+
+        const property = data.property || {};
+        const apiImages = Array.isArray(property.images)
+          ? property.images.filter(Boolean)
+          : [];
+
+        setExistingImageUrls(apiImages);
+        setImagePreviews(apiImages.map(normalizeExistingImageUrl));
+        setEditingStatus(property.status || "");
+        setFormData({
+          ...INITIAL_FORM_DATA,
+          title: property.title || "",
+          city: property.city || "",
+          propertyType: property.propertyType || "Appartement",
+          address: property.address || "",
+          neighborhood: property.neighborhood || "",
+          postalCode: property.postalCode || "",
+          accessInstructions: property.accessInstructions || "",
+          latitude: Number(property.latitude) || DEFAULT_LOCATION.latitude,
+          longitude: Number(property.longitude) || DEFAULT_LOCATION.longitude,
+          guests: property.guests || "",
+          bedrooms: property.bedrooms || "",
+          bathrooms: property.bathrooms || "",
+          beds: property.beds || "",
+          price: property.price || "",
+          description: property.description || "",
+          hostDescription: property.hostDescription || "",
+          neighborhoodDescription: property.neighborhoodDescription || "",
+          checkIn: normalizeEditTime(property.checkIn, "15:00"),
+          checkOut: normalizeEditTime(property.checkOut, "11:00"),
+          availableFrom: normalizeEditDate(property.availableFrom),
+          availableTo: normalizeEditDate(property.availableTo),
+          amenities: buildEditAmenities(property.amenities || []),
+          images: [],
+        });
+        setLocationMessage({
+          type: "success",
+          text: "Listing loaded. Your updates will edit the existing property.",
+        });
+      } catch (error) {
+        if (!isMounted) return;
+
+        setPublishNotice({
+          type: "error",
+          text: error.message || "Could not load this listing.",
+        });
+      } finally {
+        if (isMounted) {
+          setIsEditLoading(false);
+        }
+      }
+    }
+
+    loadPropertyForEdit();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [editPropertyId, isEditMode, location.pathname, navigate]);
+
   const mapPosition = [formData.latitude, formData.longitude];
+  const totalPhotoCount = existingImageUrls.length + formData.images.length;
 
   return (
     <>
@@ -888,6 +1155,13 @@ export default function Publish() {
               Fields marked with <span className="pub-required">*</span> are
               required to continue.
             </div>
+
+            {isEditLoading && (
+              <div className="pub-inline-message pub-inline-message--info" role="status">
+                <span aria-hidden="true">!</span>
+                <p>Loading your existing listing...</p>
+              </div>
+            )}
 
             {publishNotice && (
               <div
@@ -1100,6 +1374,20 @@ export default function Publish() {
                       >
                         {isLocating ? "Locating..." : "Use current location"}
                       </button>
+                    </div>
+
+                    <div
+                      className={`pub-inline-message pub-inline-message--${locationMessage.type}`}
+                      role="status"
+                    >
+                      <span aria-hidden="true">
+                        {locationMessage.type === "success" ? "✓" : "!"}
+                      </span>
+                      <p>
+                        {isReverseGeocoding
+                          ? "Searching for address details..."
+                          : locationMessage.text}
+                      </p>
                     </div>
 
                     <div className="pub-location-map-shell">
@@ -1517,11 +1805,11 @@ export default function Publish() {
 
                 <div
                   className={`pub-photo-counter ${
-                    formData.images.length >= 4 ? "pub-photo-counter--ok" : ""
+                    totalPhotoCount >= 4 ? "pub-photo-counter--ok" : ""
                   }`}
                 >
-                  {formData.images.length} / 35{" "}
-                  {formData.images.length >= 4 && "✓"}
+                  {totalPhotoCount} / 35{" "}
+                  {totalPhotoCount >= 4 && "✓"}
                 </div>
               </div>
 
@@ -1645,31 +1933,64 @@ export default function Publish() {
 
             <div className="pub-submit-bar">
               <div className="pub-submit-bar__text">
-                <strong>Ready to start hosting?</strong>
+                <strong>
+                  {isEditMode
+                    ? "Ready to save your listing?"
+                    : "Ready to start hosting?"}
+                </strong>
                 <span>
-                  Your listing will soon be visible to thousands of travelers.
+                  {isEditMode
+                    ? "Your updates will be saved to this existing property."
+                    : "Your listing will soon be visible to thousands of travelers."}
                 </span>
               </div>
 
-              <button
-                type="submit"
-                className="pub-submit-btn"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <span className="pub-submit-btn__spinner" />
-                ) : (
-                  "Publish listing"
-                )}
-              </button>
+              <div className="pub-submit-bar__actions">
+                <button
+                  type="button"
+                  className="pub-draft-btn"
+                  disabled={isSubmitting || isSavingDraft || isEditLoading}
+                  onClick={handleSaveDraft}
+                >
+                  {isSavingDraft ? (
+                    <span className="pub-submit-btn__spinner pub-submit-btn__spinner--dark" />
+                  ) : (
+                    "Save draft"
+                  )}
+                </button>
+
+                <button
+                  type="submit"
+                  className="pub-submit-btn"
+                  disabled={isSubmitting || isSavingDraft || isEditLoading}
+                >
+                  {isSubmitting ? (
+                    <span className="pub-submit-btn__spinner" />
+                  ) : (
+                    isEditMode && ["draft", "rejected"].includes(editingStatus)
+                      ? "Submit listing"
+                      : isEditMode
+                        ? "Save changes"
+                        : "Publish listing"
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         </main>
       </div>
       {showSuccess && (
         <SuccessAlert
-          message="Property listed successfully!"
-          subMessage="Your listing has been submitted successfully and is now awaiting approval."
+          message={
+            isEditMode
+              ? "Property updated successfully!"
+              : "Property listed successfully!"
+          }
+          subMessage={
+            isEditMode
+              ? "Your listing changes have been saved."
+              : "Your listing has been submitted successfully and is now awaiting approval."
+          }
           onClose={() => setShowSuccess(false)}
         />
       )}
@@ -1679,3 +2000,4 @@ export default function Publish() {
     </>
   );
 }
+

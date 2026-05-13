@@ -762,7 +762,7 @@ export default function MyBookings() {
             </p>
           </div>
 
-          {/* <div className="bookings-summary" aria-label="Booking summary">
+          <div className="bookings-summary" aria-label="Booking summary">
             <article className="bookings-summary-card">
               <span>
                 <FiCalendar aria-hidden="true" />
@@ -790,7 +790,7 @@ export default function MyBookings() {
                 <p>Confirmed bookings</p>
               </div>
             </article>
-          </div> */}
+          </div>
         </section>
 
         <section className="bookings-tabs-card">
