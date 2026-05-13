@@ -901,6 +901,82 @@ const scrollToAvailability = () => {
     ?.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
+function PropertyDetailsLoading() {
+  return (
+    <>
+      <section
+        className="pd-section pd-title-card pd-loading-title"
+        aria-live="polite"
+        aria-label="Loading property details"
+      >
+        <span className="pd-skeleton pd-skeleton--title" />
+        <span className="pd-skeleton pd-skeleton--location" />
+      </section>
+
+      <section className="pd-loading-gallery" aria-hidden="true">
+        <div className="pd-loading-gallery__main">
+          <span className="pd-skeleton pd-skeleton--fill" />
+        </div>
+        <div className="pd-loading-gallery__grid">
+          {[1, 2, 3, 4].map((item) => (
+            <span className="pd-skeleton pd-skeleton--fill" key={item} />
+          ))}
+        </div>
+      </section>
+
+      <section className="pd-layout pd-loading-layout" aria-hidden="true">
+        <div className="pd-content">
+          <section className="pd-summary pd-loading-summary">
+            <span className="pd-skeleton pd-skeleton--headline" />
+            <div className="pd-loading-pills">
+              {[1, 2, 3, 4].map((item) => (
+                <span className="pd-skeleton pd-skeleton--pill" key={item} />
+              ))}
+            </div>
+            <span className="pd-skeleton pd-skeleton--rating" />
+            <div className="pd-loading-host">
+              <span className="pd-skeleton pd-skeleton--avatar" />
+              <div>
+                <span className="pd-skeleton pd-skeleton--host-name" />
+                <span className="pd-skeleton pd-skeleton--host-copy" />
+              </div>
+            </div>
+          </section>
+
+          <section className="pd-section pd-loading-section">
+            <span className="pd-skeleton pd-skeleton--section-title" />
+            <span className="pd-skeleton pd-skeleton--section-hint" />
+            <div className="pd-loading-copy">
+              <span className="pd-skeleton pd-skeleton--line" />
+              <span className="pd-skeleton pd-skeleton--line" />
+              <span className="pd-skeleton pd-skeleton--line pd-skeleton--line-short" />
+            </div>
+          </section>
+        </div>
+
+        <aside className="pd-booking-wrap">
+          <div className="pd-booking pd-loading-booking">
+            <div className="pd-loading-booking__top">
+              <span className="pd-skeleton pd-skeleton--price" />
+              <span className="pd-skeleton pd-skeleton--small-rating" />
+            </div>
+            <div className="pd-loading-booking__box">
+              <span className="pd-skeleton pd-skeleton--field" />
+              <span className="pd-skeleton pd-skeleton--field" />
+              <span className="pd-skeleton pd-skeleton--guest-field" />
+            </div>
+            <span className="pd-skeleton pd-skeleton--cta" />
+            <div className="pd-loading-total">
+              <span className="pd-skeleton pd-skeleton--total-line" />
+              <span className="pd-skeleton pd-skeleton--total-line" />
+            </div>
+          </div>
+        </aside>
+      </section>
+    </>
+  );
+}
+
 function BookingCard({
   property,
   dates,
@@ -2434,13 +2510,15 @@ export default function PropertyDetails() {
 
   if (loading) {
     return (
-      <main className="pd-page">
+      <>
         <Header />
-        <section className="pd-section pd-title-card">
-          <p>Loading property...</p>
-        </section>
-        <Footer />
-      </main>
+        <main
+          style={{ background: themeGlobal.colors.white }}
+          className="pd-page"
+        >
+          <PropertyDetailsLoading />
+        </main>
+      </>
     );
   }
 

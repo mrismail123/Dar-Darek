@@ -492,6 +492,7 @@ function ReviewModal({
 }
 
 export default function MyBookings() {
+  const MIN_LOADING_MS = 850;
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("upcoming");
   const [bookings, setBookings] = useState([]);
@@ -511,6 +512,7 @@ export default function MyBookings() {
 
   async function fetchBookings() {
     const token = localStorage.getItem("token");
+    const loadingStartedAt = Date.now();
 
     setIsLoading(true);
     setErrorMessage("");
@@ -531,6 +533,13 @@ export default function MyBookings() {
         "We couldn't load your bookings right now.",
       );
     } finally {
+      const elapsed = Date.now() - loadingStartedAt;
+      const remaining = Math.max(MIN_LOADING_MS - elapsed, 0);
+
+      if (remaining > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remaining));
+      }
+
       setIsLoading(false);
     }
   }

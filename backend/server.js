@@ -1641,6 +1641,8 @@ app.get("/api/houses", async (req, res) => {
         p.status,
         c.name AS city,
         c.name AS city_name,
+        review_stats.avg_rating,
+        COALESCE(review_stats.review_count, 0) AS review_count,
         (
           SELECT image_url
           FROM property_images
@@ -1649,6 +1651,11 @@ app.get("/api/houses", async (req, res) => {
         ) AS main_image
       FROM properties p
       LEFT JOIN cities c ON p.id_city = c.id_city
+      LEFT JOIN (
+        SELECT id_property, ROUND(AVG(rating), 1) AS avg_rating, COUNT(*) AS review_count
+        FROM reviews
+        GROUP BY id_property
+      ) review_stats ON review_stats.id_property = p.id_property
       WHERE p.status = 'approved'
       ORDER BY p.created_at DESC
     `);
@@ -1773,10 +1780,20 @@ app.get("/api/properties/:id", async (req, res) => {
 app.get("/api/extractHomePageProperties", async (req, res) => {
   try {
     const cityQuery = (cityName) => `
-        SELECT p.*, c.name AS city_name, img.image_url AS main_image
+        SELECT
+          p.*,
+          c.name AS city_name,
+          img.image_url AS main_image,
+          review_stats.avg_rating,
+          COALESCE(review_stats.review_count, 0) AS review_count
         FROM properties p
         JOIN cities c ON p.id_city = c.id_city
         LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
+        LEFT JOIN (
+          SELECT id_property, ROUND(AVG(rating), 1) AS avg_rating, COUNT(*) AS review_count
+          FROM reviews
+          GROUP BY id_property
+        ) review_stats ON review_stats.id_property = p.id_property
       WHERE c.name = '${cityName}'
         AND p.status = 'approved'
         ORDER BY p.created_at DESC
@@ -1784,10 +1801,20 @@ app.get("/api/extractHomePageProperties", async (req, res) => {
     `;
 
     const [latestRows] = await db.query(`
-      SELECT p.*, c.name AS city_name, img.image_url AS main_image
+      SELECT
+        p.*,
+        c.name AS city_name,
+        img.image_url AS main_image,
+        review_stats.avg_rating,
+        COALESCE(review_stats.review_count, 0) AS review_count
       FROM properties p
       JOIN cities c ON p.id_city = c.id_city
       LEFT JOIN property_images img ON img.id_property = p.id_property AND img.is_main = 1
+      LEFT JOIN (
+        SELECT id_property, ROUND(AVG(rating), 1) AS avg_rating, COUNT(*) AS review_count
+        FROM reviews
+        GROUP BY id_property
+      ) review_stats ON review_stats.id_property = p.id_property
       WHERE p.status = 'approved'
       ORDER BY p.created_at DESC
       LIMIT 10
@@ -1894,12 +1921,19 @@ app.post("/api/propertiesBasedOnParams", async (req, res) => {
         properties.*, 
         cities.name AS city_name, 
         cities.description AS city_description,
-        property_images.image_url AS main_image
+        property_images.image_url AS main_image,
+        review_stats.avg_rating,
+        COALESCE(review_stats.review_count, 0) AS review_count
       FROM properties 
       JOIN cities ON properties.id_city = cities.id_city
       LEFT JOIN property_images 
         ON properties.id_property = property_images.id_property 
         AND property_images.is_main = 1
+      LEFT JOIN (
+        SELECT id_property, ROUND(AVG(rating), 1) AS avg_rating, COUNT(*) AS review_count
+        FROM reviews
+        GROUP BY id_property
+      ) review_stats ON review_stats.id_property = properties.id_property
       WHERE ${whereString}
       ${orderByClause}
       LIMIT ? OFFSET ?

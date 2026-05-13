@@ -256,6 +256,264 @@
 }
 
 /* =========================
+   PROPERTY DETAILS LOADING
+   ========================= */
+
+.pd-loading-title {
+  display: grid;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.pd-loading-gallery {
+  width: min(1120px, calc(100% - 40px));
+  height: 450px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 auto 24px;
+}
+
+.pd-loading-gallery__main,
+.pd-loading-gallery__grid,
+.pd-loading-gallery__grid .pd-skeleton {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pd-loading-gallery__main {
+  border-radius: 12px 0 0 12px;
+}
+
+.pd-loading-gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pd-loading-gallery__grid .pd-skeleton:nth-child(2) {
+  border-radius: 0 12px 0 0;
+}
+
+.pd-loading-gallery__grid .pd-skeleton:nth-child(4) {
+  border-radius: 0 0 12px 0;
+}
+
+.pd-loading-layout {
+  align-items: start;
+}
+
+.pd-loading-summary,
+.pd-loading-section,
+.pd-loading-booking {
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 244, 235, 0.88)),
+    var(--surface);
+}
+
+.pd-loading-summary {
+  display: grid;
+  gap: 16px;
+}
+
+.pd-loading-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pd-loading-host {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 2px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-light);
+}
+
+.pd-loading-host > div,
+.pd-loading-copy,
+.pd-loading-total {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.pd-loading-section {
+  display: grid;
+  gap: 12px;
+}
+
+.pd-loading-copy {
+  margin-top: 14px;
+}
+
+.pd-loading-booking {
+  display: grid;
+  gap: 18px;
+}
+
+.pd-loading-booking__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.pd-loading-booking__box {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.pd-loading-booking__box .pd-skeleton {
+  border-radius: 0;
+}
+
+.pd-skeleton {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(0, 169, 181, 0.08), rgba(122, 112, 52, 0.14)),
+    rgba(247, 244, 235, 0.92);
+}
+
+.pd-skeleton::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.78), transparent);
+  animation: pd-skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+.pd-skeleton--fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.pd-skeleton--title {
+  width: min(560px, 82%);
+  height: 44px;
+}
+
+.pd-skeleton--location {
+  width: min(260px, 52%);
+  height: 16px;
+}
+
+.pd-skeleton--headline {
+  width: min(380px, 86%);
+  height: 32px;
+}
+
+.pd-skeleton--pill {
+  width: 112px;
+  height: 36px;
+}
+
+.pd-skeleton--rating {
+  width: 170px;
+  height: 18px;
+}
+
+.pd-skeleton--avatar {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background:
+    linear-gradient(135deg, rgba(26, 26, 26, 0.16), rgba(0, 169, 181, 0.22)),
+    rgba(247, 244, 235, 0.92);
+}
+
+.pd-skeleton--host-name {
+  width: min(230px, 74%);
+  height: 16px;
+}
+
+.pd-skeleton--host-copy {
+  width: min(300px, 88%);
+  height: 13px;
+}
+
+.pd-skeleton--section-title {
+  width: 190px;
+  height: 28px;
+}
+
+.pd-skeleton--section-hint {
+  width: min(460px, 82%);
+  height: 14px;
+}
+
+.pd-skeleton--line {
+  width: 100%;
+  max-width: 720px;
+  height: 14px;
+}
+
+.pd-skeleton--line-short {
+  width: min(520px, 72%);
+}
+
+.pd-skeleton--price {
+  width: 150px;
+  height: 28px;
+}
+
+.pd-skeleton--small-rating {
+  width: 88px;
+  height: 18px;
+}
+
+.pd-skeleton--field {
+  height: 64px;
+}
+
+.pd-skeleton--guest-field {
+  grid-column: 1 / -1;
+  height: 58px;
+  border-top: 1px solid var(--border-light);
+}
+
+.pd-skeleton--cta {
+  width: 100%;
+  height: 54px;
+  background:
+    linear-gradient(135deg, rgba(0, 169, 181, 0.28), rgba(43, 82, 161, 0.12)),
+    rgba(247, 244, 235, 0.92);
+}
+
+.pd-skeleton--total-line {
+  width: 100%;
+  height: 15px;
+}
+
+.pd-skeleton--total-line:last-child {
+  width: 76%;
+}
+
+@keyframes pd-skeleton-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* =========================
    GALLERY (AIRBNB STYLE)
    ========================= */
 
@@ -1943,16 +2201,19 @@ button.pd-calendar__day:hover:not(:disabled) {
 }
 
 @media (max-width: 768px) {
-  .pd-gallery {
+  .pd-gallery,
+  .pd-loading-gallery {
     grid-template-columns: 1fr;
     height: 300px;
   }
 
-  .pd-gallery__grid {
+  .pd-gallery__grid,
+  .pd-loading-gallery__grid {
     display: none;
   }
 
-  .pd-gallery__main {
+  .pd-gallery__main,
+  .pd-loading-gallery__main {
     border-radius: 12px;
   }
 
@@ -1970,6 +2231,7 @@ button.pd-calendar__day:hover:not(:disabled) {
 
   .pd-topbar,
   .pd-gallery,
+  .pd-loading-gallery,
   .pd-summary,
   .pd-layout,
   .pd-things-to-know,
@@ -1991,8 +2253,13 @@ button.pd-calendar__day:hover:not(:disabled) {
   }
 
   .pd-booking__fields,
-  .pd-booking__box {
+  .pd-booking__box,
+  .pd-loading-booking__box {
     grid-template-columns: 1fr;
+  }
+
+  .pd-loading-booking__top {
+    flex-direction: column;
   }
 
   .pd-booking__field+.pd-booking__field {
@@ -2028,6 +2295,7 @@ button.pd-calendar__day:hover:not(:disabled) {
 
   .pd-topbar,
   .pd-gallery,
+  .pd-loading-gallery,
   .pd-summary,
   .pd-layout,
   .pd-things-to-know,
