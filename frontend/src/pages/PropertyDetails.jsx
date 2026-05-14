@@ -910,6 +910,34 @@ function BookingCard({
   bookedRanges = [],
   bookingConflictMessage = "",
 }) {
+
+  // state for favorites
+  const { user } = useToken();
+  const [isSaved, setIsSaved] = useState(false);
+
+  // function for favorites hear click handling 
+  const handleFavoriteClick = async (e) => {
+    if (e) e.stopPropagation();
+
+    // login required error
+    if (!user) {
+      alert("Please login to save favorites!");
+      return;
+    }
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/favorites/toggle', {
+        id_user: user.id,
+        id_property: property.id
+      });
+
+      setIsSaved(response.data.saved);
+      alert(isSaved);
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+    }
+  };
+
   const { id } = useParams();
 
   const nights = getNightCount(dates.checkIn, dates.checkOut);
@@ -1009,7 +1037,7 @@ function BookingCard({
       if (response.data) {
         setBookingNotice({
           type: "success",
-          text: "Your reservation request has been sent successfully. The host will review it soon.",
+          text: "Your reservation request has been sent successfully! The host will review it and get back to you soon.",
         });
         navigate("/my-bookings");
       }
@@ -1044,7 +1072,7 @@ function BookingCard({
         <button type="button" className="pd-action-btn">
           🔗 Share
         </button>
-        <button type="button" className="pd-action-btn">
+        <button onClick={handleFavoriteClick} type="button" className="pd-action-btn">
           ❤️ Save
         </button>
       </div>

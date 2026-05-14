@@ -34,6 +34,7 @@ export default function Home() {
     // states
     const [homePageProperties, setHomePageProperties] = React.useState(null);
 
+
     // start functions
 
     // Extracting Limited properties
@@ -41,7 +42,7 @@ export default function Home() {
 
         const extractLimitedHomePageProperties = async () => {
             try {
-                
+
                 const response = await axios.get(buildApiUrl('/api/extractHomePageProperties'));
 
                 setHomePageProperties(response.data);
@@ -80,44 +81,44 @@ export default function Home() {
                         {/* Start Show the grid component */}
                         {/* For latest */}
                         <CitySection title="Latest Listings" properties={homePageProperties.latest} message="Freshly posted homes from across the north, ready to explore before everyone else." />
-                       
+
                         <Container>
-                        <SectionDivider/>
-                       </Container>
+                            <SectionDivider />
+                        </Container>
 
                         {/* For Tangier */}
                         <CitySection title="Tangier" properties={homePageProperties.tangier} message="Discover sea views, medina charm, and elegant stays in the gateway to northern Morocco." />
-                        
-                       
+
+
                         <Container>
-                        <SectionDivider/>
-                       </Container>
+                            <SectionDivider />
+                        </Container>
 
                         {/* For Tetouan */}
                         <CitySection title="Tetouan" properties={homePageProperties.tetouan} message="Browse calm white-city homes with Andalusian character and everyday comfort." />
-                        
-                       
+
+
                         <Container>
-                        <SectionDivider/>
-                       </Container>
-                        
+                            <SectionDivider />
+                        </Container>
+
                         {/* For Chefchaouen */}
                         <CitySection title="Chefchaouen" properties={homePageProperties.chefchaouen} message="Step into blue-street escapes, mountain calm, and cozy stays full of local soul." />
-                        
-                       
+
+
                         <Container>
-                        <SectionDivider/>
-                       </Container>
+                            <SectionDivider />
+                        </Container>
 
                         {/* For Asilah */}
                         <CitySection title="Asilah" properties={homePageProperties.asilah} message="Step into blue-street escapes, mountain calm, and cozy stays full of local soul." />
-                        
-                       
+
+
                         <Container>
-                        <SectionDivider/>
-                       </Container>
-                    
-                        
+                            <SectionDivider />
+                        </Container>
+
+
                         {/* For Al-Hoceima */}
                         <CitySection title="Al-Hoceima" properties={homePageProperties.alHoceima} message="Step into blue-street escapes, mountain calm, and cozy stays full of local soul." />
                         {/* Start Show the grid component */}

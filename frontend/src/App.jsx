@@ -21,6 +21,8 @@ import MyProperties from "./pages/MyProperties";
 import { useToken } from "./Contexts/TokenContext";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
 
+import MyFavorites from "./MyFavorites";
+
 function App() {
   const themeGlobal = useThemeGlobal();
   const { setToken, setUser } = useToken();
@@ -69,6 +71,24 @@ function App() {
           element={
             <ProtectedRoute>
               <Publish />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/my-bookings"
+          element={
+            <ProtectedRoute>
+              <MyBookings />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/my-favorites"
+          element={
+            <ProtectedRoute>
+              <MyFavorites />
             </ProtectedRoute>
           }
         />

@@ -18,6 +18,8 @@ import StarIcon from '@mui/icons-material/Star';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { buildApiUrl } from "./lib/api";
+import { useToken } from "./Contexts/TokenContext";
+import axios from "axios";
 
 export default function CitySection({ title, properties, message }) {
     // theme state
@@ -25,6 +27,7 @@ export default function CitySection({ title, properties, message }) {
 
     // ref
     const sliderRef = React.useRef(null);
+
 
     const scrollCards = (direction) => {
         if (!sliderRef.current) {
@@ -38,6 +41,12 @@ export default function CitySection({ title, properties, message }) {
         });
     };
 
+
+    // state for favorites
+    const [isSaved, setIsSaved] = React.useState(false);
+
+
+
     const propertiesSlide = properties?.map((property) => {
         let imagePath = property.main_image;
         if (imagePath) {
@@ -48,6 +57,34 @@ export default function CitySection({ title, properties, message }) {
         }
 
         const imageUrl = imagePath ? buildApiUrl(imagePath) : tangier;
+
+
+        const { user } = useToken();
+        // function for favorites hear click handling 
+        const handleFavoriteClick = async (e) => {
+            if (e) e.stopPropagation();
+
+
+            console.log(user);
+            // login required error
+            if (!user) {
+                alert("Please login to save favorites!");
+                return;
+            }
+
+            try {
+                const response = await axios.post('http://localhost:5000/api/favorites/toggle', {
+                    id_user: user.id,
+                    id_property: property.id_property
+                });
+
+                setIsSaved(response.data.saved);
+                alert(isSaved);
+            } catch (error) {
+                console.error("Error toggling favorite:", error);
+            }
+        };
+
         return (
             <Box
                 key={property.id_property}
@@ -72,6 +109,7 @@ export default function CitySection({ title, properties, message }) {
             >
                 <div style={{ position: "relative", height: "138px", overflow: "hidden" }}>
                     <FavoriteBorderIcon
+                        onClick={handleFavoriteClick}
                         sx={{
                             width: "30px",
                             height: "30px",
@@ -90,7 +128,7 @@ export default function CitySection({ title, properties, message }) {
                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                         alt={property.title}
                         onError={(e) => {
-                            e.target.onerror = null; 
+                            e.target.onerror = null;
                             e.target.src = tangier;
                         }}
                     />
