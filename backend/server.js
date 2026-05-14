@@ -206,6 +206,53 @@ const ensureNotificationsSchema = async () => {
   notificationsSchemaReady = true;
 };
 
+let bookingsSchemaReady = false;
+
+const ensureBookingsSchema = async () => {
+  if (bookingsSchemaReady) return;
+
+  try {
+    const [bookingColumns] = await db.query(
+      `
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'bookings'
+        AND COLUMN_NAME IN ('guest_full_name', 'guest_id_number', 'guest_phone', 'agreed_to_terms')
+      `,
+    );
+
+    const existingBookingColumns = new Set(
+      bookingColumns.map((col) => col.COLUMN_NAME),
+    );
+
+    if (!existingBookingColumns.has('guest_full_name')) {
+      await db.query(
+        "ALTER TABLE bookings ADD COLUMN guest_full_name VARCHAR(150) DEFAULT NULL",
+      );
+    }
+    if (!existingBookingColumns.has('guest_id_number')) {
+      await db.query(
+        "ALTER TABLE bookings ADD COLUMN guest_id_number VARCHAR(50) DEFAULT NULL",
+      );
+    }
+    if (!existingBookingColumns.has('guest_phone')) {
+      await db.query(
+        "ALTER TABLE bookings ADD COLUMN guest_phone VARCHAR(30) DEFAULT NULL",
+      );
+    }
+    if (!existingBookingColumns.has('agreed_to_terms')) {
+      await db.query(
+        "ALTER TABLE bookings ADD COLUMN agreed_to_terms TINYINT(1) NOT NULL DEFAULT 0",
+      );
+    }
+
+    bookingsSchemaReady = true;
+  } catch (schemaErr) {
+    console.error('Failed to migrate bookings schema:', schemaErr.message);
+  }
+};
+
 const sendAdminReportEmail = async (report) => {
   const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
 
@@ -257,6 +304,7 @@ const verifyToken = async (req, res, next) => {
   try {
     await ensureModerationSchema();
     await ensureNotificationsSchema();
+    await ensureBookingsSchema();
 
     const verified = jwt.verify(
       token,
@@ -3498,31 +3546,53 @@ app.patch(
 ========================= */
 
 app.post("/api/bookingProperty", verifyToken, async (req, res) => {
-  const { id_property, checkIn, checkOut } = req.body;
+  const {
+    id_property,
+    checkIn,
+    checkOut,
+    guest_full_name,
+    guest_id_number,
+    guest_phone,
+    agreed_to_terms,
+  } = req.body;
+
   const propertyId = Number(id_property);
   const tokenUserId = Number(req.user?.id);
-  const bookingUserId = Number.isFinite(tokenUserId) && tokenUserId > 0
-    ? tokenUserId
-    : null;
+  const bookingUserId =
+    Number.isFinite(tokenUserId) && tokenUserId > 0 ? tokenUserId : null;
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
   try {
+    // -- Basic validation --
     if (!propertyId || !checkIn || !checkOut || !bookingUserId) {
       return res.status(400).json({ message: "All fields are required." });
     }
-
     if (!dateRegex.test(checkIn) || !dateRegex.test(checkOut)) {
-      return res
-        .status(400)
-        .json({ message: "Dates must use YYYY-MM-DD format." });
+      return res.status(400).json({ message: "Dates must use YYYY-MM-DD format." });
     }
-
     if (new Date(checkOut) <= new Date(checkIn)) {
-      return res.status(400).json({
-        message: "Check-out date must be after check-in date.",
-      });
+      return res.status(400).json({ message: "Check-out date must be after check-in date." });
     }
 
+    // -- Identity fields validation --
+    const cleanName  = String(guest_full_name  || "").trim();
+    const cleanId    = String(guest_id_number  || "").trim();
+    const cleanPhone = String(guest_phone      || "").trim();
+
+    if (!cleanName || cleanName.length < 5) {
+      return res.status(400).json({ message: "Please provide your full name (minimum 5 characters)." });
+    }
+    if (!cleanId || cleanId.length < 5) {
+      return res.status(400).json({ message: "Please provide a valid ID / CIN / Passport number." });
+    }
+    if (!cleanPhone || !/^[\d\s()+-]{7,20}$/.test(cleanPhone)) {
+      return res.status(400).json({ message: "Please provide a valid phone number." });
+    }
+    if (!agreed_to_terms) {
+      return res.status(400).json({ message: "You must accept the rental agreement to confirm the booking." });
+    }
+
+    // -- Property lookup --
     const [properties] = await db.query(
       `SELECT id_property, id_user, price_per_day, available_from, available_to, status
        FROM properties
@@ -3538,47 +3608,47 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
     const property = properties[0];
 
     if (property.status !== "approved") {
-      return res
-        .status(403)
-        .json({ message: "This property is not available for booking." });
+      return res.status(403).json({ message: "This property is not available for booking." });
     }
-
     if (Number(property.id_user) === bookingUserId) {
-      return res
-        .status(400)
-        .json({ message: "You cannot book your own property." });
+      return res.status(400).json({ message: "You cannot book your own property." });
     }
 
-    // const availableFrom = String(property.available_from || "").split("T")[0];
-    // const availableTo = String(property.available_to || "").split("T")[0];
-    const availableFrom = new Date(property.available_to);
-    const availableTo = new Date(property.available_from)
-    
+    // -- Availability window --
+    const availableFrom = property.available_from
+      ? String(property.available_from).split("T")[0]
+      : null;
+    const availableTo = property.available_to
+      ? String(property.available_to).split("T")[0]
+      : null;
 
-    if ((availableFrom && checkIn < availableFrom) || (availableTo && checkOut > availableTo)) {
+    if (
+      (availableFrom && checkIn < availableFrom) ||
+      (availableTo   && checkOut > availableTo)
+    ) {
       return res.status(400).json({
         message: "Please choose dates inside this property's availability window.",
       });
     }
 
+    // -- Pricing --
     const nights = Math.ceil(
       (new Date(checkOut).getTime() - new Date(checkIn).getTime()) /
         (1000 * 60 * 60 * 24),
     );
     const totalPrice = Number(property.price_per_day) * nights;
 
+    // -- Double-check: user's own active booking --
     const [userActiveBooking] = await db.query(
-      `
-      SELECT id_booking
-      FROM bookings
-      WHERE id_property = ?
-        AND id_user = ?
-        AND (
-          status = 'pending'
-          OR (status = 'approved' AND end_date >= CURDATE())
-        )
-      LIMIT 1
-      `,
+      `SELECT id_booking
+       FROM bookings
+       WHERE id_property = ?
+         AND id_user = ?
+         AND (
+           status = 'pending'
+           OR (status = 'approved' AND end_date >= CURDATE())
+         )
+       LIMIT 1`,
       [propertyId, bookingUserId],
     );
 
@@ -3588,14 +3658,13 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       });
     }
 
+    // -- Double-check: date conflict --
     const [bookingConflict] = await db.query(
-      `
-      SELECT id_booking 
-      FROM bookings 
-      WHERE id_property = ? 
-      AND status IN ('pending', 'approved')
-      AND (start_date < ? AND end_date > ?)
-      `,
+      `SELECT id_booking
+       FROM bookings
+       WHERE id_property = ?
+         AND status IN ('pending', 'approved')
+         AND (start_date < ? AND end_date > ?)`,
       [propertyId, checkOut, checkIn],
     );
 
@@ -3605,16 +3674,17 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       });
     }
 
+    // -- Insert booking with identity fields --
     const [insertResult] = await db.query(
-      `
-      INSERT INTO bookings 
-      (id_property, id_user, start_date, end_date, total_price, status) 
-      VALUES (?, ?, ?, ?, ?, 'pending')
-      `,
-      [propertyId, bookingUserId, checkIn, checkOut, totalPrice],
+      `INSERT INTO bookings
+         (id_property, id_user, start_date, end_date, total_price, status,
+          guest_full_name, guest_id_number, guest_phone, agreed_to_terms)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 1)`,
+      [propertyId, bookingUserId, checkIn, checkOut, totalPrice,
+       cleanName, cleanId, cleanPhone],
     );
 
-    // Notify the property host about the new booking request
+    // -- Notify host --
     try {
       await db.execute(
         `INSERT INTO notifications (id_user, id_property, id_booking, type, notify_text)
@@ -3631,13 +3701,12 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       console.error("Failed to notify host about new booking:", notifyErr.message);
     }
 
-    res.status(201).json({
-      message: "Booking request submitted successfully!",
-    });
+    res.status(201).json({ message: "Booking request submitted successfully!" });
   } catch (error) {
     console.error("Database Error:", error);
     res.status(500).json({
       message: "Server error while processing your booking.",
+      details: error.message,
     });
   }
 });

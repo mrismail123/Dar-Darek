@@ -16,6 +16,7 @@ import Publish from "./pages/Publish";
 import RentalRequests from "./RentalRequests";
 import AccountSettings from "./pages/AccountSettings";
 import MyBookings from "./pages/MyBookings";
+import CheckoutPage from "./pages/CheckoutPage";
 import MyProperties from "./pages/MyProperties";
 
 import { useToken } from "./Contexts/TokenContext";
@@ -71,6 +72,16 @@ function App() {
           element={
             <ProtectedRoute>
               <Publish />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Checkout / Booking Review page */}
+        <Route
+          path="/checkout/:propertyId"
+          element={
+            <ProtectedRoute>
+              <CheckoutPage />
             </ProtectedRoute>
           }
         />

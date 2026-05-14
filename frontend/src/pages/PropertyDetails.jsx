@@ -1137,7 +1137,7 @@ function BookingCard({
   // navigate
   const navigate = useNavigate();
 
-  async function handleReserveFunction() {
+  function handleReserveFunction() {
     const currentToken = localStorage.getItem("token");
 
     if (!currentToken) {
@@ -1145,27 +1145,17 @@ function BookingCard({
         type: "error",
         text: "Please sign in before reserving this stay.",
       });
-
       navigate("/Authentication", { state: { from: location.pathname } });
       return;
     }
 
-    // const response = await axios.post();
-
-    const reservationData = {
-      id_property: id,
-      checkIn: dates.checkIn,
-      checkOut: dates.checkOut,
-    };
-    
-    if (!reservationData.checkIn || !reservationData.checkOut) {
+    if (!dates.checkIn || !dates.checkOut) {
       setBookingNotice({
         type: "error",
         text: "Please select check-in and check-out dates.",
       });
       return;
     }
-
 
     if (!isBookingValid) {
       setBookingNotice({
@@ -1177,8 +1167,8 @@ function BookingCard({
 
     if (
       doesDateRangeOverlapBooking(
-        reservationData.checkIn,
-        reservationData.checkOut,
+        dates.checkIn,
+        dates.checkOut,
         bookedRanges,
       )
     ) {
@@ -1189,48 +1179,14 @@ function BookingCard({
       return;
     }
 
-    try {
-      const config = {
-        headers: {
-          Authorization: `Bearer ${currentToken}`,
-        },
-      };
-
-      const response = await axios.post(
-        buildApiUrl("/api/bookingProperty"),
-        reservationData,
-        config,
-      );
-      if (response.data) {
-        setBookingNotice({
-          type: "success",
-          text: "Your reservation request has been sent successfully! The host will review it and get back to you soon.",
-        });
-        navigate("/my-bookings");
-      }
-    } catch (error) {
-      if (
-        error.response &&
-        (error.response.status === 401 || error.response.status === 403)
-      ) {
-        setBookingNotice({
-          type: "error",
-          text: "Session expired. Please login again.",
-        });
-        navigate("/Authentication", { state: { from: location.pathname } });
-      } else if (
-        error.response &&
-        error.response.data &&
-        error.response.data.message
-      ) {
-        setBookingNotice({ type: "error", text: error.response.data.message });
-      } else {
-        setBookingNotice({
-          type: "error",
-          text: error.message || "An error occurred while making the reservation.",
-        });
-      }
-    }
+    // Redirect to the checkout / identity-verification page
+    navigate(`/checkout/${id}`, {
+      state: {
+        checkIn: dates.checkIn,
+        checkOut: dates.checkOut,
+        property,
+      },
+    });
   }
 
   return (
@@ -1336,12 +1292,12 @@ function BookingCard({
         )}
 
         <button
-          // type="button"
+          type="button"
           className="pd-primary-btn"
           onClick={handleReserveFunction}
-          // disabled={!isBookingValid || Boolean(bookingConflictMessage)}
+          disabled={Boolean(bookingConflictMessage)}
         >
-          Reserve
+          Book Now
         </button>
 
         <div className="pd-booking__total">
