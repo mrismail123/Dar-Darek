@@ -434,7 +434,9 @@ export default function Publish() {
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isEditLoading, setIsEditLoading] = useState(false);
+  const [editingStatus, setEditingStatus] = useState("");
   const [cities, setCities] = useState([]);
   const [errors, setErrors] = useState({});
   const [existingImageUrls, setExistingImageUrls] = useState([]);
@@ -771,6 +773,40 @@ export default function Publish() {
     return newErrors;
   };
 
+  const buildPropertyPayload = (saveAsDraft = false) => {
+    const formPayload = new FormData();
+
+    Object.entries(formData).forEach(([key, value]) => {
+      if (key === "amenities") {
+        formPayload.append(key, JSON.stringify(value));
+      } else if (key !== "images") {
+        formPayload.append(
+          key,
+          typeof value === "string" ? value.trim() : value,
+        );
+      }
+    });
+
+    formData.images.forEach((file) => formPayload.append("images", file));
+
+    if (isEditMode) {
+      formPayload.append("keepImages", JSON.stringify(existingImageUrls));
+    }
+
+    if (saveAsDraft) {
+      formPayload.append("saveAsDraft", "true");
+    }
+
+    const storedUser = JSON.parse(localStorage.getItem("user"));
+    const userId = storedUser?.id;
+
+    if (userId) {
+      formPayload.append("idUser", userId);
+    }
+
+    return { formPayload, userId };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -810,38 +846,16 @@ export default function Publish() {
       return;
     }
 
-    const formPayload = new FormData();
-
-    Object.entries(formData).forEach(([key, value]) => {
-      if (key === "amenities") {
-        formPayload.append(key, JSON.stringify(value));
-      } else if (key !== "images") {
-        formPayload.append(
-          key,
-          typeof value === "string" ? value.trim() : value,
-        );
-      }
-    });
-
-    formData.images.forEach((file) => formPayload.append("images", file));
-
-    if (isEditMode) {
-      formPayload.append("keepImages", JSON.stringify(existingImageUrls));
-    }
-
-    const storedUser = JSON.parse(localStorage.getItem("user"));
-    const userId = storedUser?.id;
+    const { formPayload, userId } = buildPropertyPayload(false);
 
     if (!userId) {
+      
       setPublishNotice({
         type: "error",
         text: "Session expired. Please log in again.",
       });
       return;
     }
-
-    formPayload.append("idUser", userId);
-
     setIsSubmitting(true);
 
     try {
@@ -890,10 +904,88 @@ export default function Publish() {
     }
   };
 
+  const handleSaveDraft = async () => {
+    const currentToken = localStorage.getItem("token");
+
+    if (!currentToken) {
+      setPublishNotice({
+        type: "error",
+        text: "Please sign in before saving a draft.",
+      });
+
+      navigate("/Authentication", { state: { from: location.pathname } });
+      return;
+    }
+
+    if (
+      formData.availableFrom &&
+      formData.availableTo &&
+      formData.availableTo < formData.availableFrom
+    ) {
+      setPublishNotice({
+        type: "error",
+        text: "The availability end date must be later than the start date.",
+      });
+      return;
+    }
+
+    const { formPayload, userId } = buildPropertyPayload(true);
+
+    if (!userId) {
+      setPublishNotice({
+        type: "error",
+        text: "Session expired. Please log in again.",
+      });
+      return;
+    }
+
+    setIsSavingDraft(true);
+    setPublishNotice(null);
+
+    try {
+      const response = await fetch(
+        buildApiUrl(
+          isEditMode ? `/api/properties/${editPropertyId}` : "/api/publishProperty",
+        ),
+        {
+          method: isEditMode ? "PUT" : "POST",
+          headers: {
+            Authorization: `Bearer ${currentToken}`,
+          },
+          body: formPayload,
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Could not save your draft.");
+      }
+
+      setPublishNotice({
+        type: "success",
+        text: data.message || "Draft saved. You can continue it from My Properties.",
+      });
+      setErrors({});
+
+      if (!isEditMode && data.propertyId) {
+        navigate(`/new-listing?edit=${data.propertyId}`, { replace: true });
+      }
+    } catch (err) {
+      setPublishNotice({
+        type: "error",
+        text: err.message || "Could not save your draft.",
+      });
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
   const handleGoBack = () => {
     navigate("/", { replace: true });
   };
 
+  
   useEffect(() => {
     fetch(buildApiUrl("/api/cities"))
       .then((r) => r.json())
@@ -960,6 +1052,7 @@ export default function Publish() {
 
         setExistingImageUrls(apiImages);
         setImagePreviews(apiImages.map(normalizeExistingImageUrl));
+        setEditingStatus(property.status || "");
         setFormData({
           ...INITIAL_FORM_DATA,
           title: property.title || "",
@@ -1852,17 +1945,36 @@ export default function Publish() {
                 </span>
               </div>
 
-              <button
-                type="submit"
-                className="pub-submit-btn"
-                disabled={isSubmitting || isEditLoading}
-              >
-                {isSubmitting ? (
-                  <span className="pub-submit-btn__spinner" />
-                ) : (
-                  isEditMode ? "Save changes" : "Publish listing"
-                )}
-              </button>
+              <div className="pub-submit-bar__actions">
+                <button
+                  type="button"
+                  className="pub-draft-btn"
+                  disabled={isSubmitting || isSavingDraft || isEditLoading}
+                  onClick={handleSaveDraft}
+                >
+                  {isSavingDraft ? (
+                    <span className="pub-submit-btn__spinner pub-submit-btn__spinner--dark" />
+                  ) : (
+                    "Save draft"
+                  )}
+                </button>
+
+                <button
+                  type="submit"
+                  className="pub-submit-btn"
+                  disabled={isSubmitting || isSavingDraft || isEditLoading}
+                >
+                  {isSubmitting ? (
+                    <span className="pub-submit-btn__spinner" />
+                  ) : (
+                    isEditMode && ["draft", "rejected"].includes(editingStatus)
+                      ? "Submit listing"
+                      : isEditMode
+                        ? "Save changes"
+                        : "Publish listing"
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         </main>
@@ -1882,9 +1994,9 @@ export default function Publish() {
           onClose={() => setShowSuccess(false)}
         />
       )}
-      <div className="pub-footer-wrap">
+      {/* <div className="pub-footer-wrap">
         <Footer />
-      </div>
+      </div> */}
     </>
   );
 }

@@ -1,90 +1,71 @@
-// Importing the logo
 import Logo from "../assets/dardarek-logo.png";
-// Importing the css file
 import "../Home.css";
-// Importing theme
 
-import { Link, Navigate, replace, useNavigate } from "react-router-dom";
-
+import React from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useThemeGlobal } from "../Contexts/ThemeContext";
-import React, { useEffect, useState } from "react";
+import { useToken } from "../Contexts/TokenContext";
+
 import Container from "@mui/material/Container";
-import { styled, alpha } from "@mui/material/styles";
-import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
-import Typography from "@mui/material/Typography";
-import InputBase from "@mui/material/InputBase";
-import Badge from "@mui/material/Badge";
-import MenuItem from "@mui/material/MenuItem";
-import Menu from "@mui/material/Menu";
-import MenuIcon from "@mui/icons-material/Menu";
-import SearchIcon from "@mui/icons-material/Search";
-import AccountCircle from "@mui/icons-material/AccountCircle";
-import MailIcon from "@mui/icons-material/Mail";
-import NotificationsIcon from "@mui/icons-material/Notifications";
-import MoreIcon from "@mui/icons-material/MoreVert";
 import Button from "@mui/material/Button";
-
-// Avatar
 import Avatar from "@mui/material/Avatar";
 import Stack from "@mui/material/Stack";
+import MenuItem from "@mui/material/MenuItem";
+import Menu from "@mui/material/Menu";
+import Divider from "@mui/material/Divider";
+
+import MenuIcon from "@mui/icons-material/Menu";
+import MoreIcon from "@mui/icons-material/MoreVert";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import PermIdentityOutlinedIcon from "@mui/icons-material/PermIdentityOutlined";
 import FavoriteBorderOutlinedIcon from "@mui/icons-material/FavoriteBorderOutlined";
-import BookmarkBorderOutlinedIcon from "@mui/icons-material/BookmarkBorderOutlined";
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
 import EventNoteOutlinedIcon from "@mui/icons-material/EventNoteOutlined";
 import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-import Divider from "@mui/material/Divider";
+import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 
-// Avatar pictures
 import profilePicture1 from "../assets/1.jpg";
-import { useToken } from "../Contexts/TokenContext";
 import NotificationDropdown from "./NotificationDropdown";
 
 export default function Header() {
-  // Contexts ######################
-
-  // theme
   const themeGlobal = useThemeGlobal();
-
-  // token context
   const { token, setToken, user, setUser } = useToken();
-
-  // Navigate ########
-
   const navigate = useNavigate();
-
-  // Start header things
-  // ##################### START ########################
+  const userRole = user?.role;
+  const isHost = userRole === "host" || userRole === "admin";
+  const isAdmin = userRole === "admin";
 
   const [anchorEl, setAnchorEl] = React.useState(null);
   const isMenuOpen = Boolean(anchorEl);
 
+  const menuId = "primary-search-account-menu";
+
   const handleProfileMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
-  };
-
-  const handleSignOut = () => {
-    // remove the token and the user from localStorage
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    // Update the states of token and the user
-    setToken(null);
-    setUser(null);
-    // navigate to authentication
-    navigate("/Authentication", { replace: true });
   };
 
   const handleMenuClose = () => {
     setAnchorEl(null);
   };
 
-  const menuId = "primary-search-account-menu";
+  const handleSignOut = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setToken(null);
+    setUser(null);
+    navigate("/Authentication", { replace: true });
+  };
+
+  const goTo = (path) => {
+    handleMenuClose();
+    navigate(path);
+  };
+
   const renderMenu = (
     <Menu
       anchorEl={anchorEl}
@@ -129,8 +110,10 @@ export default function Header() {
         },
       }}
     >
-      <MenuItem onClick={handleMenuClose} sx={{ py: 1.5 }}>
-        <Avatar src={user?.profilePicture || profilePicture1} />
+      <MenuItem onClick={() => goTo("/account-settings")} sx={{ py: 1.5 }}>
+        <Avatar
+          src={user?.profilePicture || user?.profile_picture || profilePicture1}
+        />
         <div style={{ display: "flex", flexDirection: "column" }}>
           <span
             style={{
@@ -149,11 +132,20 @@ export default function Header() {
 
       <Divider sx={{ my: 0.5 }} />
 
+      {isAdmin && (
+        <MenuItem
+          onClick={() => goTo("/admin")}
+          sx={{ py: 1.2, color: "#374151" }}
+        >
+          <AdminPanelSettingsOutlinedIcon
+            sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
+          />
+          Admin Dashboard
+        </MenuItem>
+      )}
+
       <MenuItem
-        onClick={() => {
-          handleMenuClose();
-          navigate("/my-bookings");
-        }}
+        onClick={() => goTo("/my-bookings")}
         sx={{ py: 1.2, color: "#374151" }}
       >
         <ReceiptLongOutlinedIcon
@@ -162,37 +154,32 @@ export default function Header() {
         My Bookings
       </MenuItem>
 
-      <MenuItem
-        onClick={() => {
-          handleMenuClose();
-          navigate("/rental-requests");
-        }}
-        sx={{ py: 1.2, color: "#374151" }}
-      >
-        <EventNoteOutlinedIcon
-          sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
-        />
-        Rental Requests
-      </MenuItem>
+      {isHost && (
+        <MenuItem
+          onClick={() => goTo("/rental-requests")}
+          sx={{ py: 1.2, color: "#374151" }}
+        >
+          <EventNoteOutlinedIcon
+            sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
+          />
+          Rental Requests
+        </MenuItem>
+      )}
+
+      {isHost && (
+        <MenuItem
+          onClick={() => goTo("/my-properties")}
+          sx={{ py: 1.2, color: "#374151" }}
+        >
+          <HomeWorkOutlinedIcon
+            sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
+          />
+          My properties
+        </MenuItem>
+      )}
 
       <MenuItem
-        onClick={() => {
-          handleMenuClose();
-          navigate("/my-properties");
-        }}
-        sx={{ py: 1.2, color: "#374151" }}
-      >
-        <HomeWorkOutlinedIcon
-          sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
-        />
-        My properties
-      </MenuItem>
-
-      <MenuItem
-        onClick={() => {
-          handleMenuClose();
-          navigate("/my-favorites");
-        }}
+        onClick={() => goTo("/my-favorites")}
         sx={{ py: 1.2, color: "#374151" }}
       >
         <FavoriteBorderOutlinedIcon
@@ -202,10 +189,7 @@ export default function Header() {
       </MenuItem>
 
       <MenuItem
-        onClick={() => {
-          handleMenuClose();
-          navigate("/account-settings");
-        }}
+        onClick={() => goTo("/account-settings")}
         sx={{ py: 1.2, color: "#374151" }}
       >
         <SettingsOutlinedIcon
@@ -213,6 +197,18 @@ export default function Header() {
         />
         Account Settings
       </MenuItem>
+
+      {!isHost && (
+        <MenuItem
+          onClick={() => goTo("/account-settings")}
+          sx={{ py: 1.2, color: "#374151" }}
+        >
+          <HomeOutlinedIcon
+            sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
+          />
+          Become a host
+        </MenuItem>
+      )}
 
       <Divider sx={{ my: 0.5 }} />
 
@@ -225,11 +221,8 @@ export default function Header() {
     </Menu>
   );
 
-  // ##################### END ########################
-
   return (
     <>
-      {/* Start header */}
       <Box
         component="header"
         sx={{
@@ -257,24 +250,34 @@ export default function Header() {
             justifyContent: "space-between",
           }}
         >
-          <div
+          <Link
+            to="/"
             className="font-luxury"
-            style={{ display: "flex", alignItems: "center" }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              textDecoration: "none",
+              color: "inherit",
+            }}
           >
             <img
               style={{ maxWidth: "100%", height: "70px" }}
               src={Logo}
-              alt=""
+              alt="DarDarek"
             />
             <h3 className="mb-0">DarDarek</h3>
-          </div>
+          </Link>
+
           <Box sx={{ flexGrow: 1 }}>
             <Toolbar>
               <Box sx={{ flexGrow: 1 }} />
+
               <Box sx={{ display: { xs: "none", md: "flex" } }}>
                 {!token ? (
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <Button
+                      component={Link}
+                      to="/my-favorites"
                       className="savedFavourite"
                       sx={{
                         color: themeGlobal.colors.gray,
@@ -289,6 +292,7 @@ export default function Header() {
                       <FavoriteBorderOutlinedIcon />
                       Saved
                     </Button>
+
                     <Button
                       component={Link}
                       to="/Authentication"
@@ -301,6 +305,7 @@ export default function Header() {
                       <PermIdentityOutlinedIcon sx={{ marginRight: "5px" }} />
                       Log in
                     </Button>
+
                     <Button
                       component={Link}
                       to="/Authentication"
@@ -320,7 +325,6 @@ export default function Header() {
                     <Button
                       component={Link}
                       to="/new-listing"
-                      target="_blank"
                       sx={{
                         background: themeGlobal.colors.primary,
                         display: "flex",
@@ -361,7 +365,11 @@ export default function Header() {
                         />
                         <Avatar
                           alt="User Profile"
-                          src={user?.profilePicture || profilePicture1}
+                          src={
+                            user?.profilePicture ||
+                            user?.profile_picture ||
+                            profilePicture1
+                          }
                           sx={{ width: 32, height: 32 }}
                         />
                       </Stack>
@@ -369,6 +377,7 @@ export default function Header() {
                   </div>
                 )}
               </Box>
+
               <Box sx={{ display: { xs: "flex", md: "none" } }}>
                 {token ? (
                   <IconButton
@@ -393,11 +402,11 @@ export default function Header() {
                 )}
               </Box>
             </Toolbar>
+
             {renderMenu}
           </Box>
         </Container>
       </Box>
-      {/* End header */}
     </>
   );
 }

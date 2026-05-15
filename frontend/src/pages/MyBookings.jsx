@@ -18,10 +18,11 @@ import {
   FiXCircle,
 } from "react-icons/fi";
 import Header from "../Home components/Header";
-import Footer from "../Footer";
 import asilahImage from "../assets/ChaouenStreets.jpg";
 import { buildApiUrl, createAuthConfig } from "../lib/api";
 import "./MyBookings.css";
+import { useThemeGlobal } from "../Contexts/ThemeContext";
+import { MdOutlineExplore } from "react-icons/md";
 
 const bookingTabs = [
   { id: "upcoming", label: "Upcoming" },
@@ -127,7 +128,13 @@ function getMonthKey(value) {
 }
 
 function formatMonth(value) {
-  return monthFormatter.format(getBookingDate(value));
+  const date = getBookingDate(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown month";
+  }
+
+  return monthFormatter.format(date);
 }
 
 function formatGuests(guests) {
@@ -489,6 +496,7 @@ function ReviewModal({
 }
 
 export default function MyBookings() {
+  const MIN_LOADING_MS = 850;
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("upcoming");
   const [bookings, setBookings] = useState([]);
@@ -503,8 +511,12 @@ export default function MyBookings() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // theme 
+  const themeGlobal = useThemeGlobal();
+
   async function fetchBookings() {
     const token = localStorage.getItem("token");
+    const loadingStartedAt = Date.now();
 
     setIsLoading(true);
     setErrorMessage("");
@@ -522,9 +534,16 @@ export default function MyBookings() {
     } catch (error) {
       setErrorMessage(
         error.response?.data?.message ||
-          "We couldn't load your bookings right now.",
+        "We couldn't load your bookings right now.",
       );
     } finally {
+      const elapsed = Date.now() - loadingStartedAt;
+      const remaining = Math.max(MIN_LOADING_MS - elapsed, 0);
+
+      if (remaining > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remaining));
+      }
+
       setIsLoading(false);
     }
   }
@@ -556,31 +575,75 @@ export default function MyBookings() {
     [bookings],
   );
 
+  // const completedMonthOptions = useMemo(() => {
+  //   const completedBookings = bookings
+  //     .filter((booking) => booking.status === "completed")
+  //     .sort((firstBooking, secondBooking) => {
+  //       return (
+  //         getBookingDate(secondBooking.checkOut) -
+  //         getBookingDate(firstBooking.checkOut)
+  //       );
+  //     });
+
+  //   const monthMap = new Map();
+
+  //   completedBookings.forEach((booking) => {
+  //     const key = getMonthKey(booking.checkOut);
+
+  //     if (!monthMap.has(key)) {
+  //       monthMap.set(key, formatMonth(booking.checkOut));
+  //     }
+  //   });
+
+  //   return [
+  //     { value: "all", label: "All months" },
+  //     ...Array.from(monthMap, ([value, label]) => ({ value, label })),
+  //   ];
+  // }, [bookings]);
   const completedMonthOptions = useMemo(() => {
-    const completedBookings = bookings
-      .filter((booking) => booking.status === "completed")
-      .sort((firstBooking, secondBooking) => {
-        return (
-          getBookingDate(secondBooking.checkOut) -
-          getBookingDate(firstBooking.checkOut)
-        );
+      // 1. تصفية الحجوزات المكتملة مع التأكد من وجود تاريخ checkOut صالح
+      const completedBookings = bookings
+        .filter((booking) => 
+          booking.status === "completed" && 
+          booking.checkOut && 
+          !isNaN(new Date(booking.checkOut).getTime()) // تأكيد صلاحية التاريخ
+        )
+        .sort((a, b) => new Date(b.checkOut) - new Date(a.checkOut));
+
+      const monthMap = new Map();
+
+      completedBookings.forEach((booking) => {
+        // استخدم قيمة checkOut مباشرة
+        const dateValue = booking.checkOut;
+        const key = getMonthKey(dateValue);
+
+        if (!monthMap.has(key)) {
+          monthMap.set(key, formatMonth(dateValue));
+        }
       });
 
-    const monthMap = new Map();
-
-    completedBookings.forEach((booking) => {
-      const key = getMonthKey(booking.checkOut);
-
-      if (!monthMap.has(key)) {
-        monthMap.set(key, formatMonth(booking.checkOut));
-      }
-    });
-
-    return [
-      { value: "all", label: "All months" },
-      ...Array.from(monthMap, ([value, label]) => ({ value, label })),
-    ];
+      // تحويل الـ Map إلى مصفوفة خيارات (Options) إذا كنت تحتاجها لـ Select
+      return [
+        { value: "all", label: "All months" },
+        ...Array.from(monthMap.entries()).map(([value, label]) => ({
+          value,
+          label,
+        })),
+      ];
   }, [bookings]);
+
+    // تعديل الدالة لتكون دفاعية
+    function _formatMonth(value) {
+      const date = getBookingDate(value);
+      
+      // التحقق النهائي قبل التنسيق
+      if (isNaN(date.getTime())) {
+        console.error("FormatMonth received an invalid date:", value);
+        return "Unknown Month";
+      }
+      
+      return monthFormatter.format(date);
+    }
 
   const filteredBookings = useMemo(() => {
     const currentBookings = bookings.filter(
@@ -692,7 +755,7 @@ export default function MyBookings() {
   }
 
   return (
-    <div className="bookings-page">
+    <div style={{ background: themeGlobal.colors.white }} className="bookings-page">
       <Header />
 
       <main className="bookings-shell">
@@ -927,17 +990,17 @@ export default function MyBookings() {
               <p>{currentEmptyState.text}</p>
               <button
                 className="bookings-btn bookings-btn--primary"
-                onClick={() => navigate("/properties")}
+                onClick={() => navigate("/properties?city=Tangier")}
               >
-                <FiHome aria-hidden="true" />
-                Explore stays
+                <MdOutlineExplore size={18} />
+                Explore properties
               </button>
             </div>
           )}
         </section>
       </main>
 
-      <Footer />
+      {/* <Footer /> */}
 
       <BookingModal
         booking={selectedBooking}

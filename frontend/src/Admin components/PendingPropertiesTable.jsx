@@ -1,11 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     Paper,
     Button,
     Typography,
@@ -18,16 +12,19 @@ import {
     Divider,
     Chip,
     CircularProgress,
+    Alert,
+    FormControl,
+    InputLabel,
+    MenuItem,
+    Select,
+    Stack,
+    TextField,
 } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import CloseIcon from '@mui/icons-material/Close';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
-import AccessTimeOutlinedIcon from '@mui/icons-material/AccessTimeOutlined';
-import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
-import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import BedIcon from '@mui/icons-material/Bed';
 import BathtubIcon from '@mui/icons-material/Bathtub';
 import PeopleIcon from '@mui/icons-material/People';
@@ -37,6 +34,22 @@ import { useThemeGlobal } from '../Contexts/ThemeContext';
 import { useToken } from '../Contexts/TokenContext';
 import axios from 'axios';
 import { buildApiUrl, createAuthConfig } from '../lib/api';
+
+
+
+
+const statusOptions = [
+    { value: 'pending', label: 'Pending', summaryKey: 'pending' },
+    { value: 'approved', label: 'Accepted', summaryKey: 'approved' },
+    { value: 'rejected', label: 'Rejected', summaryKey: 'rejected' },
+    { value: 'all', label: 'All Properties', summaryKey: 'all' },
+];
+
+const statusColor = {
+    pending: 'warning',
+    approved: 'success',
+    rejected: 'error',
+};
 
 const normalizeImageUrl = (path) => {
     if (!path || typeof path !== 'string') return '';
@@ -192,8 +205,11 @@ export default function PendingPropertiesTable() {
     const themeGlobal = useThemeGlobal();
     const { token } = useToken();
 
-    // Table data state
-    const [pendingPropertiesFromServer, setPendingPropertiesFromServer] = useState([]);
+    // Property review queue state
+    const [properties, setProperties] = useState([]);
+    const [statusFilter, setStatusFilter] = useState('pending');
+    const [loading, setLoading] = useState(true);
+    const [errorMessage, setErrorMessage] = useState('');
     const [propertySummary, setPropertySummary] = useState({
         all: 0,
         pending: 0,
@@ -205,38 +221,62 @@ export default function PendingPropertiesTable() {
     const [modalOpen, setModalOpen] = useState(false);
     const [modalData, setModalData] = useState(null);
     const [modalLoading, setModalLoading] = useState(false);
+    const [rejectDialogProperty, setRejectDialogProperty] = useState(null);
+    const [rejectFeedback, setRejectFeedback] = useState('');
+    const [rejectError, setRejectError] = useState('');
+    const [rejectSubmitting, setRejectSubmitting] = useState(false);
 
-    // Fetch pending properties for the table
+    const selectedStatusLabel = useMemo(
+        () => statusOptions.find((option) => option.value === statusFilter)?.label || 'Properties',
+        [statusFilter],
+    );
+
+    const runOnEnterOrSpace = (event, action) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            action();
+        }
+    };
+
+    const fetchProperties = async () => {
+        if (!token) {
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        setErrorMessage('');
+        try {
+            const response = await axios.get(
+                buildApiUrl(`/api/pendingProperties?status=${statusFilter}`),
+                createAuthConfig(token),
+            );
+            const fetchedProperties = response.data.pendingProperties || [];
+            const nextSummary = response.data.summary || {
+                all: fetchedProperties.length,
+                pending: fetchedProperties.length,
+                approved: 0,
+                rejected: 0,
+            };
+
+            setProperties(fetchedProperties);
+            setPropertySummary(nextSummary);
+            localStorage.setItem('howManyPending', JSON.stringify(nextSummary.pending || 0));
+        } catch (error) {
+            setErrorMessage(error.response?.data?.message || 'Could not load properties.');
+            if (error.response) {
+                console.log(`Error: ${error.response.data}`);
+            } else {
+                console.log(error.message);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const extractPendingProperties = async () => {
-            if (!token) {
-                return;
-            }
-
-            try {
-                const response = await axios.get(
-                    buildApiUrl('/api/pendingProperties'),
-                    createAuthConfig(token),
-                );
-                const fetchedProperties = response.data.pendingProperties;
-                setPendingPropertiesFromServer(fetchedProperties);
-                setPropertySummary(response.data.summary || {
-                    all: fetchedProperties.length,
-                    pending: fetchedProperties.length,
-                    approved: 0,
-                    rejected: 0,
-                });
-                localStorage.setItem('howManyPending', JSON.stringify(fetchedProperties.length));
-            } catch (error) {
-                if (error.response) {
-                    console.log(`Error: ${error.response.data}`);
-                } else {
-                    console.log(error.message);
-                }
-            }
-        };
-        extractPendingProperties();
-    }, [token]);
+        fetchProperties();
+    }, [token, statusFilter]);
 
     // Open modal: fetch full property detail including all images
     const handleOpenModal = async (property) => {
@@ -244,7 +284,10 @@ export default function PendingPropertiesTable() {
         setModalLoading(true);
         setModalData(null);
         try {
-            const response = await axios.get(buildApiUrl(`/api/houses/${property.id_property}`));
+            const response = await axios.get(
+                buildApiUrl(`/api/houses/${property.id_property}`),
+                createAuthConfig(token),
+            );
             // Merge the host_email from the table row since /api/properties/:id doesn't return it separately
             const normalizedProperty = response.data?.property || {};
 
@@ -278,15 +321,7 @@ export default function PendingPropertiesTable() {
                 {},
                 createAuthConfig(token),
             );
-            // Remove from state
-            const updatedProperties = pendingPropertiesFromServer.filter(p => p.id_property !== id);
-            setPendingPropertiesFromServer(updatedProperties);
-            setPropertySummary((currentSummary) => ({
-                ...currentSummary,
-                pending: Math.max(0, currentSummary.pending - 1),
-                approved: currentSummary.approved + 1,
-            }));
-            localStorage.setItem('howManyPending', JSON.stringify(updatedProperties.length));
+            await fetchProperties();
             // Trigger a storage event to update AdminDashboard badge immediately
             window.dispatchEvent(new Event('storage'));
         } catch (error) {
@@ -295,63 +330,59 @@ export default function PendingPropertiesTable() {
         }
     };
 
+    const handleOpenRejectDialog = (property) => {
+        setRejectDialogProperty(property);
+        setRejectFeedback(property?.admin_notes || '');
+        setRejectError('');
+    };
+
+    const handleCloseRejectDialog = () => {
+        if (rejectSubmitting) return;
+
+        setRejectDialogProperty(null);
+        setRejectFeedback('');
+        setRejectError('');
+    };
+
     const handleReject = async (id) => {
+        const cleanFeedback = rejectFeedback.trim();
+
+        if (cleanFeedback.length < 10) {
+            setRejectError('Please add a helpful feedback note with at least 10 characters.');
+            return;
+        }
+
         console.log(`Rejecting property with ID: ${id}`);
+        setRejectSubmitting(true);
+        setRejectError('');
+
         try {
             await axios.post(
                 buildApiUrl(`/api/admin/reject/${id}`),
-                {},
+                { admin_notes: cleanFeedback },
                 createAuthConfig(token),
             );
-            // Remove from state
-            const updatedProperties = pendingPropertiesFromServer.filter(p => p.id_property !== id);
-            setPendingPropertiesFromServer(updatedProperties);
-            setPropertySummary((currentSummary) => ({
-                ...currentSummary,
-                pending: Math.max(0, currentSummary.pending - 1),
-                rejected: currentSummary.rejected + 1,
-            }));
-            localStorage.setItem('howManyPending', JSON.stringify(updatedProperties.length));
+            await fetchProperties();
+            setRejectDialogProperty(null);
+            setRejectFeedback('');
+            setModalOpen(false);
+            setModalData(null);
             // Trigger a storage event to update AdminDashboard badge immediately
             window.dispatchEvent(new Event('storage'));
         } catch (error) {
             console.error("Error rejecting property:", error);
-            alert("Failed to reject property.");
+            setRejectError(error.response?.data?.message || "Failed to reject property.");
+        } finally {
+            setRejectSubmitting(false);
         }
     };
 
-    console.log(modalData);
-
-    const summaryCards = [
-        {
-            label: 'All Properties',
-            value: propertySummary.all,
-            icon: <InboxOutlinedIcon sx={{ color: '#11acc8', fontSize: '1.15rem' }} />,
-            iconBg: 'rgba(17, 172, 200, 0.09)',
-            valueColor: '#11acc8',
-        },
-        {
-            label: 'Pending',
-            value: propertySummary.pending,
-            icon: <AccessTimeOutlinedIcon sx={{ color: '#f59e0b', fontSize: '1.15rem' }} />,
-            iconBg: 'rgba(245, 158, 11, 0.1)',
-            valueColor: '#f59e0b',
-        },
-        {
-            label: 'Accepted',
-            value: propertySummary.approved,
-            icon: <CheckCircleOutlineOutlinedIcon sx={{ color: '#5aa65a', fontSize: '1.15rem' }} />,
-            iconBg: 'rgba(90, 166, 90, 0.11)',
-            valueColor: '#5aa65a',
-        },
-        {
-            label: 'Rejected',
-            value: propertySummary.rejected,
-            icon: <CancelOutlinedIcon sx={{ color: '#ef4444', fontSize: '1.15rem' }} />,
-            iconBg: 'rgba(239, 68, 68, 0.09)',
-            valueColor: '#ef4444',
-        },
-    ];
+    const summaryCards = statusOptions.map((option) => ({
+        ...option,
+        filterValue: option.value,
+        value: propertySummary[option.summaryKey] || 0,
+        active: statusFilter === option.value,
+    }));
 
     return (
         <>
@@ -360,8 +391,7 @@ export default function PendingPropertiesTable() {
                     display: 'grid',
                     gridTemplateColumns: {
                         xs: '1fr',
-                        sm: 'repeat(2, minmax(0, 1fr))',
-                        xl: 'repeat(4, minmax(0, 1fr))',
+                        md: 'repeat(4, minmax(0, 1fr))',
                     },
                     gap: 2,
                     mb: 3,
@@ -370,198 +400,291 @@ export default function PendingPropertiesTable() {
                 {summaryCards.map((card) => (
                     <Box
                         key={card.label}
+                        component="div"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setStatusFilter(card.filterValue)}
+                        onKeyDown={(event) => runOnEnterOrSpace(event, () => setStatusFilter(card.filterValue))}
                         sx={{
-                            backgroundColor: '#ffffff',
-                            borderRadius: '16px',
-                            border: '1px solid rgba(226,232,240,0.85)',
-                            boxShadow: '0 10px 24px rgba(148, 163, 184, 0.08)',
-                            padding: '16px 18px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1.6,
+                            p: 2,
+                            borderRadius: 2,
+                            border: '1px solid #E2E8F0',
+                            backgroundColor: card.active ? '#F0FDFA' : '#fff',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            width: '100%',
+                            transition: 'border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease',
+                            '&:hover': {
+                                borderColor: '#CBD5E1',
+                                boxShadow: '0 8px 20px rgba(15, 23, 42, 0.06)',
+                                transform: 'translateY(-1px)',
+                            },
+                            '&:focus-visible': {
+                                outline: '3px solid rgba(25, 118, 210, 0.25)',
+                                outlineOffset: 2,
+                            },
                         }}
                     >
-                        <Box
-                            sx={{
-                                width: 40,
-                                height: 40,
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                backgroundColor: card.iconBg,
-                                flexShrink: 0,
-                            }}
-                        >
-                            {card.icon}
-                        </Box>
-                        <Box>
-                            <Typography
-                                sx={{
-                                    color: card.valueColor,
-                                    fontSize: '1.7rem',
-                                    fontWeight: 700,
-                                    lineHeight: 1,
-                                    mb: 0.45,
-                                }}
-                            >
-                                {card.value}
-                            </Typography>
-                            <Typography
-                                sx={{
-                                    color: '#344054',
-                                    fontSize: '0.82rem',
-                                    lineHeight: 1.35,
-                                }}
-                            >
-                                {card.label}
-                            </Typography>
-                        </Box>
+                        <Typography sx={{ color: '#64748B', fontSize: '0.84rem' }}>
+                            {card.label}
+                        </Typography>
+                        <Typography sx={{ color: '#0F172A', fontSize: '1.8rem', fontWeight: 700 }}>
+                            {card.value || 0}
+                        </Typography>
                     </Box>
                 ))}
             </Box>
 
-            {/* ---- TABLE ---- */}
-            <TableContainer
-                component={Paper}
+            <Paper
+                elevation={0}
                 sx={{
-                    borderRadius: '12px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                    overflow: 'hidden',
+                    borderRadius: 2,
                     border: '1px solid #E2E8F0',
+                    overflow: 'hidden',
+                    backgroundColor: '#fff',
                 }}
             >
-                <Table sx={{ minWidth: { xs: 0, md: 650 } }} aria-label="pending properties table">
-                    <TableHead sx={{ display: { xs: 'none', md: 'table-header-group' }, backgroundColor: '#F8FAFC' }}>
-                        <TableRow>
-                            <TableCell sx={{ fontWeight: 600, color: '#475569' }}>Property</TableCell>
-                            <TableCell sx={{ fontWeight: 600, color: '#475569' }}>Host</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 600, color: '#475569' }}>Actions</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {pendingPropertiesFromServer.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={3} align="center" sx={{ py: 8 }}>
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                                        <CheckCircleOutlineIcon sx={{ fontSize: 60, color: '#CBD5E1' }} />
-                                        <Typography variant="h6" sx={{ color: '#64748B', fontWeight: 500 }}>
-                                            No pending properties
-                                        </Typography>
-                                    </Box>
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            pendingPropertiesFromServer.map((property) => (
-                                <TableRow
-                                    key={property.id_property}
-                                    sx={{
-                                        display: { xs: 'flex', md: 'table-row' },
-                                        flexDirection: 'column',
-                                        gap: { xs: 2, md: 0 },
-                                        p: { xs: 2, md: 0 },
-                                        '&:last-child td, &:last-child th': { border: 0 },
-                                        '&:hover': { backgroundColor: '#F8FAFC' },
-                                        borderBottom: { xs: '1px solid #E2E8F0', md: 'none' },
-                                    }}
-                                >
-                                    {/* Property column */}
-                                    <TableCell component="th" scope="row" sx={{ display: { xs: 'block', md: 'table-cell' }, p: { xs: 0, md: 2 }, borderBottom: { xs: 'none', md: '1px solid rgba(224,224,224,1)' } }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                            {/* Clickable image */}
+                <Box
+                    sx={{
+                        p: 2.5,
+                        borderBottom: '1px solid #E2E8F0',
+                        display: 'flex',
+                        alignItems: { xs: 'stretch', sm: 'center' },
+                        justifyContent: 'space-between',
+                        gap: 2,
+                        flexDirection: { xs: 'column', sm: 'row' },
+                    }}
+                >
+                    <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#0F172A' }}>
+                            {selectedStatusLabel} properties
+                        </Typography>
+                        <Typography sx={{ color: '#64748B', fontSize: '0.9rem' }}>
+                            Review submitted listings, inspect details, and approve or reject publication.
+                        </Typography>
+                    </Box>
+                    <FormControl size="small" sx={{ minWidth: 180 }}>
+                        <InputLabel>Status</InputLabel>
+                        <Select
+                            label="Status"
+                            value={statusFilter}
+                            onChange={(event) => setStatusFilter(event.target.value)}
+                        >
+                            {statusOptions.map((option) => (
+                                <MenuItem key={option.value} value={option.value}>
+                                    {option.label}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Box>
+
+                <Box sx={{ p: 2.5 }}>
+                    {errorMessage && <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>}
+
+                    {loading ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+                            <CircularProgress />
+                        </Box>
+                    ) : properties.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 7, color: '#64748B' }}>
+                            <CheckCircleOutlineIcon sx={{ fontSize: 48, color: '#CBD5E1', mb: 1 }} />
+                            <Typography sx={{ fontWeight: 600 }}>
+                                No {selectedStatusLabel.toLowerCase()} properties
+                            </Typography>
+                        </Box>
+                    ) : (
+                        <Stack spacing={2}>
+                            {properties.map((property) => {
+                                const propertyStatus = property.status || 'pending';
+                                const isPending = propertyStatus === 'pending';
+                                const imageUrl = normalizeImageUrl(property.main_image);
+
+                                return (
+                                    <Paper
+                                        key={property.id_property}
+                                        elevation={0}
+                                        sx={{
+                                            p: 2,
+                                            border: '1px solid #E2E8F0',
+                                            borderRadius: 2,
+                                            backgroundColor: '#F8FAFC',
+                                            transition: 'border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease',
+                                            '&:hover': {
+                                                borderColor: '#CBD5E1',
+                                                boxShadow: '0 10px 24px rgba(15, 23, 42, 0.06)',
+                                                transform: 'translateY(-1px)',
+                                            },
+                                        }}
+                                    >
+                                        <Box
+                                            sx={{
+                                                display: 'grid',
+                                                gridTemplateColumns: { xs: '1fr', md: '180px minmax(0, 1fr) auto' },
+                                                gap: 2,
+                                                alignItems: { xs: 'stretch', md: 'center' },
+                                            }}
+                                        >
                                             <Box
+                                                component="div"
+                                                role="button"
+                                                tabIndex={0}
                                                 onClick={() => handleOpenModal(property)}
+                                                onKeyDown={(event) => runOnEnterOrSpace(event, () => handleOpenModal(property))}
                                                 sx={{
-                                                    width: 160, height: 110,
-                                                    borderRadius: '8px', overflow: 'hidden',
-                                                    flexShrink: 0, backgroundColor: '#E2E8F0',
-                                                    cursor: 'pointer', position: 'relative',
-                                                    '&:hover .overlay': { opacity: 1 },
+                                                    width: '100%',
+                                                    aspectRatio: { xs: '16 / 9', md: '4 / 3' },
+                                                    borderRadius: 2,
+                                                    overflow: 'hidden',
+                                                    backgroundColor: '#E2E8F0',
+                                                    cursor: 'pointer',
+                                                    position: 'relative',
+                                                    border: '1px solid #E2E8F0',
+                                                    p: 0,
+                                                    appearance: 'none',
+                                                    '&:hover .overlay, &:focus-visible .overlay': { opacity: 1 },
+                                                    '&:focus-visible': {
+                                                        outline: '3px solid rgba(25, 118, 210, 0.25)',
+                                                        outlineOffset: 2,
+                                                    },
                                                 }}
+                                                aria-label={`View details for ${property.title || `property ${property.id_property}`}`}
                                             >
-                                                {property.main_image ? (
+                                                {imageUrl ? (
                                                     <img
-                                                        src={normalizeImageUrl(property.main_image)}
-                                                        alt={property.title}
+                                                        src={imageUrl}
+                                                        alt={property.title || 'Property'}
                                                         style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                                                     />
                                                 ) : (
-                                                    <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', fontSize: '0.8rem' }}>
-                                                        No Image
+                                                    <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', fontSize: '0.85rem' }}>
+                                                        No image
                                                     </Box>
                                                 )}
-                                                {/* Hover overlay hint */}
                                                 <Box className="overlay" sx={{
-                                                    position: 'absolute', inset: 0,
-                                                    backgroundColor: 'rgba(15,23,42,0.45)',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    opacity: 0, transition: 'opacity 0.2s ease',
-                                                    color: 'white', fontSize: '0.78rem', fontWeight: 600,
-                                                    letterSpacing: '0.3px', textAlign: 'center', px: 1,
+                                                    position: 'absolute',
+                                                    inset: 0,
+                                                    backgroundColor: 'rgba(15,23,42,0.48)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    opacity: 0,
+                                                    transition: 'opacity 0.2s ease',
+                                                    color: 'white',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 700,
+                                                    textAlign: 'center',
+                                                    px: 1,
                                                 }}>
-                                                    View Details
+                                                    View details
                                                 </Box>
                                             </Box>
 
-                                            <Box>
-                                                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1E293B' }}>
-                                                    {property.title}
-                                                </Typography>
-                                                <Typography variant="body2" sx={{ color: '#64748B', fontSize: '0.8rem' }}>
-                                                    ID: #{property.id_property}
-                                                </Typography>
-                                            </Box>
-                                        </Box>
-                                    </TableCell>
+                                            <Box sx={{ minWidth: 0 }}>
+                                                <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: 'wrap', gap: 1 }}>
+                                                    <Chip
+                                                        size="small"
+                                                        label={propertyStatus}
+                                                        color={statusColor[propertyStatus] || 'default'}
+                                                        sx={{ textTransform: 'capitalize' }}
+                                                    />
+                                                    <Chip size="small" label={`#${property.id_property}`} />
+                                                    {property.property_type && <Chip size="small" label={property.property_type} />}
+                                                    {property.city_name && <Chip size="small" label={property.city_name} />}
+                                                </Stack>
 
-                                    {/* Host column */}
-                                    <TableCell sx={{ display: { xs: 'block', md: 'table-cell' }, p: { xs: 0, md: 2 }, borderBottom: { xs: 'none', md: '1px solid rgba(224,224,224,1)' } }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                            <Avatar sx={{ width: 32, height: 32, bgcolor: themeGlobal.colors.primary, fontSize: '1rem' }}>
-                                                {property.host_name ? property.host_name.charAt(0).toUpperCase() : 'H'}
-                                            </Avatar>
-                                            <Box>
-                                                <Typography variant="body2" sx={{ fontWeight: 500, color: '#1E293B' }}>
-                                                    {property.host_name || 'Unknown Host'}
+                                                <Typography sx={{ fontWeight: 700, color: '#0F172A', fontSize: '1rem', mb: 0.5 }}>
+                                                    {property.title || 'Untitled property'}
                                                 </Typography>
-                                                <Typography variant="body2" sx={{ color: '#64748B', fontSize: '0.8rem' }}>
-                                                    {property.host_email || 'No email provided'}
-                                                </Typography>
-                                            </Box>
-                                        </Box>
-                                    </TableCell>
 
-                                    {/* Actions column */}
-                                    <TableCell align="center" sx={{ display: { xs: 'block', md: 'table-cell' }, p: { xs: 0, md: 2 }, pt: { xs: 1, md: 2 }, borderBottom: { xs: 'none', md: '1px solid rgba(224,224,224,1)' } }}>
-                                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
-                                            <Button
-                                                variant="outlined" color="error" size="small"
-                                                startIcon={<HighlightOffIcon />}
-                                                onClick={() => handleReject(property.id_property)}
-                                                sx={{ textTransform: 'none', borderRadius: '8px' }}
-                                            >
-                                                Reject
-                                            </Button>
-                                            <Button
-                                                variant="contained" size="small"
-                                                startIcon={<CheckCircleOutlineIcon />}
-                                                onClick={() => handleApprove(property.id_property)}
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                                                    <Avatar sx={{ width: 32, height: 32, bgcolor: themeGlobal.colors.primary, fontSize: '1rem' }}>
+                                                        {property.host_name ? property.host_name.charAt(0).toUpperCase() : 'H'}
+                                                    </Avatar>
+                                                    <Box sx={{ minWidth: 0 }}>
+                                                        <Typography sx={{ fontWeight: 600, color: '#0F172A', fontSize: '0.86rem' }}>
+                                                            {property.host_name || 'Unknown Host'}
+                                                        </Typography>
+                                                        <Typography sx={{ color: '#64748B', fontSize: '0.82rem', wordBreak: 'break-word' }}>
+                                                            {property.host_email || 'No email provided'}
+                                                        </Typography>
+                                                    </Box>
+                                                </Box>
+
+                                                <Stack direction="row" spacing={2} sx={{ color: '#64748B', fontSize: '0.82rem', flexWrap: 'wrap', gap: 1 }}>
+                                                    {property.price_per_day && (
+                                                        <Typography sx={{ color: '#334155', fontSize: '0.84rem' }}>
+                                                            {Number(property.price_per_day).toLocaleString('en-MA')} MAD / night
+                                                        </Typography>
+                                                    )}
+                                                    {property.bedrooms != null && (
+                                                        <Typography sx={{ color: '#64748B', fontSize: '0.84rem' }}>
+                                                            {property.bedrooms} bedrooms
+                                                        </Typography>
+                                                    )}
+                                                    {property.guests != null && (
+                                                        <Typography sx={{ color: '#64748B', fontSize: '0.84rem' }}>
+                                                            {property.guests} guests
+                                                        </Typography>
+                                                    )}
+                                                </Stack>
+                                            </Box>
+
+                                            <Stack
+                                                direction={{ xs: 'row', md: 'column' }}
+                                                spacing={1}
                                                 sx={{
-                                                    textTransform: 'none', borderRadius: '8px',
-                                                    backgroundColor: '#10B981', boxShadow: 'none',
-                                                    '&:hover': { backgroundColor: '#059669' },
+                                                    justifyContent: { xs: 'flex-start', md: 'center' },
+                                                    alignItems: { xs: 'stretch', md: 'flex-end' },
+                                                    flexWrap: 'wrap',
                                                 }}
                                             >
-                                                Approve
-                                            </Button>
+                                                <Button
+                                                    variant="outlined"
+                                                    size="small"
+                                                    onClick={() => handleOpenModal(property)}
+                                                    sx={{ textTransform: 'none', borderRadius: 1.5, minWidth: 112 }}
+                                                >
+                                                    Details
+                                                </Button>
+                                                {propertyStatus !== 'rejected' && (
+                                                    <Button
+                                                        variant="outlined"
+                                                        color="error"
+                                                        size="small"
+                                                        startIcon={<HighlightOffIcon />}
+                                                        onClick={() => handleOpenRejectDialog(property)}
+                                                        sx={{ textTransform: 'none', borderRadius: 1.5, minWidth: 112 }}
+                                                    >
+                                                        Reject
+                                                    </Button>
+                                                )}
+                                                {propertyStatus !== 'approved' && (
+                                                    <Button
+                                                        variant={isPending ? 'contained' : 'outlined'}
+                                                        color="primary"
+                                                        size="small"
+                                                        startIcon={<CheckCircleOutlineIcon />}
+                                                        onClick={() => handleApprove(property.id_property)}
+                                                        sx={{
+                                                            textTransform: 'none',
+                                                            borderRadius: 1.5,
+                                                            boxShadow: 'none',
+                                                            minWidth: 112,
+                                                        }}
+                                                    >
+                                                        Approve
+                                                    </Button>
+                                                )}
+                                            </Stack>
                                         </Box>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+                                    </Paper>
+                                );
+                            })}
+                        </Stack>
+                    )}
+                </Box>
+            </Paper>
 
             {/* ---- PROPERTY OVERVIEW MODAL ---- */}
             <Dialog
@@ -630,7 +753,7 @@ export default function PendingPropertiesTable() {
                                     {modalData.price_per_day && (
                                         <Chip
                                             icon={<NightlightIcon sx={{ fontSize: '0.85rem !important' }} />}
-                                            label={`$${modalData.price_per_day} / night`}
+                                            label={`${Number(modalData.price_per_day).toLocaleString('en-MA')} MAD / night`}
                                             size="small"
                                             sx={{ backgroundColor: '#ecfdf5', color: '#059669', fontWeight: 600 }}
                                         />
@@ -647,7 +770,7 @@ export default function PendingPropertiesTable() {
                                     {[
                                         { icon: <BedIcon sx={{ fontSize: '1.1rem', color: '#64748b' }} />, label: 'Bedrooms', value: modalData.bedrooms },
                                         { icon: <BathtubIcon sx={{ fontSize: '1.1rem', color: '#64748b' }} />, label: 'Bathrooms', value: modalData.bathrooms },
-                                        { icon: <PeopleIcon sx={{ fontSize: '1.1rem', color: '#64748b' }} />, label: 'Guests', value: modalData.guests },
+                                        { icon: <PeopleIcon sx={{ fontSize: '1.1rem', color: '#64748b' }} />, label: 'Guests', value: modalData.guests ?? modalData.guests_total },
                                     ].map((stat) => (
                                         <Box key={stat.label} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                             {stat.icon}
@@ -679,7 +802,7 @@ export default function PendingPropertiesTable() {
 
                                 {/* Access details */}
                                 <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', mb: 1 }}>
-                                    Acess Details
+                                    Access Details
                                 </Typography>
                                 <Typography variant="body2" sx={{ color: '#475569', lineHeight: 1.75, mb: 3 }}>
                                     {modalData.access_instructions || 'No access instructions provided by the host.'}
@@ -734,39 +857,214 @@ export default function PendingPropertiesTable() {
                             </Box>
                         </DialogContent>
 
-                        {/* === Action buttons === */}
                         <DialogActions sx={{
                             p: '16px 32px',
                             borderTop: '1px solid #f1f5f9',
                             gap: 1.5,
                             justifyContent: 'flex-end',
                             backgroundColor: '#fafafa',
+                            flexWrap: 'wrap',
                         }}>
                             <Button
-                                onClick={() => { handleReject(modalData.id_property); handleCloseModal(); }}
+                                onClick={handleCloseModal}
                                 variant="outlined"
-                                color="error"
-                                startIcon={<HighlightOffIcon />}
-                                sx={{ textTransform: 'none', borderRadius: '9px', px: 3, py: 1, fontWeight: 600 }}
+                                color="inherit"
+                                sx={{ textTransform: 'none', borderRadius: 1.5, px: 3, py: 1, fontWeight: 600 }}
                             >
-                                Reject Property
+                                Close
                             </Button>
-                            <Button
-                                onClick={() => { handleApprove(modalData.id_property); handleCloseModal(); }}
-                                variant="contained"
-                                startIcon={<CheckCircleOutlineIcon />}
-                                sx={{
-                                    textTransform: 'none', borderRadius: '9px', px: 4, py: 1, fontWeight: 600,
-                                    backgroundColor: '#10b981',
-                                    boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
-                                    '&:hover': { backgroundColor: '#059669', boxShadow: '0 4px 16px rgba(16,185,129,0.45)' },
-                                }}
-                            >
-                                Approve Property
-                            </Button>
+                            {(modalData.status || 'pending') !== 'rejected' && (
+                                <Button
+                                    onClick={() => handleOpenRejectDialog(modalData)}
+                                    variant="outlined"
+                                    color="error"
+                                    startIcon={<HighlightOffIcon />}
+                                    sx={{ textTransform: 'none', borderRadius: 1.5, px: 3, py: 1, fontWeight: 600 }}
+                                >
+                                    Reject Property
+                                </Button>
+                            )}
+                            {(modalData.status || 'pending') !== 'approved' && (
+                                <Button
+                                    onClick={async () => { await handleApprove(modalData.id_property); handleCloseModal(); }}
+                                    variant="contained"
+                                    startIcon={<CheckCircleOutlineIcon />}
+                                    sx={{
+                                        textTransform: 'none',
+                                        borderRadius: 1.5,
+                                        px: 4,
+                                        py: 1,
+                                        fontWeight: 600,
+                                        boxShadow: 'none',
+                                    }}
+                                >
+                                    Approve Property
+                                </Button>
+                            )}
                         </DialogActions>
                     </>
                 )}
+            </Dialog>
+
+            <Dialog
+                open={Boolean(rejectDialogProperty)}
+                onClose={handleCloseRejectDialog}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        borderRadius: '22px',
+                        overflow: 'hidden',
+                        boxShadow: '0 28px 80px rgba(15, 23, 42, 0.28)',
+                        border: '1px solid rgba(226, 232, 240, 0.9)',
+                    },
+                }}
+                BackdropProps={{
+                    sx: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.42)',
+                        backdropFilter: 'blur(8px)',
+                    },
+                }}
+            >
+                <Box
+                    sx={{
+                        p: { xs: 2.5, sm: 3.5 },
+                        background:
+                            'linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.95))',
+                    }}
+                >
+                    <IconButton
+                        onClick={handleCloseRejectDialog}
+                        disabled={rejectSubmitting}
+                        sx={{
+                            position: 'absolute',
+                            top: 16,
+                            right: 16,
+                            width: 38,
+                            height: 38,
+                            backgroundColor: '#F8FAFC',
+                            color: '#334155',
+                            boxShadow: '0 8px 22px rgba(15, 23, 42, 0.08)',
+                            '&:hover': { backgroundColor: '#F1F5F9' },
+                        }}
+                    >
+                        <CloseIcon fontSize="small" />
+                    </IconButton>
+
+                    <Box
+                        sx={{
+                            width: 58,
+                            height: 58,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '18px',
+                            border: '1px solid rgba(180, 83, 9, 0.22)',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            color: '#B45309',
+                            mb: 2.5,
+                        }}
+                    >
+                        <HighlightOffIcon />
+                    </Box>
+
+                    <Typography
+                        sx={{
+                            color: '#0D9488',
+                            fontSize: '0.76rem',
+                            fontWeight: 800,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                            mb: 1,
+                        }}
+                    >
+                        Rejection feedback
+                    </Typography>
+                    <Typography
+                        variant="h5"
+                        sx={{
+                            color: '#0F172A',
+                            fontFamily: '"Cormorant Garamond", serif',
+                            fontSize: { xs: '2rem', sm: '2.35rem' },
+                            lineHeight: 1.05,
+                            mb: 1,
+                        }}
+                    >
+                        Tell the host what needs revision.
+                    </Typography>
+                    <Typography sx={{ color: '#64748B', lineHeight: 1.7, mb: 2.5 }}>
+                        These notes will appear in the host's My Properties feedback modal for{' '}
+                        <strong>{rejectDialogProperty?.title || 'this listing'}</strong>.
+                    </Typography>
+
+                    {rejectError ? (
+                        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                            {rejectError}
+                        </Alert>
+                    ) : null}
+
+                    <TextField
+                        label="Feedback and revision notes"
+                        value={rejectFeedback}
+                        onChange={(event) => setRejectFeedback(event.target.value)}
+                        placeholder={"Example:\nUpload a readable ownership document.\nReplace the cover image with a brighter room photo.\nConfirm the guest capacity matches the beds."}
+                        multiline
+                        minRows={6}
+                        fullWidth
+                        autoFocus
+                        helperText="Tip: write each requested change on a new line so it appears as clear bullets to the host."
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                borderRadius: 3,
+                                backgroundColor: '#FFFFFF',
+                                alignItems: 'flex-start',
+                            },
+                            '& .MuiOutlinedInput-root.Mui-focused fieldset': {
+                                borderColor: '#0D9488',
+                            },
+                            '& .MuiInputLabel-root.Mui-focused': {
+                                color: '#0D9488',
+                            },
+                        }}
+                    />
+                </Box>
+
+                <DialogActions
+                    sx={{
+                        px: { xs: 2.5, sm: 3.5 },
+                        py: 2.25,
+                        gap: 1.25,
+                        flexWrap: 'wrap',
+                        borderTop: '1px solid #E2E8F0',
+                        backgroundColor: '#F8FAFC',
+                    }}
+                >
+                    <Button
+                        onClick={handleCloseRejectDialog}
+                        disabled={rejectSubmitting}
+                        variant="outlined"
+                        color="inherit"
+                        sx={{ textTransform: 'none', borderRadius: 999, px: 3, fontWeight: 700 }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={() => handleReject(rejectDialogProperty?.id_property)}
+                        disabled={rejectSubmitting || !rejectDialogProperty}
+                        variant="contained"
+                        color="error"
+                        startIcon={<HighlightOffIcon />}
+                        sx={{
+                            textTransform: 'none',
+                            borderRadius: 999,
+                            px: 3,
+                            fontWeight: 800,
+                            boxShadow: '0 12px 24px rgba(220, 38, 38, 0.18)',
+                        }}
+                    >
+                        {rejectSubmitting ? 'Saving feedback...' : 'Reject and send feedback'}
+                    </Button>
+                </DialogActions>
             </Dialog>
         </>
     );

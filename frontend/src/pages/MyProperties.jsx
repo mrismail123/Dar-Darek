@@ -154,6 +154,7 @@ function normalizeProperty(property) {
     availableTo: property.availableTo || "",
     checkIn: property.checkIn || "",
     checkOut: property.checkOut || "",
+    adminNotes: property.adminNotes || property.admin_notes || "",
   };
 }
 
@@ -396,6 +397,14 @@ function ConfirmationModal({ action, property, onClose, onConfirm }) {
 function FeedbackModal({ property, onClose }) {
   if (!property) return null;
 
+  const feedbackNotes = String(property.adminNotes || "").trim();
+  const feedbackItems = feedbackNotes
+    ? feedbackNotes
+        .split(/\r?\n/)
+        .map((item) => item.replace(/^[-•*]\s*/, "").trim())
+        .filter(Boolean)
+    : [];
+
   return (
     <div
       className="properties-modal-overlay"
@@ -420,20 +429,28 @@ function FeedbackModal({ property, onClose }) {
           <FiAlertCircle aria-hidden="true" />
         </div>
         <p className="properties-kicker">{property.city} review note</p>
-        <h2 id="properties-feedback-title">A few details need revision.</h2>
+        <h2 id="properties-feedback-title">
+          {feedbackNotes
+            ? "A few details need revision."
+            : "Feedback is being prepared."}
+        </h2>
         <p>
-          Our review team needs a clearer ownership document and one brighter
-          main photo before this listing can be approved.
+          {feedbackNotes
+            ? "Our review team shared these notes so you can update your listing and resubmit it with confidence."
+            : "The review team has not attached detailed notes yet. You can still edit the listing and resubmit when ready."}
         </p>
-        <div className="properties-feedback-list">
-          <span>Upload a readable property document.</span>
-          <span>
-            Replace the cover image with a brighter room or facade photo.
-          </span>
-          <span>
-            Confirm the guest capacity matches the sleeping arrangement.
-          </span>
-        </div>
+        {feedbackItems.length > 0 ? (
+          <div className="properties-feedback-list">
+            {feedbackItems.map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+          </div>
+        ) : (
+          <div className="properties-feedback-empty">
+            <FiInfo aria-hidden="true" />
+            <span>No written feedback was attached to this rejection.</span>
+          </div>
+        )}
         <div className="properties-modal__actions">
           <button
             className="properties-btn properties-btn--ghost"
@@ -735,7 +752,7 @@ export default function MyProperties() {
     window.setTimeout(() => setToast(null), 2800);
   }
 
-  function handleConfirmAction() {
+  async function handleConfirmAction() {
     if (!confirmation) return;
 
     if (confirmation.action === "archive") {
@@ -747,14 +764,31 @@ export default function MyProperties() {
       return;
     }
 
-    setProperties((currentProperties) =>
-      currentProperties.filter(
-        (property) => property.id !== confirmation.property.id,
-      ),
-    );
+    try {
+      const response = await fetch(
+        buildApiUrl(`/api/my-properties/${confirmation.property.id}/draft`),
+        {
+          method: "DELETE",
+          headers: getAuthHeaders(),
+        },
+      );
+      const data = await response.json();
 
-    showToast("Draft deleted from this preview.", "error");
-    setConfirmation(null);
+      if (!response.ok) {
+        throw new Error(data.message || "Could not delete draft.");
+      }
+
+      setProperties((currentProperties) =>
+        currentProperties.filter(
+          (property) => property.id !== confirmation.property.id,
+        ),
+      );
+
+      showToast(data.message || "Draft deleted.", "error");
+      setConfirmation(null);
+    } catch (error) {
+      showToast(error.message || "Could not delete draft.", "error");
+    }
   }
 
   function handlePreview(property) {
@@ -892,7 +926,7 @@ export default function MyProperties() {
   }
 
   return (
-    <div className="my-properties-page">
+    <div style={{background:"white"}} className="my-properties-page">
       <Header />
 
       <main className="properties-shell">
@@ -1222,7 +1256,6 @@ export default function MyProperties() {
         </section>
       </main>
 
-      <Footer />
 
       <ConfirmationModal
         action={confirmation?.action}

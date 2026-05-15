@@ -1,4 +1,4 @@
-import Logo from "./assets/Logo2.png";
+import Logo from "./assets/dardarek-logo.png";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
 
 export default function Footer() {

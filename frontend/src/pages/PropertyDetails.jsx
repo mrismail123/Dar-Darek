@@ -5,12 +5,10 @@ import { useToken } from "../Contexts/TokenContext";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-import chaouenImage from "../assets/chaouen-bg.jpg";
-import tetouanImage from "../assets/tetouan-hero.jpg";
 import Header from "../Home components/Header";
 import Footer from "../Footer";
 import { useThemeGlobal } from "../Contexts/ThemeContext";
-import { buildApiUrl } from "../lib/api";
+import { buildApiUrl, createAuthConfig } from "../lib/api";
 
 const mockProperty = {
   brand: "Dar Darek",
@@ -292,6 +290,21 @@ const normalizeImages = (images) => {
     .filter(Boolean);
 
   return normalizedImages.length > 0 ? normalizedImages : mockProperty.images;
+};
+
+const normalizeDisplayList = (value) =>
+  asArray(value)
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+
+const formatMemberSince = (dateValue) => {
+  const date = parseLocalDate(dateValue);
+  if (!date) return "";
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
 };
 
 const amenityIconMap = {
@@ -578,24 +591,10 @@ const getSafetyItems = (amenities) => {
   ].map((item) => (availableKeys.has(item.key) ? item.present : item.missing));
 };
 
-const getHostName = (host) => host?.name || "Hôte Dar Darek";
+const getHostName = (host) => host?.name || "Host";
 
 const getHostSubline = (host) => {
-  const yearsHosting = Number(host?.yearsHosting);
-
-  if (Number.isFinite(yearsHosting) && yearsHosting > 0) {
-    return `${yearsHosting} ${yearsHosting > 1 ? "years" : "year"} hosting`;
-  }
-
-  if (host?.role === "admin") {
-    return "Dar Darek admin host";
-  }
-
-  if (host?.role === "host") {
-    return "Dar Darek host";
-  }
-
-  return "Dar Darek verified host";
+  return host?.name ? "Host" : "Host details not provided yet";
 };
 
 const getInitials = (name = "") =>
@@ -610,7 +609,7 @@ const getInitials = (name = "") =>
 
 const normalizePublicImageUrl = (image) => {
   if (!image || typeof image !== "string") return "";
-  return image.startsWith("/uploads") ? `http://localhost:5000${image}` : image;
+  return image.startsWith("/uploads") ? buildApiUrl(image) : image;
 };
 
 const scrollToHost = () => {
@@ -746,8 +745,12 @@ const normalizeProperty = (property) => {
       mockProperty.propertyType,
     ),
     coordinates: {
-      lat: numberWithFallback(property.latitude, mockProperty.coordinates.lat),
-      lng: numberWithFallback(property.longitude, mockProperty.coordinates.lng),
+      lat: Number.isFinite(Number(property.latitude))
+        ? Number(property.latitude)
+        : null,
+      lng: Number.isFinite(Number(property.longitude))
+        ? Number(property.longitude)
+        : null,
     },
     guests: numberWithFallback(property.guests_total, mockProperty.guests),
     bedrooms: numberWithFallback(property.bedrooms, mockProperty.bedrooms),
@@ -796,7 +799,7 @@ const normalizeProperty = (property) => {
       ),
       name: withFallback(
         property.host?.name || property.host_name || property.owner_name,
-        "Hôte Dar Darek",
+        "Host",
       ),
       avatarInitials: withFallback(
         property.host?.avatarInitials ||
@@ -805,26 +808,45 @@ const normalizeProperty = (property) => {
         "DD",
       ),
       role: property.host?.role || property.host_role || null,
-      verified: true,
+      verified: Boolean(property.host?.verified || property.host_verified),
       rating: null,
       reviews: 0,
       responseRate: null,
       responseTime: null,
       yearsHosting: null,
-      bio: property.host?.bio || property.host_bio || null,
+      bio: property.host?.bio || property.host_bio || property.host_description || null,
+      email: property.host?.email || property.host_email || "",
+      nationality: property.host?.nationality || property.host_nationality || "",
+      languages: normalizeDisplayList(
+        property.host?.languages || property.host_languages,
+      ),
+      createdAt: property.host?.createdAt || property.host_created_at || "",
     },
     host_name: withFallback(
       property.host?.name || property.host_name || property.owner_name,
-      "Hôte Dar Darek",
+      "Host",
     ),
     host_phone:
       property.host_phone || property.host?.phone || property.phone || "",
+    host_email: property.host_email || property.host?.email || "",
   };
 };
 
 function PropertyGallery({ property }) {
   const [showAllPhotos, setShowAllPhotos] = useState(false);
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(null);
+  const selectedPhoto =
+    selectedPhotoIndex === null ? null : property.images[selectedPhotoIndex];
+  const showPreviousPhoto = () =>
+    setSelectedPhotoIndex((currentIndex) =>
+      currentIndex === null
+        ? 0
+        : (currentIndex - 1 + property.images.length) % property.images.length,
+    );
+  const showNextPhoto = () =>
+    setSelectedPhotoIndex((currentIndex) =>
+      currentIndex === null ? 0 : (currentIndex + 1) % property.images.length,
+    );
 
   return (
     <>
@@ -851,17 +873,21 @@ function PropertyGallery({ property }) {
       </section>
 
       {showAllPhotos && (
-        <div className="pd-photo-modal">
+        <div className="pd-photo-modal" role="dialog" aria-modal="true">
           <div className="pd-photo-modal__panel">
             <button
               type="button"
               className="pd-photo-modal__close"
               onClick={() => setShowAllPhotos(false)}
+              aria-label="Close photo gallery"
             >
               ✕
             </button>
 
-            <h2 className="pd-photo-modal__title">All photos</h2>
+            <span className="pd-photo-modal__eyebrow">
+              {property.images.length} photos
+            </span>
+            <h2 className="pd-photo-modal__title">Photos</h2>
 
             <div className="pd-photo-modal__grid">
               {property.images.map((img, index) => (
@@ -869,7 +895,8 @@ function PropertyGallery({ property }) {
                   type="button"
                   className="pd-photo-modal__item"
                   key={index}
-                  onClick={() => setSelectedPhoto(img)}
+                  onClick={() => setSelectedPhotoIndex(index)}
+                  aria-label={`Open photo ${index + 1}`}
                 >
                   <img src={img} alt={`Photo ${index + 1}`} />
                 </button>
@@ -879,16 +906,43 @@ function PropertyGallery({ property }) {
         </div>
       )}
       {selectedPhoto && (
-        <div className="pd-photo-viewer">
+        <div className="pd-photo-viewer" role="dialog" aria-modal="true">
           <button
             type="button"
             className="pd-photo-viewer__close"
-            onClick={() => setSelectedPhoto(null)}
+            onClick={() => setSelectedPhotoIndex(null)}
+            aria-label="Close image preview"
           >
             ✕
           </button>
 
-          <img src={selectedPhoto} alt="Enlarged photo" />
+          {property.images.length > 1 && (
+            <>
+              <button
+                type="button"
+                className="pd-photo-viewer__nav pd-photo-viewer__nav--prev"
+                onClick={showPreviousPhoto}
+                aria-label="Previous photo"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                className="pd-photo-viewer__nav pd-photo-viewer__nav--next"
+                onClick={showNextPhoto}
+                aria-label="Next photo"
+              >
+                ›
+              </button>
+            </>
+          )}
+
+          <figure className="pd-photo-viewer__image-wrap">
+            <img src={selectedPhoto} alt="Enlarged property photo" />
+            <figcaption>
+              Photo {selectedPhotoIndex + 1} of {property.images.length}
+            </figcaption>
+          </figure>
         </div>
       )}
     </>
@@ -901,6 +955,82 @@ const scrollToAvailability = () => {
     ?.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
+function PropertyDetailsLoading() {
+  return (
+    <>
+      <section
+        className="pd-section pd-title-card pd-loading-title"
+        aria-live="polite"
+        aria-label="Loading property details"
+      >
+        <span className="pd-skeleton pd-skeleton--title" />
+        <span className="pd-skeleton pd-skeleton--location" />
+      </section>
+
+      <section className="pd-loading-gallery" aria-hidden="true">
+        <div className="pd-loading-gallery__main">
+          <span className="pd-skeleton pd-skeleton--fill" />
+        </div>
+        <div className="pd-loading-gallery__grid">
+          {[1, 2, 3, 4].map((item) => (
+            <span className="pd-skeleton pd-skeleton--fill" key={item} />
+          ))}
+        </div>
+      </section>
+
+      <section className="pd-layout pd-loading-layout" aria-hidden="true">
+        <div className="pd-content">
+          <section className="pd-summary pd-loading-summary">
+            <span className="pd-skeleton pd-skeleton--headline" />
+            <div className="pd-loading-pills">
+              {[1, 2, 3, 4].map((item) => (
+                <span className="pd-skeleton pd-skeleton--pill" key={item} />
+              ))}
+            </div>
+            <span className="pd-skeleton pd-skeleton--rating" />
+            <div className="pd-loading-host">
+              <span className="pd-skeleton pd-skeleton--avatar" />
+              <div>
+                <span className="pd-skeleton pd-skeleton--host-name" />
+                <span className="pd-skeleton pd-skeleton--host-copy" />
+              </div>
+            </div>
+          </section>
+
+          <section className="pd-section pd-loading-section">
+            <span className="pd-skeleton pd-skeleton--section-title" />
+            <span className="pd-skeleton pd-skeleton--section-hint" />
+            <div className="pd-loading-copy">
+              <span className="pd-skeleton pd-skeleton--line" />
+              <span className="pd-skeleton pd-skeleton--line" />
+              <span className="pd-skeleton pd-skeleton--line pd-skeleton--line-short" />
+            </div>
+          </section>
+        </div>
+
+        <aside className="pd-booking-wrap">
+          <div className="pd-booking pd-loading-booking">
+            <div className="pd-loading-booking__top">
+              <span className="pd-skeleton pd-skeleton--price" />
+              <span className="pd-skeleton pd-skeleton--small-rating" />
+            </div>
+            <div className="pd-loading-booking__box">
+              <span className="pd-skeleton pd-skeleton--field" />
+              <span className="pd-skeleton pd-skeleton--field" />
+              <span className="pd-skeleton pd-skeleton--guest-field" />
+            </div>
+            <span className="pd-skeleton pd-skeleton--cta" />
+            <div className="pd-loading-total">
+              <span className="pd-skeleton pd-skeleton--total-line" />
+              <span className="pd-skeleton pd-skeleton--total-line" />
+            </div>
+          </div>
+        </aside>
+      </section>
+    </>
+  );
+}
+
 function BookingCard({
   property,
   dates,
@@ -912,29 +1042,123 @@ function BookingCard({
 }) {
 
   // state for favorites
-  const { user } = useToken();
+  const { token, user } = useToken();
   const [isSaved, setIsSaved] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportCategory, setReportCategory] = useState("property_accuracy");
+  const [reportReason, setReportReason] = useState("");
+  const [reportNotice, setReportNotice] = useState(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!token || !property.id) {
+      setIsSaved(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    const fetchFavoriteState = async () => {
+      try {
+        const response = await axios.get(
+          buildApiUrl("/api/favorites"),
+          createAuthConfig(token),
+        );
+        if (isMounted) {
+          const favorites = Array.isArray(response.data) ? response.data : [];
+          setIsSaved(
+            favorites.some(
+              (favorite) => Number(favorite.id_property) === Number(property.id),
+            ),
+          );
+        }
+      } catch {
+        if (isMounted) setIsSaved(false);
+      }
+    };
+
+    fetchFavoriteState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token, property.id]);
 
   // function for favorites hear click handling 
   const handleFavoriteClick = async (e) => {
     if (e) e.stopPropagation();
 
     // login required error
-    if (!user) {
+    if (!token || !user) {
       alert("Please login to save favorites!");
       return;
     }
 
+    setFavoriteLoading(true);
     try {
-      const response = await axios.post('http://localhost:5000/api/favorites/toggle', {
-        id_user: user.id,
-        id_property: property.id
-      });
+      const response = await axios.post(
+        buildApiUrl("/api/favorites/toggle"),
+        { id_property: property.id },
+        createAuthConfig(token),
+      );
 
       setIsSaved(response.data.saved);
-      alert(isSaved);
     } catch (error) {
       console.error("Error toggling favorite:", error);
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
+
+  const handleReportSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!token) {
+      setReportNotice({
+        type: "error",
+        text: "Please sign in before submitting a report.",
+      });
+      navigate("/Authentication", { state: { from: location.pathname } });
+      return;
+    }
+
+    if (reportReason.trim().length < 20) {
+      setReportNotice({
+        type: "error",
+        text: "Please describe the issue in at least 20 characters.",
+      });
+      return;
+    }
+
+    setReportSubmitting(true);
+    setReportNotice(null);
+
+    try {
+      const response = await axios.post(
+        buildApiUrl("/api/reports"),
+        {
+          id_property: property.id,
+          category: reportCategory,
+          reason: reportReason.trim(),
+        },
+        createAuthConfig(token),
+      );
+
+      setReportNotice({
+        type: "success",
+        text: response.data?.message || "Report submitted for review.",
+      });
+      setReportReason("");
+    } catch (error) {
+      setReportNotice({
+        type: "error",
+        text:
+          error.response?.data?.message ||
+          "Could not submit the report. Please try again.",
+      });
+    } finally {
+      setReportSubmitting(false);
     }
   };
 
@@ -943,12 +1167,24 @@ function BookingCard({
   const nights = getNightCount(dates.checkIn, dates.checkOut);
   const nightsTotal = nights * property.pricePerNight;
   const safeGuests = Number.isFinite(Number(guests)) ? Number(guests) : 1;
+  const todayDateString = getTodayDateString();
+  const checkInMinDate = getLaterDateString(
+    todayDateString,
+    property.availableFrom,
+  );
+  const checkOutMinDate = getLaterDateString(
+    todayDateString,
+    dates.checkIn,
+    property.availableFrom,
+  );
 
   const isValidDates = () => {
     if (!dates.checkIn || !dates.checkOut) return false;
     const checkInDate = new Date(dates.checkIn);
     const checkOutDate = new Date(dates.checkOut);
+    const todayDate = new Date(todayDateString);
 
+    if (checkInDate < todayDate || checkOutDate < todayDate) return false;
     if (checkOutDate < checkInDate) return false;
     if (
       property.availableFrom &&
@@ -986,12 +1222,8 @@ function BookingCard({
       id_property: id,
       checkIn: dates.checkIn,
       checkOut: dates.checkOut,
-      total_price: nightsTotal,
-      id_user: localStorage.getItem("user")
-        ? JSON.parse(localStorage.getItem("user")).id
-        : null,
     };
-
+    
     if (!reservationData.checkIn || !reservationData.checkOut) {
       setBookingNotice({
         type: "error",
@@ -999,6 +1231,7 @@ function BookingCard({
       });
       return;
     }
+
 
     if (!isBookingValid) {
       setBookingNotice({
@@ -1070,10 +1303,25 @@ function BookingCard({
     <div className="pd-booking-wrap">
       <div className="pd-booking__actions">
         <button type="button" className="pd-action-btn">
-          🔗 Share
+          Share
         </button>
-        <button onClick={handleFavoriteClick} type="button" className="pd-action-btn">
-          ❤️ Save
+        <button
+          onClick={handleFavoriteClick}
+          type="button"
+          className={`pd-action-btn${isSaved ? " pd-action-btn--active" : ""}`}
+          disabled={favoriteLoading}
+        >
+          {isSaved ? "Saved" : "Save"}
+        </button>
+        <button
+          type="button"
+          className="pd-action-btn pd-action-btn--danger"
+          onClick={() => {
+            setReportOpen(true);
+            setReportNotice(null);
+          }}
+        >
+          Report
         </button>
       </div>
       <aside className="pd-booking pd-card" aria-label="Booking card">
@@ -1097,7 +1345,7 @@ function BookingCard({
               value={dates.checkIn}
               onFocus={scrollToAvailability}
               onChange={(event) => onDateChange("checkIn", event.target.value)}
-              min={property.availableFrom}
+              min={checkInMinDate}
               max={property.availableTo}
             />
           </label>
@@ -1108,7 +1356,7 @@ function BookingCard({
               value={dates.checkOut}
               onFocus={scrollToAvailability}
               onChange={(event) => onDateChange("checkOut", event.target.value)}
-              min={dates.checkIn || property.availableFrom}
+              min={checkOutMinDate}
               max={property.availableTo}
             />
           </label>
@@ -1157,7 +1405,7 @@ function BookingCard({
           // type="button"
           className="pd-primary-btn"
           onClick={handleReserveFunction}
-          disabled={!isBookingValid || Boolean(bookingConflictMessage)}
+          // disabled={!isBookingValid || Boolean(bookingConflictMessage)}
         >
           Reserve
         </button>
@@ -1172,6 +1420,70 @@ function BookingCard({
           </div>
         </div>
       </aside>
+
+      {reportOpen && (
+        <div className="pd-report-modal" role="dialog" aria-modal="true">
+          <div className="pd-report-modal__panel">
+            <button
+              type="button"
+              className="pd-report-modal__close"
+              onClick={() => setReportOpen(false)}
+              aria-label="Close report dialog"
+            >
+              x
+            </button>
+            <h3>Report this listing</h3>
+            <p>
+              Share the issue with Dar Darek moderation. Reports are private and reviewed by admins.
+            </p>
+
+            {reportNotice && (
+              <div
+                className={`pd-booking-message pd-booking-message--${reportNotice.type}`}
+                role="status"
+              >
+                <span aria-hidden="true">{reportNotice.type === "success" ? "✓" : "!"}</span>
+                <p>{reportNotice.text}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleReportSubmit} className="pd-report-form">
+              <label>
+                <span>Reason</span>
+                <select
+                  value={reportCategory}
+                  onChange={(event) => setReportCategory(event.target.value)}
+                >
+                  <option value="property_accuracy">Incorrect listing details</option>
+                  <option value="safety">Safety concern</option>
+                  <option value="fraud">Fraud or suspicious behavior</option>
+                  <option value="host_behavior">Host behavior</option>
+                  <option value="inappropriate">Inappropriate content</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label>
+                <span>Details</span>
+                <textarea
+                  value={reportReason}
+                  onChange={(event) => setReportReason(event.target.value)}
+                  rows={5}
+                  minLength={20}
+                  maxLength={2000}
+                  placeholder="Describe what happened or what looks wrong."
+                />
+              </label>
+              <button
+                type="submit"
+                className="pd-primary-btn"
+                disabled={reportSubmitting}
+              >
+                {reportSubmitting ? "Submitting..." : "Submit report"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1574,17 +1886,33 @@ function LocationSection({ property }) {
   const [mapKey, setMapKey] = useState(0);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const previewLength = 170;
+  const mapZoomDelta = 0.0035;
+  const latitude = Number(property.coordinates?.lat);
+  const longitude = Number(property.coordinates?.lng);
+  const hasMapCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
   const fullLocation = [property.address, property.neighborhood, property.city]
     .filter(Boolean)
     .join(", ");
   const locationDetails = [
-    property.accessInstructions && {
-      label: "Access details",
-      text: property.accessInstructions,
+    {
+      label: "Area description",
+      icon: "⌂",
+      text:
+        property.neighborhoodDescription ||
+        "The host has not added an area description yet.",
+      muted: !property.neighborhoodDescription,
     },
-    property.neighborhoodDescription && {
-      label: "About the area",
-      text: property.neighborhoodDescription,
+    {
+      label: "Address",
+      icon: "⌖",
+      text: property.address || "Address not provided yet.",
+      muted: !property.address,
+    },
+    {
+      label: "Access instructions",
+      icon: "i",
+      text: property.accessInstructions || "Access instructions not provided yet.",
+      muted: !property.accessInstructions,
     },
   ].filter(Boolean);
   const hasLongLocationText = locationDetails.some(
@@ -1594,13 +1922,13 @@ function LocationSection({ property }) {
     text.length > previewLength
       ? `${text.slice(0, previewLength).trim()}...`
       : text;
-  const mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${
-    property.coordinates.lng - 0.01
-  }%2C${property.coordinates.lat - 0.01}%2C${
-    property.coordinates.lng + 0.01
-  }%2C${property.coordinates.lat + 0.01}&layer=mapnik&marker=${
-    property.coordinates.lat
-  }%2C${property.coordinates.lng}`;
+  const mapSrc = hasMapCoordinates
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${
+        longitude - mapZoomDelta
+      }%2C${latitude - mapZoomDelta}%2C${
+        longitude + mapZoomDelta
+      }%2C${latitude + mapZoomDelta}&layer=mapnik&marker=${latitude}%2C${longitude}`
+    : "";
 
   return (
     <section className="pd-section">
@@ -1611,20 +1939,28 @@ function LocationSection({ property }) {
 
       <div className="pd-location">
         <div className="pd-location__map" aria-label="Property map">
-          <iframe
-            key={mapKey}
-            title="Property map"
-            src={mapSrc}
-            loading="lazy"
-          />
-          <button
-            type="button"
-            className="pd-location__reset-map"
-            onClick={() => setMapKey((currentKey) => currentKey + 1)}
-          >
-            <span aria-hidden="true">&#128205;</span>
-            Recenter map
-          </button>
+          {hasMapCoordinates ? (
+            <>
+              <iframe
+                key={mapKey}
+                title="Property map"
+                src={mapSrc}
+                loading="lazy"
+              />
+              <button
+                type="button"
+                className="pd-location__reset-map"
+                onClick={() => setMapKey((currentKey) => currentKey + 1)}
+              >
+                <span aria-hidden="true">&#128205;</span>
+                Recenter map
+              </button>
+            </>
+          ) : (
+            <p className="pd-location__map-fallback">
+              Map details will be available once the exact location is confirmed.
+            </p>
+          )}
         </div>
 
         <div className="pd-location__address pd-card">
@@ -1632,9 +1968,20 @@ function LocationSection({ property }) {
             <>
               <div className="pd-location__details">
                 {locationDetails.map((detail) => (
-                  <div className="pd-location__detail" key={detail.label}>
-                    <span>{detail.label}</span>
-                    <p>{getLocationPreview(detail.text)}</p>
+                  <div
+                    className={[
+                      "pd-location__detail",
+                      detail.muted ? "pd-location__detail--muted" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    key={detail.label}
+                  >
+                    <span aria-hidden="true">{detail.icon}</span>
+                    <div>
+                      <strong>{detail.label}</strong>
+                      <p>{getLocationPreview(detail.text)}</p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1685,7 +2032,9 @@ function LocationSection({ property }) {
               {locationDetails.map((detail) => (
                 <div className="pd-location-modal__block" key={detail.label}>
                   <span>{detail.label}</span>
-                  <p>{detail.text}</p>
+                  <p className={detail.muted ? "pd-muted-copy" : ""}>
+                    {detail.text}
+                  </p>
                 </div>
               ))}
             </div>
@@ -1706,43 +2055,101 @@ function HostSection({ host, property }) {
   };
 
   const hostPhone = property?.host_phone || host?.phone || "";
+  const hostEmail = property?.host_email || host?.email || "";
+  const hostLanguages = normalizeDisplayList(host.languages);
+  const memberSince = formatMemberSince(host.createdAt);
+  const hostDetails = [
+    host.nationality && { label: "Nationality", value: host.nationality },
+    hostLanguages.length > 0 && {
+      label: "Languages",
+      value: hostLanguages.join(", "),
+    },
+    memberSince && { label: "Member since", value: memberSince },
+    hostPhone && { label: "Phone", value: hostPhone },
+    hostEmail && { label: "Email", value: hostEmail },
+  ].filter(Boolean);
+  const hostBadges = [
+    host.verified && "Verified host",
+    hostLanguages.length > 0 && `${hostLanguages.length} language${hostLanguages.length > 1 ? "s" : ""}`,
+  ].filter(Boolean);
 
   return (
     <section className="pd-section" id="host-section">
       <div className="pd-section__head">
         <h2 className="pd-section__title">Meet your host</h2>
         <p className="pd-section__hint">
-          Local, attentive, and highly responsive hosting.
+          Public host details for this listing.
         </p>
       </div>
 
       <div className="pd-host pd-card">
-        <div className="pd-host__profile">
-          <div className="pd-host__avatar-wrap">
-            <span className="pd-host__avatar">
-              {host.profilePicture ? (
-                <img src={host.profilePicture} alt={hostName} />
-              ) : (
-                host.avatarInitials
+        <div className="pd-host__identity">
+          <div className="pd-host__profile">
+            <div className="pd-host__avatar-wrap">
+              <span className="pd-host__avatar">
+                {host.profilePicture ? (
+                  <img src={host.profilePicture} alt={hostName} />
+                ) : (
+                  host.avatarInitials
+                )}
+              </span>
+              {host.verified && (
+                <span className="pd-host__verified-badge" aria-hidden="true">
+                  ✓
+                </span>
               )}
-            </span>
-          </div>
+            </div>
 
-          <div className="pd-host__profile-info">
-            <h3>{hostName}</h3>
-            <p>{hostSubline}</p>
+            <div className="pd-host__profile-info">
+              {host.verified && (
+                <span className="pd-host__verified-text">Verified host</span>
+              )}
+              <h3>{hostName}</h3>
+              <p>{hostSubline}</p>
+            </div>
           </div>
         </div>
 
-        {host.bio && <p className="pd-host__bio">{host.bio}</p>}
+        <div className="pd-host__details">
+          <div className="pd-host__bio-block">
+            <span>Host bio</span>
+            <p className={host.bio ? "pd-host__bio" : "pd-host__bio pd-muted-copy"}>
+              {host.bio || "Not provided yet"}
+            </p>
+          </div>
 
-        <button
-          type="button"
-          className="pd-primary-btn"
-          onClick={handleContactButton}
-        >
-          Contact host
-        </button>
+          {hostBadges.length > 0 && (
+            <div className="pd-host__trust-list" aria-label="Host details">
+              {hostBadges.map((signal) => (
+                <span key={signal}>{signal}</span>
+              ))}
+            </div>
+          )}
+
+          <dl className="pd-host__info-list">
+            {hostDetails.length > 0 ? (
+              hostDetails.map((item) => (
+                <div key={item.label}>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))
+            ) : (
+              <div>
+                <dt>Host details</dt>
+                <dd className="pd-muted-copy">Not provided yet</dd>
+              </div>
+            )}
+          </dl>
+
+          <button
+            type="button"
+            className="pd-primary-btn pd-host__contact-btn"
+            onClick={handleContactButton}
+          >
+            Contact host
+          </button>
+        </div>
       </div>
 
       {showContactModal && (
@@ -1856,6 +2263,35 @@ const formatDate = (year, month, day) => {
   )}`;
 };
 
+const getTodayDateString = () => {
+  const today = new Date();
+  return formatDate(today.getFullYear(), today.getMonth(), today.getDate());
+};
+
+const getLaterDateString = (...dateValues) => {
+  const validDates = dateValues
+    .map(parseLocalDate)
+    .filter(Boolean)
+    .sort((a, b) => b.getTime() - a.getTime());
+
+  if (validDates.length === 0) return "";
+
+  const latestDate = validDates[0];
+  return formatDate(
+    latestDate.getFullYear(),
+    latestDate.getMonth(),
+    latestDate.getDate(),
+  );
+};
+
+const getOffsetDateString = (dateValue, offsetDays) => {
+  const date = parseLocalDate(dateValue);
+  if (!date) return "";
+
+  date.setDate(date.getDate() + offsetDays);
+  return formatDate(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
 function AvailabilitySection({
   property,
   dates,
@@ -1866,6 +2302,7 @@ function AvailabilitySection({
   const year = 2026;
 
   const visibleMonths = [currentMonth, currentMonth + 1];
+  const todayDate = parseLocalDate(getTodayDateString());
   const minDate = property.availableFrom
     ? new Date(property.availableFrom)
     : null;
@@ -1875,6 +2312,7 @@ function AvailabilitySection({
     const dateValue = formatDate(year, month, day);
     const date = new Date(dateValue);
 
+    if (todayDate && date < todayDate) return true;
     if (minDate && date < minDate) return true;
     if (maxDate && date > maxDate) return true;
     if (isDateInBookedRange(dateValue, bookedRanges)) return true;
@@ -1885,7 +2323,7 @@ function AvailabilitySection({
   const handleDayClick = (month, day) => {
     const selectedDate = formatDate(year, month, day);
 
-    if (isDateInBookedRange(selectedDate, bookedRanges)) {
+    if (isDisabled(month, day)) {
       return;
     }
 
@@ -2211,12 +2649,24 @@ export default function PropertyDetails() {
   }, [id]);
 
   useEffect(() => {
+    const safeCheckIn = getLaterDateString(
+      getTodayDateString(),
+      displayProperty.availableFrom,
+      displayProperty.bookingDefaults.checkIn,
+    );
+    const defaultCheckOut = displayProperty.bookingDefaults.checkOut;
+    const safeCheckOut =
+      parseLocalDate(defaultCheckOut) > parseLocalDate(safeCheckIn)
+        ? defaultCheckOut
+        : getOffsetDateString(safeCheckIn, 1);
+
     setDates({
-      checkIn: displayProperty.bookingDefaults.checkIn,
-      checkOut: displayProperty.bookingDefaults.checkOut,
+      checkIn: safeCheckIn,
+      checkOut: safeCheckOut,
     });
     setGuests(displayProperty.bookingDefaults.guests);
   }, [
+    displayProperty.availableFrom,
     displayProperty.bookingDefaults.checkIn,
     displayProperty.bookingDefaults.checkOut,
     displayProperty.bookingDefaults.guests,
@@ -2224,6 +2674,17 @@ export default function PropertyDetails() {
 
   const updateDate = (field, value) => {
     setDates((currentDates) => {
+      const selectedDate = parseLocalDate(value);
+      const todayDate = parseLocalDate(getTodayDateString());
+
+      if (value && (!selectedDate || selectedDate < todayDate)) {
+        return currentDates;
+      }
+
+      if (value && isDateInBookedRange(value, bookedRanges)) {
+        return currentDates;
+      }
+
       const newDates = { ...currentDates, [field]: value };
 
       if (field === "checkIn" && newDates.checkOut) {
@@ -2264,13 +2725,15 @@ export default function PropertyDetails() {
 
   if (loading) {
     return (
-      <main className="pd-page">
+      <>
         <Header />
-        <section className="pd-section pd-title-card">
-          <p>Loading property...</p>
-        </section>
-        <Footer />
-      </main>
+        <main
+          style={{ background: themeGlobal.colors.white }}
+          className="pd-page"
+        >
+          <PropertyDetailsLoading />
+        </main>
+      </>
     );
   }
 
@@ -2385,15 +2848,6 @@ export default function PropertyDetails() {
               onDateChange={updateDate}
               bookedRanges={bookedRanges}
             />
-
-            <LocationSection property={displayProperty} />
-
-            <ReviewsSection propertyId={id} />
-
-            <HostSection
-              host={displayProperty.host}
-              property={displayProperty}
-            />
           </div>
 
           <BookingCard
@@ -2407,9 +2861,19 @@ export default function PropertyDetails() {
           />
         </section>
 
-        <AboutPlaceSection property={displayProperty} dates={dates} />
+        <div className="pd-lower-sections">
+          <LocationSection property={displayProperty} />
+
+          <ReviewsSection propertyId={id} />
+
+          <HostSection host={displayProperty.host} property={displayProperty} />
+
+          <AboutPlaceSection property={displayProperty} dates={dates} />
+        </div>
       </main>
-      <Footer />
+      <div className="pd-footer-scope">
+        <Footer />
+      </div>
     </>
   );
 }

@@ -28,6 +28,25 @@ import { useThemeGlobal } from './Contexts/ThemeContext';
 import PropertiesMap from './PropertiesMap';
 import { buildApiUrl } from './lib/api';
 
+function getPropertyReviewMeta(property) {
+    const reviewCount = Number(property?.review_count || property?.reviewCount || 0);
+    const rating = Number(property?.avg_rating || property?.avgRating || property?.rating || 0);
+
+    if (reviewCount > 0 && Number.isFinite(rating) && rating > 0) {
+        return {
+            hasReviews: true,
+            label: rating.toFixed(1),
+            title: `${rating.toFixed(1)} based on ${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}`,
+        };
+    }
+
+    return {
+        hasReviews: false,
+        label: "New",
+        title: "A fresh stay waiting for its first review",
+    };
+}
+
 export default function PropertiesPage() {
 
     const themeGlobal = useThemeGlobal();
@@ -320,6 +339,7 @@ export default function PropertiesPage() {
             }
         }
         const imageUrl = imagePath ? buildApiUrl(imagePath) : beach;
+        const reviewMeta = getPropertyReviewMeta(property);
 
         return (
             <Box
@@ -394,9 +414,22 @@ export default function PropertiesPage() {
                         <p style={{ margin: "0", fontSize: "0.9rem", color: "#1A1A1A" }}>
                             <span style={{ fontWeight: "700" }}>${property.price_per_day}</span> / night
                         </p>
-                        <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-                            <StarIcon sx={{ fontSize: "0.9rem", color: "#D9A11B" }} />
-                            <p style={{ margin: "0", fontSize: "0.82rem", color: "#5F6876" }}>4.8</p>
+                        <div
+                            title={reviewMeta.title}
+                            aria-label={reviewMeta.title}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                padding: reviewMeta.hasReviews ? "0" : "3px 8px",
+                                borderRadius: "999px",
+                                background: reviewMeta.hasReviews ? "transparent" : "rgba(215, 194, 154, 0.16)",
+                            }}
+                        >
+                            <StarIcon sx={{ fontSize: "0.9rem", color: reviewMeta.hasReviews ? "#D9A11B" : "#BFA66A" }} />
+                            <p style={{ margin: "0", fontSize: "0.82rem", color: reviewMeta.hasReviews ? "#5F6876" : "#7A7034", fontWeight: reviewMeta.hasReviews ? 400 : 700 }}>
+                                {reviewMeta.label}
+                            </p>
                         </div>
                     </div>
                 </div>

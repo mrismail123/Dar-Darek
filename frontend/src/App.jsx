@@ -1,5 +1,5 @@
 import "./App.css";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect } from "react";
 import { jwtDecode } from "jwt-decode";
 
@@ -65,7 +65,10 @@ function App() {
 
         <Route path="/property-details/:id" element={<PropertyDetails />} />
 
-        <Route path="/publish" element={<Publish />} />
+        <Route
+          path="/publish"
+          element={<Navigate to="/new-listing" replace />}
+        />
         <Route
           path="/new-listing"
           element={
@@ -116,15 +119,6 @@ function App() {
           element={
             <ProtectedRoute>
               <AccountSettings />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/my-bookings"
-          element={
-            <ProtectedRoute>
-              <MyBookings />
             </ProtectedRoute>
           }
         />

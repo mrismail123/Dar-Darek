@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useToken } from './Contexts/TokenContext';
-import { buildApiUrl } from './lib/api';
+import { buildApiUrl, createAuthConfig } from './lib/api';
 import Header from './Home components/Header';
 import Footer from './Footer';
 import { FaHeart, FaMapMarkerAlt, FaBed, FaBath, FaUsers, FaHome } from 'react-icons/fa';
@@ -149,7 +149,10 @@ const MyFavorites = () => {
     useEffect(() => {
         const fetchFavorites = async () => {
             try {
-                const res = await axios.get(`http://localhost:5000/api/favorites/${user.id}`);
+                const res = await axios.get(
+                    buildApiUrl('/api/favorites'),
+                    createAuthConfig(token),
+                );
                 setFavorites(Array.isArray(res.data) ? res.data : []);
             } catch (err) {
                 console.error('Error fetching favorites:', err);
@@ -157,17 +160,18 @@ const MyFavorites = () => {
                 setLoading(false);
             }
         };
-        if (user) fetchFavorites();
-    }, [user]);
+        if (user && token) fetchFavorites();
+    }, [user, token]);
 
     /* remove a favorite optimistically */
     const handleRemove = async (propertyId) => {
         setFavorites((prev) => prev.filter((p) => p.id_property !== propertyId));
         try {
-            await axios.post('http://localhost:5000/api/favorites/toggle', {
-                id_user: user.id,
-                id_property: propertyId,
-            });
+            await axios.post(
+                buildApiUrl('/api/favorites/toggle'),
+                { id_property: propertyId },
+                createAuthConfig(token),
+            );
         } catch (err) {
             console.error('Error removing favorite:', err);
         }
@@ -581,7 +585,7 @@ const MyFavorites = () => {
                             ))}
                         </div>
                     ) : favorites.length === 0 ? (
-                        <EmptyState onExplore={() => navigate('/properties')} />
+                        <EmptyState onExplore={() => navigate('/')} />
                     ) : (
                         <div className="fav-grid">
                             {favorites.map((property) => (
@@ -596,7 +600,7 @@ const MyFavorites = () => {
                     )}
                 </main>
 
-                <Footer />
+                {/* <Footer /> */}
             </div>
         </>
     );
