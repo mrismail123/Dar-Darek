@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import {
   FiCalendar,
@@ -494,6 +494,7 @@ function ReviewModal({
 export default function MyBookings() {
   const MIN_LOADING_MS = 850;
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState("upcoming");
   const [bookings, setBookings] = useState([]);
   const [completedMonth, setCompletedMonth] = useState("all");
@@ -509,6 +510,18 @@ export default function MyBookings() {
 
   // theme 
   const themeGlobal = useThemeGlobal();
+
+  // Show success toast if redirected from Checkout
+  useEffect(() => {
+    if (location.state?.successToast) {
+      showToast(location.state.successToast);
+      // Switch to the "pending" tab so user sees their new request
+      setActiveTab("pending");
+      // Clear the state so a page refresh doesn't re-show it
+      window.history.replaceState({}, document.title);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function fetchBookings() {
     const token = localStorage.getItem("token");

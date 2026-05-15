@@ -1179,12 +1179,16 @@ function BookingCard({
       return;
     }
 
-    // Redirect to the checkout / identity-verification page
+    // ── Intercept: redirect to Checkout page instead of calling API directly ──
     navigate(`/checkout/${id}`, {
       state: {
         checkIn: dates.checkIn,
         checkOut: dates.checkOut,
-        property,
+        propertyTitle: property.title,
+        pricePerNight: property.pricePerNight,
+        propertyImage: property.images?.[0] || null,
+        propertyCity: property.city || "",
+        lockStart: Date.now(),
       },
     });
   }
@@ -1292,12 +1296,12 @@ function BookingCard({
         )}
 
         <button
-          type="button"
+          // type="button"
           className="pd-primary-btn"
           onClick={handleReserveFunction}
-          disabled={Boolean(bookingConflictMessage)}
+          // disabled={!isBookingValid || Boolean(bookingConflictMessage)}
         >
-          Book Now
+          Reserve
         </button>
 
         <div className="pd-booking__total">
