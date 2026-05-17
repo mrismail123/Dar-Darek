@@ -95,12 +95,6 @@ const mockProperty = {
       text: "Pleasant stay in Malabata. The accommodation is comfortable, close to the sea, and perfect for a few days in Tangier.",
     },
   ],
-  availability: {
-    month: "May 2026",
-    startBlankDays: 4,
-    blockedDays: [3, 4, 12, 18, 25],
-    selectedDays: [8, 9, 10, 11],
-  },
   houseRules: [
     "Treat the property with respect",
     "Respect the neighborhood",
@@ -176,11 +170,25 @@ const parseLocalDate = (dateValue) => {
   return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
 };
 
-const normalizeBookedRange = (range) => ({
-  startDate: String(range.start_date || range.startDate || "").split("T")[0],
-  endDate: String(range.end_date || range.endDate || "").split("T")[0],
-  status: range.status,
-});
+const normalizeBookedRange = (range) => {
+  const startDate = String(range.start_date || range.startDate || "").split(
+    "T",
+  )[0];
+  const endDate = String(range.end_date || range.endDate || "").split("T")[0];
+
+  return {
+    startDate,
+    endDate,
+    status: range.status,
+  };
+};
+
+const isValidBookedRange = (range) => {
+  const startDate = parseLocalDate(range.startDate);
+  const endDate = parseLocalDate(range.endDate);
+
+  return Boolean(startDate && endDate && endDate > startDate);
+};
 
 const isDateInBookedRange = (dateValue, bookedRanges = []) => {
   const selectedDate = parseLocalDate(dateValue);
@@ -1203,7 +1211,7 @@ function BookingCard({
   // navigate
   const navigate = useNavigate();
 
-  async function handleReserveFunction() {
+  function handleReserveFunction() {
     const currentToken = localStorage.getItem("token");
 
     if (!currentToken) {
@@ -1211,27 +1219,17 @@ function BookingCard({
         type: "error",
         text: "Please sign in before reserving this stay.",
       });
-
       navigate("/Authentication", { state: { from: location.pathname } });
       return;
     }
 
-    // const response = await axios.post();
-
-    const reservationData = {
-      id_property: id,
-      checkIn: dates.checkIn,
-      checkOut: dates.checkOut,
-    };
-    
-    if (!reservationData.checkIn || !reservationData.checkOut) {
+    if (!dates.checkIn || !dates.checkOut) {
       setBookingNotice({
         type: "error",
         text: "Please select check-in and check-out dates.",
       });
       return;
     }
-
 
     if (!isBookingValid) {
       setBookingNotice({
@@ -1243,8 +1241,8 @@ function BookingCard({
 
     if (
       doesDateRangeOverlapBooking(
-        reservationData.checkIn,
-        reservationData.checkOut,
+        dates.checkIn,
+        dates.checkOut,
         bookedRanges,
       )
     ) {
@@ -1255,48 +1253,14 @@ function BookingCard({
       return;
     }
 
-    try {
-      const config = {
-        headers: {
-          Authorization: `Bearer ${currentToken}`,
-        },
-      };
-
-      const response = await axios.post(
-        buildApiUrl("/api/bookingProperty"),
-        reservationData,
-        config,
-      );
-      if (response.data) {
-        setBookingNotice({
-          type: "success",
-          text: "Your reservation request has been sent successfully! The host will review it and get back to you soon.",
-        });
-        navigate("/my-bookings");
-      }
-    } catch (error) {
-      if (
-        error.response &&
-        (error.response.status === 401 || error.response.status === 403)
-      ) {
-        setBookingNotice({
-          type: "error",
-          text: "Session expired. Please login again.",
-        });
-        navigate("/Authentication", { state: { from: location.pathname } });
-      } else if (
-        error.response &&
-        error.response.data &&
-        error.response.data.message
-      ) {
-        setBookingNotice({ type: "error", text: error.response.data.message });
-      } else {
-        setBookingNotice({
-          type: "error",
-          text: error.message || "An error occurred while making the reservation.",
-        });
-      }
-    }
+    // Redirect to the checkout / identity-verification page
+    navigate(`/checkout/${id}`, {
+      state: {
+        checkIn: dates.checkIn,
+        checkOut: dates.checkOut,
+        property,
+      },
+    });
   }
 
   return (
@@ -1402,12 +1366,12 @@ function BookingCard({
         )}
 
         <button
-          // type="button"
+          type="button"
           className="pd-primary-btn"
           onClick={handleReserveFunction}
-          // disabled={!isBookingValid || Boolean(bookingConflictMessage)}
+          disabled={Boolean(bookingConflictMessage)}
         >
-          Reserve
+          Book Now
         </button>
 
         <div className="pd-booking__total">
@@ -1884,8 +1848,8 @@ function ReviewsSection({ propertyId }) {
 
 function LocationSection({ property }) {
   const [mapKey, setMapKey] = useState(0);
-  const [showLocationModal, setShowLocationModal] = useState(false);
-  const previewLength = 170;
+  const [expandedLocationDetails, setExpandedLocationDetails] = useState({});
+  const previewLength = 260;
   const mapZoomDelta = 0.0035;
   const latitude = Number(property.coordinates?.lat);
   const longitude = Number(property.coordinates?.lng);
@@ -1896,7 +1860,7 @@ function LocationSection({ property }) {
   const locationDetails = [
     {
       label: "Area description",
-      icon: "⌂",
+      icon: "◇",
       text:
         property.neighborhoodDescription ||
         "The host has not added an area description yet.",
@@ -1910,18 +1874,21 @@ function LocationSection({ property }) {
     },
     {
       label: "Access instructions",
-      icon: "i",
+      icon: "↳",
       text: property.accessInstructions || "Access instructions not provided yet.",
       muted: !property.accessInstructions,
     },
   ].filter(Boolean);
-  const hasLongLocationText = locationDetails.some(
-    (detail) => detail.text.length > previewLength,
-  );
   const getLocationPreview = (text) =>
     text.length > previewLength
       ? `${text.slice(0, previewLength).trim()}...`
       : text;
+  const toggleLocationDetail = (label) => {
+    setExpandedLocationDetails((currentDetails) => ({
+      ...currentDetails,
+      [label]: !currentDetails[label],
+    }));
+  };
   const mapSrc = hasMapCoordinates
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${
         longitude - mapZoomDelta
@@ -1968,33 +1935,16 @@ function LocationSection({ property }) {
             <>
               <div className="pd-location__details">
                 {locationDetails.map((detail) => (
-                  <div
-                    className={[
-                      "pd-location__detail",
-                      detail.muted ? "pd-location__detail--muted" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
+                  <LocationDetail
+                    detail={detail}
+                    expanded={Boolean(expandedLocationDetails[detail.label])}
                     key={detail.label}
-                  >
-                    <span aria-hidden="true">{detail.icon}</span>
-                    <div>
-                      <strong>{detail.label}</strong>
-                      <p>{getLocationPreview(detail.text)}</p>
-                    </div>
-                  </div>
+                    previewLength={previewLength}
+                    getLocationPreview={getLocationPreview}
+                    onToggle={() => toggleLocationDetail(detail.label)}
+                  />
                 ))}
               </div>
-
-              {hasLongLocationText && (
-                <button
-                  type="button"
-                  className="pd-location__read-more"
-                  onClick={() => setShowLocationModal(true)}
-                >
-                  Read more
-                </button>
-              )}
             </>
           ) : (
             <p className="pd-location__fallback">
@@ -2004,44 +1954,45 @@ function LocationSection({ property }) {
         </div>
       </div>
 
-      {showLocationModal && (
-        <div
-          className="pd-location-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="pd-location-modal-title"
-        >
-          <div
-            className="pd-location-modal__backdrop"
-            onClick={() => setShowLocationModal(false)}
-          />
-          <div className="pd-location-modal__panel">
-            <div className="pd-location-modal__head">
-              <h3 id="pd-location-modal-title">Location details</h3>
-              <button
-                type="button"
-                className="pd-location-modal__close"
-                onClick={() => setShowLocationModal(false)}
-                aria-label="Close location details"
-              >
-                &times;
-              </button>
-            </div>
-
-            <div className="pd-location-modal__content">
-              {locationDetails.map((detail) => (
-                <div className="pd-location-modal__block" key={detail.label}>
-                  <span>{detail.label}</span>
-                  <p className={detail.muted ? "pd-muted-copy" : ""}>
-                    {detail.text}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </section>
+  );
+}
+
+function LocationDetail({
+  detail,
+  expanded,
+  previewLength,
+  getLocationPreview,
+  onToggle,
+}) {
+  const isLongText = detail.text.length > previewLength;
+  const displayedText =
+    isLongText && !expanded ? getLocationPreview(detail.text) : detail.text;
+
+  return (
+    <div
+      className={[
+        "pd-location__detail",
+        detail.muted ? "pd-location__detail--muted" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <span aria-hidden="true">{detail.icon}</span>
+      <div>
+        <strong>{detail.label}</strong>
+        <p>{displayedText}</p>
+        {isLongText && (
+          <button
+            type="button"
+            className="pd-location__read-more"
+            onClick={onToggle}
+          >
+            {expanded ? "Show less" : "Read more"}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -2297,6 +2248,7 @@ function AvailabilitySection({
   dates,
   onDateChange,
   bookedRanges = [],
+  showSelectedRange = false,
 }) {
   const [currentMonth, setCurrentMonth] = useState(4); // May
   const year = 2026;
@@ -2351,11 +2303,17 @@ function AvailabilitySection({
   );
 
   const isInRange = (month, day) => {
-    if (!dates.checkIn || !dates.checkOut) return false;
+    if (!showSelectedRange) return false;
+    if (!dates.checkIn) return false;
 
     const date = new Date(formatDate(year, month, day));
+    const checkInDate = new Date(dates.checkIn);
 
-    return date >= new Date(dates.checkIn) && date <= new Date(dates.checkOut);
+    if (!dates.checkOut) {
+      return date.getTime() === checkInDate.getTime();
+    }
+
+    return date >= checkInDate && date <= new Date(dates.checkOut);
   };
 
   return (
@@ -2427,12 +2385,19 @@ function AvailabilitySection({
                   ))}
 
                   {days.map((day) => {
-                    const disabled = isDisabled(month, day);
-                    const isSelected = isInRange(month, day);
+                    const dateValue = formatDate(year, month, day);
+                    const calendarDate = parseLocalDate(dateValue);
+                    const isPast =
+                      todayDate && calendarDate && calendarDate < todayDate;
+                    const isOutsideAvailability =
+                      (minDate && calendarDate && calendarDate < minDate) ||
+                      (maxDate && calendarDate && calendarDate > maxDate);
                     const isBooked = isDateInBookedRange(
-                      formatDate(year, month, day),
+                      dateValue,
                       bookedRanges,
                     );
+                    const disabled = isPast || isOutsideAvailability || isBooked;
+                    const isSelected = isInRange(month, day);
 
                     return (
                       <button
@@ -2441,6 +2406,10 @@ function AvailabilitySection({
                           "pd-calendar__day",
                           isSelected ? "pd-calendar__day--selected" : "",
                           disabled ? "pd-calendar__day--disabled" : "",
+                          isPast ? "pd-calendar__day--past" : "",
+                          isOutsideAvailability
+                            ? "pd-calendar__day--unavailable"
+                            : "",
                           isBooked ? "pd-calendar__day--booked" : "",
                         ]
                           .filter(Boolean)
@@ -2579,6 +2548,7 @@ export default function PropertyDetails() {
     checkIn: mockProperty.bookingDefaults.checkIn,
     checkOut: mockProperty.bookingDefaults.checkOut,
   });
+  const [hasCalendarSelection, setHasCalendarSelection] = useState(false);
   const [guests, setGuests] = useState(mockProperty.bookingDefaults.guests);
   const displayProperty = normalizeProperty(property);
   const displayHostName = getHostName(displayProperty.host);
@@ -2635,7 +2605,9 @@ export default function PropertyDetails() {
         }
 
         const ranges = Array.isArray(data?.bookedDates) ? data.bookedDates : [];
-        setBookedRanges(ranges.map(normalizeBookedRange));
+        setBookedRanges(
+          ranges.map(normalizeBookedRange).filter(isValidBookedRange),
+        );
       } catch (fetchError) {
         if (fetchError.name !== "AbortError") {
           setBookedRanges([]);
@@ -2664,6 +2636,7 @@ export default function PropertyDetails() {
       checkIn: safeCheckIn,
       checkOut: safeCheckOut,
     });
+    setHasCalendarSelection(false);
     setGuests(displayProperty.bookingDefaults.guests);
   }, [
     displayProperty.availableFrom,
@@ -2699,6 +2672,7 @@ export default function PropertyDetails() {
         }
       }
 
+      setHasCalendarSelection(true);
       return newDates;
     });
   };
@@ -2847,6 +2821,7 @@ export default function PropertyDetails() {
               dates={dates}
               onDateChange={updateDate}
               bookedRanges={bookedRanges}
+              showSelectedRange={hasCalendarSelection}
             />
           </div>
 

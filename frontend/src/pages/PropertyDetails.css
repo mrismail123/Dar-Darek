@@ -3557,6 +3557,73 @@ button.pd-calendar__day:hover:not(:disabled) {
   color: #8a94a3 !important;
 }
 
+/* Focused fixes: booked state and area read-more */
+.pd-calendar__day--disabled {
+  color: #a8b0bd;
+  background: rgba(226, 232, 240, 0.38);
+  border-color: rgba(226, 232, 240, 0.64);
+  opacity: 1;
+  text-decoration: none;
+}
+
+.pd-calendar__day--past,
+.pd-calendar__day--unavailable {
+  color: #b4bcc8;
+  background: rgba(244, 246, 248, 0.92);
+}
+
+.pd-calendar__day--booked {
+  color: #9f2c2c;
+  background: rgba(183, 50, 50, 0.1);
+  border-color: rgba(183, 50, 50, 0.22);
+  text-decoration: line-through;
+}
+
+.pd-location__details {
+  gap: 18px;
+}
+
+.pd-location__detail,
+.pd-location__detail + .pd-location__detail {
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.pd-location__detail > span {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  background:
+    linear-gradient(145deg, rgba(20, 168, 157, 0.12), rgba(247, 244, 235, 0.78));
+  border: 1px solid rgba(20, 168, 157, 0.16);
+  color: #087b84;
+  font-size: 1rem;
+}
+
+.pd-location__detail strong {
+  margin-bottom: 7px;
+}
+
+.pd-location__detail p {
+  margin-bottom: 0;
+}
+
+.pd-location__read-more {
+  margin-top: 9px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--navy-900);
+  font-size: 0.86rem;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pd-location__read-more:hover {
+  color: var(--tanger-teal);
+}
+
 .pd-host {
   grid-template-columns: minmax(260px, 0.82fr) minmax(0, 1.18fr);
   border: 1px solid rgba(226, 232, 240, 0.9);

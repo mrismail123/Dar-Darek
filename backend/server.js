@@ -4,6 +4,7 @@ require("dotenv").config();
 
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const multer = require("multer");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
@@ -121,7 +122,10 @@ const ensureModerationSchema = async () => {
 
   const propertyStatusType = statusColumns[0]?.COLUMN_TYPE || "";
 
-  if (propertyStatusType.includes("enum") && !propertyStatusType.includes("'draft'")) {
+  if (
+    propertyStatusType.includes("enum") &&
+    !propertyStatusType.includes("'draft'")
+  ) {
     await db.query(
       "ALTER TABLE properties MODIFY COLUMN status ENUM('draft','pending','approved','rejected') NOT NULL DEFAULT 'pending'",
     );
@@ -206,6 +210,53 @@ const ensureNotificationsSchema = async () => {
   notificationsSchemaReady = true;
 };
 
+let bookingsSchemaReady = false;
+
+const ensureBookingsSchema = async () => {
+  if (bookingsSchemaReady) return;
+
+  try {
+    const [bookingColumns] = await db.query(
+      `
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'bookings'
+        AND COLUMN_NAME IN ('guest_full_name', 'guest_id_number', 'guest_phone', 'agreed_to_terms')
+      `,
+    );
+
+    const existingBookingColumns = new Set(
+      bookingColumns.map((col) => col.COLUMN_NAME),
+    );
+
+    if (!existingBookingColumns.has("guest_full_name")) {
+      await db.query(
+        "ALTER TABLE bookings ADD COLUMN guest_full_name VARCHAR(150) DEFAULT NULL",
+      );
+    }
+    if (!existingBookingColumns.has("guest_id_number")) {
+      await db.query(
+        "ALTER TABLE bookings ADD COLUMN guest_id_number VARCHAR(50) DEFAULT NULL",
+      );
+    }
+    if (!existingBookingColumns.has("guest_phone")) {
+      await db.query(
+        "ALTER TABLE bookings ADD COLUMN guest_phone VARCHAR(30) DEFAULT NULL",
+      );
+    }
+    if (!existingBookingColumns.has("agreed_to_terms")) {
+      await db.query(
+        "ALTER TABLE bookings ADD COLUMN agreed_to_terms TINYINT(1) NOT NULL DEFAULT 0",
+      );
+    }
+
+    bookingsSchemaReady = true;
+  } catch (schemaErr) {
+    console.error("Failed to migrate bookings schema:", schemaErr.message);
+  }
+};
+
 const sendAdminReportEmail = async (report) => {
   const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
 
@@ -257,6 +308,7 @@ const verifyToken = async (req, res, next) => {
   try {
     await ensureModerationSchema();
     await ensureNotificationsSchema();
+    await ensureBookingsSchema();
 
     const verified = jwt.verify(
       token,
@@ -299,7 +351,10 @@ const verifyToken = async (req, res, next) => {
     };
     next();
   } catch (error) {
-    if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
+    if (
+      error.name === "JsonWebTokenError" ||
+      error.name === "TokenExpiredError"
+    ) {
       return res.status(403).json({ message: "Invalid or Expired Token" });
     }
 
@@ -326,7 +381,10 @@ const getOptionalAuthenticatedUser = async (req) => {
 
   try {
     await ensureModerationSchema();
-    const verified = jwt.verify(token, process.env.JWT_SECRET || "your_secret_key");
+    const verified = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "your_secret_key",
+    );
     const userId = Number(verified?.id || verified?.id_user);
 
     if (!Number.isFinite(userId) || userId <= 0) return null;
@@ -454,7 +512,9 @@ const USER_ACCOUNT_FIELDS = `
   id_user,
   name,
   email,
+  email_verified,
   phone_number,
+  phone_verified,
   role,
   profile_picture,
   bio,
@@ -479,6 +539,8 @@ const USER_ACCOUNT_FIELDS = `
 const ACCOUNT_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ACCOUNT_PHONE_ALLOWED_REGEX = /^[\d\s()+-]+$/;
 const ACCOUNT_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000;
+const VERIFICATION_CODE_COOLDOWN_MS = 60 * 1000;
 const ACCOUNT_LANGUAGE_OPTIONS = new Set([
   "Arabic",
   "French",
@@ -553,8 +615,25 @@ const cleanText = (value, maxLength = 255) => {
 const normalizePhoneForUsersTable = (value) => {
   const cleanedValue = cleanText(value, 30);
   if (!cleanedValue) return cleanedValue;
-  const hasLeadingPlus = cleanedValue.trim().startsWith("+");
   const digitsOnly = cleanedValue.replace(/\D/g, "");
+
+  if (cleanedValue.startsWith("+212") && /^2126\d{8}$/.test(digitsOnly)) {
+    return `+${digitsOnly}`;
+  }
+
+  if (/^2126\d{8}$/.test(digitsOnly)) {
+    return `+${digitsOnly}`;
+  }
+
+  if (/^06\d{8}$/.test(digitsOnly)) {
+    return `+212${digitsOnly.slice(1)}`;
+  }
+
+  if (/^6\d{8}$/.test(digitsOnly)) {
+    return `+212${digitsOnly}`;
+  }
+
+  const hasLeadingPlus = cleanedValue.trim().startsWith("+");
   return `${hasLeadingPlus ? "+" : ""}${digitsOnly}`;
 };
 
@@ -645,11 +724,92 @@ const validateAccountLanguages = (value) => {
   }
 };
 
+const createVerificationCode = () =>
+  crypto.randomInt(100000, 1000000).toString();
+
+const hashVerificationCode = (code, userId, type, target) =>
+  crypto
+    .createHash("sha256")
+    .update(
+      [
+        code,
+        userId,
+        type,
+        String(target || "").toLowerCase(),
+        process.env.JWT_SECRET || "your_secret_key",
+      ].join(":"),
+    )
+    .digest("hex");
+
+const isVerificationHashMatch = (storedHash, incomingHash) => {
+  if (!storedHash || !incomingHash) return false;
+
+  const storedBuffer = Buffer.from(String(storedHash), "hex");
+  const incomingBuffer = Buffer.from(String(incomingHash), "hex");
+
+  return (
+    storedBuffer.length === incomingBuffer.length &&
+    crypto.timingSafeEqual(storedBuffer, incomingBuffer)
+  );
+};
+
+const escapeHtml = (value) =>
+  String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const getEmailTransporter = () => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    throw new Error("Email delivery is not configured.");
+  }
+
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+};
+
+const sendEmailVerificationCode = async ({ email, name, code }) => {
+  const transporter = getEmailTransporter();
+
+  await transporter.sendMail({
+    from: `"Dar Darek Security" <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: "Your DarDarek email verification code",
+    html: `
+      <h1>DarDarek</h1>
+      <p>Hello ${escapeHtml(cleanText(name, 80) || "there")},</p>
+      <p>Your email verification code is:</p>
+      <p style="font-size:28px;font-weight:700;letter-spacing:6px;">${code}</p>
+      <p>This code expires in 10 minutes. If you did not request it, you can ignore this email.</p>
+    `,
+  });
+};
+
+const sendSmsVerificationCode = async ({ phone, code }) => {
+  console.info(
+    `[DarDarek demo SMS] Verification code for ${phone}: ${code} (expires in 10 minutes)`,
+  );
+};
+
+const canSendVerificationCode = (sentAt) => {
+  if (!sentAt) return true;
+  return Date.now() - new Date(sentAt).getTime() >= VERIFICATION_CODE_COOLDOWN_MS;
+};
+
 const sendSafeUser = (res, user) => {
   const safeUser = {
     ...user,
     date_of_birth: normalizeDateForResponse(user.date_of_birth),
     has_password: Boolean(user.has_password),
+    email_verified: Boolean(user.email_verified),
+    phone_verified: Boolean(user.phone_verified),
   };
 
   return res.status(200).json({ user: safeUser });
@@ -786,9 +946,28 @@ app.put("/api/users/profile", verifyToken, async (req, res) => {
         .json({ message: "You must be at least 18 years old." });
     }
 
+    let phoneVerificationReset = {};
+    if (phone_number !== undefined) {
+      const [currentUsers] = await db.query(
+        "SELECT phone_number FROM users WHERE id_user = ? LIMIT 1",
+        [userId],
+      );
+      const currentPhoneNumber = currentUsers[0]?.phone_number || null;
+
+      if ((currentPhoneNumber || null) !== (nextPhoneNumber || null)) {
+        phoneVerificationReset = {
+          phone_verified: 0,
+          phone_verification_code_hash: null,
+          phone_verification_expires_at: null,
+          phone_verification_sent_at: null,
+        };
+      }
+    }
+
     const user = await updateUserFields(userId, {
       name: nextName,
       phone_number: nextPhoneNumber,
+      ...phoneVerificationReset,
       bio: cleanText(bio, 250),
       nationality: cleanText(nationality, 100),
       languages: normalizeLanguages(languages),
@@ -835,11 +1014,459 @@ app.put("/api/users/email", verifyToken, async (req, res) => {
         .json({ message: "An account with this email already exists." });
     }
 
-    const user = await updateUserFields(userId, { email });
-    return sendSafeUser(res, user);
+    const [currentUsers] = await db.query(
+      `SELECT name, email, pending_email_verification_sent_at
+       FROM users
+       WHERE id_user = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    const currentUser = currentUsers[0];
+    if (!currentUser) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if ((currentUser.email || "").toLowerCase() === email) {
+      return res
+        .status(400)
+        .json({ message: "Enter a different email address to verify." });
+    }
+
+    if (!canSendVerificationCode(currentUser.pending_email_verification_sent_at)) {
+      return res.status(429).json({
+        message: "Please wait a minute before requesting another email code.",
+      });
+    }
+
+    const code = createVerificationCode();
+    const codeHash = hashVerificationCode(
+      code,
+      userId,
+      "pending-email",
+      email,
+    );
+    const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
+
+    try {
+      await sendEmailVerificationCode({
+        email,
+        name: currentUser.name,
+        code,
+      });
+    } catch (emailError) {
+      return res.status(502).json({
+        message:
+          "Could not send verification code to the new email. Check EMAIL_USER and EMAIL_PASS, then try again.",
+        details: emailError.message,
+      });
+    }
+
+    await db.execute(
+      `UPDATE users
+       SET pending_email = ?,
+           pending_email_verification_code_hash = ?,
+           pending_email_verification_expires_at = ?,
+           pending_email_verification_sent_at = NOW()
+       WHERE id_user = ?`,
+      [email, codeHash, expiresAt, userId],
+    );
+
+    return res.status(200).json({
+      message: "Verification code sent to your new email.",
+    });
   } catch (error) {
     return res.status(500).json({
-      message: "Could not update email.",
+      message: "Could not start email verification.",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/users/email/verify-change", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const code = cleanText(req.body.code, 6);
+    if (!/^\d{6}$/.test(code || "")) {
+      return res.status(400).json({ message: "Enter the 6-digit email code." });
+    }
+
+    const [rows] = await db.query(
+      `SELECT pending_email,
+              pending_email_verification_code_hash,
+              pending_email_verification_expires_at
+       FROM users
+       WHERE id_user = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    const user = rows[0];
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const pendingEmail = cleanText(user.pending_email, 255)?.toLowerCase();
+    if (!pendingEmail || !ACCOUNT_EMAIL_REGEX.test(pendingEmail)) {
+      return res
+        .status(400)
+        .json({ message: "Send a verification code to a new email first." });
+    }
+
+    if (!user.pending_email_verification_code_hash) {
+      return res
+        .status(400)
+        .json({ message: "Send a new email verification code first." });
+    }
+
+    if (
+      !user.pending_email_verification_expires_at ||
+      new Date(user.pending_email_verification_expires_at).getTime() < Date.now()
+    ) {
+      return res.status(410).json({
+        message: "Code expired. Please request a new email verification code.",
+      });
+    }
+
+    const incomingHash = hashVerificationCode(
+      code,
+      userId,
+      "pending-email",
+      pendingEmail,
+    );
+    if (
+      !isVerificationHashMatch(
+        user.pending_email_verification_code_hash,
+        incomingHash,
+      )
+    ) {
+      return res.status(400).json({ message: "Invalid code." });
+    }
+
+    const [existingUsers] = await db.query(
+      "SELECT id_user FROM users WHERE email = ? AND id_user != ? LIMIT 1",
+      [pendingEmail, userId],
+    );
+
+    if (existingUsers.length > 0) {
+      return res
+        .status(409)
+        .json({ message: "An account with this email already exists." });
+    }
+
+    await db.execute(
+      `UPDATE users
+       SET email = ?,
+           email_verified = 1,
+           email_verification_code_hash = NULL,
+           email_verification_expires_at = NULL,
+           email_verification_sent_at = NULL,
+           pending_email = NULL,
+           pending_email_verification_code_hash = NULL,
+           pending_email_verification_expires_at = NULL,
+           pending_email_verification_sent_at = NULL
+       WHERE id_user = ?`,
+      [pendingEmail, userId],
+    );
+
+    const verifiedUser = await getSafeUserById(userId);
+    return sendSafeUser(res, verifiedUser);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not verify the new email.",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/users/email/send-verification", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const [rows] = await db.query(
+      `SELECT name, email, email_verified, email_verification_sent_at
+       FROM users
+       WHERE id_user = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    const user = rows[0];
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (!user.email || !ACCOUNT_EMAIL_REGEX.test(user.email)) {
+      return res
+        .status(400)
+        .json({ message: "Add a valid email address before verifying it." });
+    }
+
+    if (Number(user.email_verified) === 1) {
+      return res.status(400).json({ message: "Email is already verified." });
+    }
+
+    if (!canSendVerificationCode(user.email_verification_sent_at)) {
+      return res.status(429).json({
+        message: "Please wait a minute before requesting another email code.",
+      });
+    }
+
+    const code = createVerificationCode();
+    const codeHash = hashVerificationCode(code, userId, "email", user.email);
+    const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
+
+    await sendEmailVerificationCode({
+      email: user.email,
+      name: user.name,
+      code,
+    });
+
+    await db.execute(
+      `UPDATE users
+       SET email_verification_code_hash = ?,
+           email_verification_expires_at = ?,
+           email_verification_sent_at = NOW()
+       WHERE id_user = ?`,
+      [codeHash, expiresAt, userId],
+    );
+
+    return res.status(200).json({
+      message: "Email verification code sent. It expires in 10 minutes.",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: error.message || "Could not send email verification code.",
+    });
+  }
+});
+
+app.post("/api/users/email/verify", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const code = cleanText(req.body.code, 6);
+    if (!/^\d{6}$/.test(code || "")) {
+      return res.status(400).json({ message: "Enter the 6-digit email code." });
+    }
+
+    const [rows] = await db.query(
+      `SELECT email, email_verification_code_hash, email_verification_expires_at
+       FROM users
+       WHERE id_user = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    const user = rows[0];
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (!user.email) {
+      return res
+        .status(400)
+        .json({ message: "Add an email address before verifying it." });
+    }
+
+    if (!user.email_verification_code_hash) {
+      return res
+        .status(400)
+        .json({ message: "Send a new email verification code first." });
+    }
+
+    if (
+      !user.email_verification_expires_at ||
+      new Date(user.email_verification_expires_at).getTime() < Date.now()
+    ) {
+      return res.status(410).json({
+        message: "Email verification code expired. Send a new code.",
+      });
+    }
+
+    const incomingHash = hashVerificationCode(code, userId, "email", user.email);
+    if (
+      !isVerificationHashMatch(
+        user.email_verification_code_hash,
+        incomingHash,
+      )
+    ) {
+      return res.status(400).json({ message: "Email verification code is wrong." });
+    }
+
+    await db.execute(
+      `UPDATE users
+       SET email_verified = 1,
+           email_verification_code_hash = NULL,
+           email_verification_expires_at = NULL
+       WHERE id_user = ?`,
+      [userId],
+    );
+
+    const verifiedUser = await getSafeUserById(userId);
+    return sendSafeUser(res, verifiedUser);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not verify email code.",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/users/phone/send-verification", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const [rows] = await db.query(
+      `SELECT phone_number, phone_verified, phone_verification_sent_at
+       FROM users
+       WHERE id_user = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    const user = rows[0];
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const normalizedPhoneNumber = normalizePhoneForUsersTable(user.phone_number);
+
+    if (!normalizedPhoneNumber || !isValidPhoneValue(normalizedPhoneNumber)) {
+      return res
+        .status(400)
+        .json({ message: "Add a valid phone number before verifying it." });
+    }
+
+    if (Number(user.phone_verified) === 1) {
+      return res.status(400).json({ message: "Phone number is already verified." });
+    }
+
+    if (!canSendVerificationCode(user.phone_verification_sent_at)) {
+      return res.status(429).json({
+        message: "Please wait a minute before requesting another SMS code.",
+      });
+    }
+
+    const code = createVerificationCode();
+    const codeHash = hashVerificationCode(
+      code,
+      userId,
+      "phone",
+      normalizedPhoneNumber,
+    );
+    const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
+
+    await sendSmsVerificationCode({ phone: normalizedPhoneNumber, code });
+
+    await db.execute(
+      `UPDATE users
+       SET phone_verification_code_hash = ?,
+           phone_verification_expires_at = ?,
+           phone_verification_sent_at = NOW(),
+           phone_number = ?
+       WHERE id_user = ?`,
+      [codeHash, expiresAt, normalizedPhoneNumber, userId],
+    );
+
+    return res.status(200).json({
+      message: "SMS verification code sent. It expires in 10 minutes.",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: error.message || "Could not send SMS verification code.",
+    });
+  }
+});
+
+app.post("/api/users/phone/verify", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const code = cleanText(req.body.code, 6);
+    if (!/^\d{6}$/.test(code || "")) {
+      return res.status(400).json({ message: "Enter the 6-digit SMS code." });
+    }
+
+    const [rows] = await db.query(
+      `SELECT phone_number, phone_verification_code_hash, phone_verification_expires_at
+       FROM users
+       WHERE id_user = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    const user = rows[0];
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (!user.phone_number) {
+      return res
+        .status(400)
+        .json({ message: "Add a phone number before verifying it." });
+    }
+
+    if (!user.phone_verification_code_hash) {
+      return res
+        .status(400)
+        .json({ message: "Send a new SMS verification code first." });
+    }
+
+    if (
+      !user.phone_verification_expires_at ||
+      new Date(user.phone_verification_expires_at).getTime() < Date.now()
+    ) {
+      return res.status(410).json({
+        message: "SMS verification code expired. Send a new code.",
+      });
+    }
+
+    const incomingHash = hashVerificationCode(
+      code,
+      userId,
+      "phone",
+      user.phone_number,
+    );
+    if (
+      !isVerificationHashMatch(
+        user.phone_verification_code_hash,
+        incomingHash,
+      )
+    ) {
+      return res.status(400).json({ message: "SMS verification code is wrong." });
+    }
+
+    await db.execute(
+      `UPDATE users
+       SET phone_verified = 1,
+           phone_verification_code_hash = NULL,
+           phone_verification_expires_at = NULL
+       WHERE id_user = ?`,
+      [userId],
+    );
+
+    const verifiedUser = await getSafeUserById(userId);
+    return sendSafeUser(res, verifiedUser);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not verify SMS code.",
       details: error.message,
     });
   }
@@ -863,7 +1490,7 @@ app.put(
       }
 
       if (!req.file.mimetype.startsWith("image/")) {
-        fs.unlink(req.file.path, () => { });
+        fs.unlink(req.file.path, () => {});
         return res
           .status(400)
           .json({ message: "Only image files are allowed." });
@@ -1413,7 +2040,7 @@ app.get("/api/activate-account", async (req, res) => {
     const email = decoded.email;
 
     const [result] = await db.execute(
-      "UPDATE users SET is_active = 1 WHERE email = ?",
+      "UPDATE users SET is_active = 1, email_verified = 1 WHERE email = ?",
       [email],
     );
 
@@ -1590,7 +2217,7 @@ app.post("/api/google-auth", async (req, res) => {
       };
     } else {
       user = rows[0];
-      user['id'] = user['id_user'];
+      user["id"] = user["id_user"];
     }
 
     if (Number(user.is_active) !== 1) {
@@ -1704,7 +2331,9 @@ const getPublishCityId = async (city, allowFallback = false) => {
 };
 
 const hasPropertyUnavailableDatesTable = async () => {
-  const [tables] = await db.query("SHOW TABLES LIKE 'property_unavailable_dates'");
+  const [tables] = await db.query(
+    "SHOW TABLES LIKE 'property_unavailable_dates'",
+  );
   return tables.length > 0;
 };
 
@@ -1731,7 +2360,10 @@ const mapHostPropertyRow = (property) => ({
   description: property.description || "",
   city: property.city || "Northern Morocco",
   location:
-    property.neighborhood || property.address || property.city || "Location not provided",
+    property.neighborhood ||
+    property.address ||
+    property.city ||
+    "Location not provided",
   neighborhood: property.neighborhood || "",
   address: property.address || "",
   image: property.main_image || null,
@@ -1977,15 +2609,21 @@ app.delete("/api/my-properties/:id/draft", verifyToken, async (req, res) => {
     }
 
     if (propertyRows[0].status !== "draft") {
-      return res.status(400).json({ message: "Only drafts can be deleted here." });
+      return res
+        .status(400)
+        .json({ message: "Only drafts can be deleted here." });
     }
 
-    await db.query("DELETE FROM property_amenities WHERE id_property = ?", [propertyId]);
-    await db.query("DELETE FROM property_images WHERE id_property = ?", [propertyId]);
-    await db.query("DELETE FROM properties WHERE id_property = ? AND id_user = ?", [
+    await db.query("DELETE FROM property_amenities WHERE id_property = ?", [
       propertyId,
-      userId,
     ]);
+    await db.query("DELETE FROM property_images WHERE id_property = ?", [
+      propertyId,
+    ]);
+    await db.query(
+      "DELETE FROM properties WHERE id_property = ? AND id_user = ?",
+      [propertyId, userId],
+    );
 
     return res.status(200).json({ message: "Draft deleted." });
   } catch (error) {
@@ -2059,7 +2697,10 @@ app.put(
       } = req.body;
       const saveAsDraft = isDraftRequest(req.body?.saveAsDraft);
 
-      if (!saveAsDraft && (!title || !description || !city || !address || !price || !guests)) {
+      if (
+        !saveAsDraft &&
+        (!title || !description || !city || !address || !price || !guests)
+      ) {
         return res.status(400).json({
           message: "Some required fields are missing.",
         });
@@ -2103,12 +2744,11 @@ app.put(
         });
       }
 
-      const nextStatus =
-        saveAsDraft
-          ? "draft"
-          : ["rejected", "draft"].includes(ownedRows[0].status)
-            ? "pending"
-            : ownedRows[0].status;
+      const nextStatus = saveAsDraft
+        ? "draft"
+        : ["rejected", "draft"].includes(ownedRows[0].status)
+          ? "pending"
+          : ownedRows[0].status;
 
       await connection.beginTransaction();
 
@@ -2170,9 +2810,10 @@ app.put(
         ],
       );
 
-      await connection.query("DELETE FROM property_images WHERE id_property = ?", [
-        propertyId,
-      ]);
+      await connection.query(
+        "DELETE FROM property_images WHERE id_property = ?",
+        [propertyId],
+      );
 
       for (let i = 0; i < finalImages.length; i++) {
         await connection.query(
@@ -2213,12 +2854,11 @@ app.put(
         message:
           nextStatus === "draft"
             ? "Draft saved. You can continue it from My Properties."
-            :
-          nextStatus === "pending" && ownedRows[0].status === "rejected"
-            ? "Listing updated and resubmitted for approval."
-            : nextStatus === "pending" && ownedRows[0].status === "draft"
-              ? "Draft submitted for approval."
-            : "Listing updated successfully.",
+            : nextStatus === "pending" && ownedRows[0].status === "rejected"
+              ? "Listing updated and resubmitted for approval."
+              : nextStatus === "pending" && ownedRows[0].status === "draft"
+                ? "Draft submitted for approval."
+                : "Listing updated successfully.",
         propertyId,
       });
     } catch (error) {
@@ -2234,37 +2874,40 @@ app.put(
   },
 );
 
-app.get("/api/my-properties/:id/availability", verifyToken, async (req, res) => {
-  const userId = getUserIdFromRequest(req);
-  const propertyId = Number(req.params.id);
+app.get(
+  "/api/my-properties/:id/availability",
+  verifyToken,
+  async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    const propertyId = Number(req.params.id);
 
-  if (!userId) {
-    return res.status(401).json({ message: "Invalid authenticated user." });
-  }
-
-  if (!Number.isFinite(propertyId) || propertyId <= 0) {
-    return res.status(400).json({ message: "Invalid property id." });
-  }
-
-  try {
-    const property = await getOwnedProperty(propertyId, userId);
-
-    if (!property) {
-      const [existsRows] = await db.query(
-        "SELECT id_property FROM properties WHERE id_property = ? LIMIT 1",
-        [propertyId],
-      );
-
-      return res.status(existsRows.length === 0 ? 404 : 403).json({
-        message:
-          existsRows.length === 0
-            ? "Property not found."
-            : "Not authorized to manage this property's availability.",
-      });
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
     }
 
-    const [bookedRanges] = await db.query(
-      `
+    if (!Number.isFinite(propertyId) || propertyId <= 0) {
+      return res.status(400).json({ message: "Invalid property id." });
+    }
+
+    try {
+      const property = await getOwnedProperty(propertyId, userId);
+
+      if (!property) {
+        const [existsRows] = await db.query(
+          "SELECT id_property FROM properties WHERE id_property = ? LIMIT 1",
+          [propertyId],
+        );
+
+        return res.status(existsRows.length === 0 ? 404 : 403).json({
+          message:
+            existsRows.length === 0
+              ? "Property not found."
+              : "Not authorized to manage this property's availability.",
+        });
+      }
+
+      const [bookedRanges] = await db.query(
+        `
       SELECT start_date AS startDate, end_date AS endDate, status
       FROM bookings
       WHERE id_property = ?
@@ -2272,170 +2915,183 @@ app.get("/api/my-properties/:id/availability", verifyToken, async (req, res) => 
         AND end_date >= CURDATE()
       ORDER BY start_date ASC
       `,
-      [propertyId],
-    );
+        [propertyId],
+      );
 
-    const supportsUnavailableDates = await hasPropertyUnavailableDatesTable();
-    let unavailableDates = [];
+      const supportsUnavailableDates = await hasPropertyUnavailableDatesTable();
+      let unavailableDates = [];
 
-    if (supportsUnavailableDates) {
-      const [rows] = await db.query(
-        `
+      if (supportsUnavailableDates) {
+        const [rows] = await db.query(
+          `
         SELECT unavailable_date AS date, reason
         FROM property_unavailable_dates
         WHERE id_property = ?
         ORDER BY unavailable_date ASC
         `,
-        [propertyId],
-      );
+          [propertyId],
+        );
 
-      unavailableDates = rows.map((row) => ({
-        date: normalizeDateOnly(row.date),
-        reason: row.reason || "host_blocked",
-      }));
+        unavailableDates = rows.map((row) => ({
+          date: normalizeDateOnly(row.date),
+          reason: row.reason || "host_blocked",
+        }));
+      }
+
+      return res.status(200).json({
+        property: {
+          id: property.id_property,
+          title: property.title || "DarDarek listing",
+          availableFrom: normalizeDateOnly(property.available_from),
+          availableTo: normalizeDateOnly(property.available_to),
+          checkIn: normalizeTimeOnly(property.check_in),
+          checkOut: normalizeTimeOnly(property.check_out),
+        },
+        bookedRanges: bookedRanges.map((range) => ({
+          startDate: normalizeDateOnly(range.startDate),
+          endDate: normalizeDateOnly(range.endDate),
+          status: range.status,
+        })),
+        unavailableDates,
+        supportsUnavailableDates,
+      });
+    } catch (error) {
+      console.error("Error loading property availability:", error);
+      return res.status(500).json({
+        message: "Server error while loading availability.",
+        details: error.message,
+      });
+    }
+  },
+);
+
+app.put(
+  "/api/my-properties/:id/availability",
+  verifyToken,
+  async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    const propertyId = Number(req.params.id);
+    const {
+      availableFrom,
+      availableTo,
+      unavailableDates = [],
+    } = req.body || {};
+
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
     }
 
-    return res.status(200).json({
-      property: {
-        id: property.id_property,
-        title: property.title || "DarDarek listing",
-        availableFrom: normalizeDateOnly(property.available_from),
-        availableTo: normalizeDateOnly(property.available_to),
-        checkIn: normalizeTimeOnly(property.check_in),
-        checkOut: normalizeTimeOnly(property.check_out),
-      },
-      bookedRanges: bookedRanges.map((range) => ({
-        startDate: normalizeDateOnly(range.startDate),
-        endDate: normalizeDateOnly(range.endDate),
-        status: range.status,
-      })),
-      unavailableDates,
-      supportsUnavailableDates,
-    });
-  } catch (error) {
-    console.error("Error loading property availability:", error);
-    return res.status(500).json({
-      message: "Server error while loading availability.",
-      details: error.message,
-    });
-  }
-});
+    if (!Number.isFinite(propertyId) || propertyId <= 0) {
+      return res.status(400).json({ message: "Invalid property id." });
+    }
 
-app.put("/api/my-properties/:id/availability", verifyToken, async (req, res) => {
-  const userId = getUserIdFromRequest(req);
-  const propertyId = Number(req.params.id);
-  const { availableFrom, availableTo, unavailableDates = [] } = req.body || {};
+    if (availableFrom && !isSafeDateValue(availableFrom)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid availability start date." });
+    }
 
-  if (!userId) {
-    return res.status(401).json({ message: "Invalid authenticated user." });
-  }
+    if (availableTo && !isSafeDateValue(availableTo)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid availability end date." });
+    }
 
-  if (!Number.isFinite(propertyId) || propertyId <= 0) {
-    return res.status(400).json({ message: "Invalid property id." });
-  }
-
-  if (availableFrom && !isSafeDateValue(availableFrom)) {
-    return res.status(400).json({ message: "Invalid availability start date." });
-  }
-
-  if (availableTo && !isSafeDateValue(availableTo)) {
-    return res.status(400).json({ message: "Invalid availability end date." });
-  }
-
-  if (availableFrom && availableTo && availableTo < availableFrom) {
-    return res.status(400).json({
-      message: "The availability end date must be later than the start date.",
-    });
-  }
-
-  try {
-    const property = await getOwnedProperty(propertyId, userId);
-
-    if (!property) {
-      const [existsRows] = await db.query(
-        "SELECT id_property FROM properties WHERE id_property = ? LIMIT 1",
-        [propertyId],
-      );
-
-      return res.status(existsRows.length === 0 ? 404 : 403).json({
-        message:
-          existsRows.length === 0
-            ? "Property not found."
-            : "Not authorized to manage this property's availability.",
+    if (availableFrom && availableTo && availableTo < availableFrom) {
+      return res.status(400).json({
+        message: "The availability end date must be later than the start date.",
       });
     }
 
-    await db.query(
-      `
+    try {
+      const property = await getOwnedProperty(propertyId, userId);
+
+      if (!property) {
+        const [existsRows] = await db.query(
+          "SELECT id_property FROM properties WHERE id_property = ? LIMIT 1",
+          [propertyId],
+        );
+
+        return res.status(existsRows.length === 0 ? 404 : 403).json({
+          message:
+            existsRows.length === 0
+              ? "Property not found."
+              : "Not authorized to manage this property's availability.",
+        });
+      }
+
+      await db.query(
+        `
       UPDATE properties
       SET available_from = ?, available_to = ?
       WHERE id_property = ? AND id_user = ?
       `,
-      [availableFrom || null, availableTo || null, propertyId, userId],
-    );
+        [availableFrom || null, availableTo || null, propertyId, userId],
+      );
 
-    const supportsUnavailableDates = await hasPropertyUnavailableDatesTable();
+      const supportsUnavailableDates = await hasPropertyUnavailableDatesTable();
 
-    if (supportsUnavailableDates) {
-      const [bookedRanges] = await db.query(
-        `
+      if (supportsUnavailableDates) {
+        const [bookedRanges] = await db.query(
+          `
         SELECT start_date AS startDate, end_date AS endDate
         FROM bookings
         WHERE id_property = ?
           AND status IN ('pending', 'approved')
           AND end_date >= CURDATE()
         `,
-        [propertyId],
-      );
+          [propertyId],
+        );
 
-      const isBookedDate = (date) =>
-        bookedRanges.some((range) => {
-          const start = normalizeDateOnly(range.startDate);
-          const end = normalizeDateOnly(range.endDate);
-          return start && end && date >= start && date < end;
-        });
+        const isBookedDate = (date) =>
+          bookedRanges.some((range) => {
+            const start = normalizeDateOnly(range.startDate);
+            const end = normalizeDateOnly(range.endDate);
+            return start && end && date >= start && date < end;
+          });
 
-      const cleanDates = Array.from(
-        new Set(
-          (Array.isArray(unavailableDates) ? unavailableDates : [])
-            .map(normalizeDateOnly)
-            .filter(
-              (date) => date && isSafeDateValue(date) && !isBookedDate(date),
-            ),
-        ),
-      );
+        const cleanDates = Array.from(
+          new Set(
+            (Array.isArray(unavailableDates) ? unavailableDates : [])
+              .map(normalizeDateOnly)
+              .filter(
+                (date) => date && isSafeDateValue(date) && !isBookedDate(date),
+              ),
+          ),
+        );
 
-      await db.query(
-        "DELETE FROM property_unavailable_dates WHERE id_property = ? AND reason = 'host_blocked'",
-        [propertyId],
-      );
-
-      for (const date of cleanDates) {
         await db.query(
-          `
+          "DELETE FROM property_unavailable_dates WHERE id_property = ? AND reason = 'host_blocked'",
+          [propertyId],
+        );
+
+        for (const date of cleanDates) {
+          await db.query(
+            `
           INSERT IGNORE INTO property_unavailable_dates
             (id_property, unavailable_date, reason)
           VALUES (?, ?, 'host_blocked')
           `,
-          [propertyId, date],
-        );
+            [propertyId, date],
+          );
+        }
       }
-    }
 
-    return res.status(200).json({
-      message: supportsUnavailableDates
-        ? "Availability saved successfully."
-        : "Availability range saved. Host-blocked days require the optional unavailable dates table.",
-      supportsUnavailableDates,
-    });
-  } catch (error) {
-    console.error("Error saving property availability:", error);
-    return res.status(500).json({
-      message: "Server error while saving availability.",
-      details: error.message,
-    });
-  }
-});
+      return res.status(200).json({
+        message: supportsUnavailableDates
+          ? "Availability saved successfully."
+          : "Availability range saved. Host-blocked days require the optional unavailable dates table.",
+        supportsUnavailableDates,
+      });
+    } catch (error) {
+      console.error("Error saving property availability:", error);
+      return res.status(500).json({
+        message: "Server error while saving availability.",
+        details: error.message,
+      });
+    }
+  },
+);
 
 app.get("/api/houses", async (req, res) => {
   try {
@@ -2989,10 +3645,9 @@ app.post(
       }
 
       res.status(201).json({
-        message:
-          saveAsDraft
-            ? "Draft saved. You can continue it from My Properties."
-            : "Your listing has been submitted successfully and is now awaiting approval.",
+        message: saveAsDraft
+          ? "Draft saved. You can continue it from My Properties."
+          : "Your listing has been submitted successfully and is now awaiting approval.",
         propertyId,
       });
     } catch (error) {
@@ -3019,15 +3674,23 @@ app.get(
   verifyAdmin,
   async (req, res) => {
     try {
-      const requestedStatus = String(req.query?.status || "pending").toLowerCase();
-      const allowedStatuses = new Set(["all", "pending", "approved", "rejected"]);
+      const requestedStatus = String(
+        req.query?.status || "pending",
+      ).toLowerCase();
+      const allowedStatuses = new Set([
+        "all",
+        "pending",
+        "approved",
+        "rejected",
+      ]);
       const statusFilter = allowedStatuses.has(requestedStatus)
         ? requestedStatus
         : "pending";
       const propertyWhere = statusFilter === "all" ? "" : "WHERE p.status = ?";
       const propertyParams = statusFilter === "all" ? [] : [statusFilter];
 
-      const [result] = await db.query(`
+      const [result] = await db.query(
+        `
         SELECT 
           p.*, 
         c.name AS city_name, 
@@ -3048,7 +3711,9 @@ app.get(
         CASE WHEN p.status = 'pending' THEN 0 ELSE 1 END,
         p.created_at DESC,
         p.id_property DESC
-      `, propertyParams);
+      `,
+        propertyParams,
+      );
 
       const [statusCounts] = await db.query(`
         SELECT status, COUNT(*) AS total
@@ -3119,10 +3784,18 @@ app.post(
           await db.execute(
             `INSERT INTO notifications (id_user, id_property, type, notify_text)
              VALUES (?, ?, ?, ?)`,
-            [hostId, propertyId, "APPROVE", `Your property "${propertyTitle}" has been approved and is now live! 🎉`],
+            [
+              hostId,
+              propertyId,
+              "APPROVE",
+              `Your property "${propertyTitle}" has been approved and is now live! 🎉`,
+            ],
           );
         } catch (notifyErr) {
-          console.error("Failed to notify host about property approval:", notifyErr.message);
+          console.error(
+            "Failed to notify host about property approval:",
+            notifyErr.message,
+          );
         }
       }
 
@@ -3177,10 +3850,18 @@ app.post(
           await db.execute(
             `INSERT INTO notifications (id_user, id_property, type, notify_text)
              VALUES (?, ?, ?, ?)`,
-            [hostId, propertyId, "REJECT", `Your property "${propertyTitle}" needs revisions. Please review the admin feedback and resubmit.`],
+            [
+              hostId,
+              propertyId,
+              "REJECT",
+              `Your property "${propertyTitle}" needs revisions. Please review the admin feedback and resubmit.`,
+            ],
           );
         } catch (notifyErr) {
-          console.error("Failed to notify host about property rejection:", notifyErr.message);
+          console.error(
+            "Failed to notify host about property rejection:",
+            notifyErr.message,
+          );
         }
       }
 
@@ -3235,7 +3916,9 @@ app.post("/api/reports", verifyToken, async (req, res) => {
   if (!reason || reason.length < 20) {
     return res
       .status(400)
-      .json({ message: "Please describe the issue in at least 20 characters." });
+      .json({
+        message: "Please describe the issue in at least 20 characters.",
+      });
   }
 
   try {
@@ -3281,7 +3964,14 @@ app.post("/api/reports", verifyToken, async (req, res) => {
       `INSERT INTO reports
        (reporter_id, reported_user_id, id_property, id_booking, category, reason)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [reporterId, property.host_id || null, propertyId, bookingId, category, reason],
+      [
+        reporterId,
+        property.host_id || null,
+        propertyId,
+        bookingId,
+        category,
+        reason,
+      ],
     );
 
     try {
@@ -3303,7 +3993,10 @@ app.post("/api/reports", verifyToken, async (req, res) => {
         ),
       );
     } catch (notifyError) {
-      console.error("Failed to notify admins about report:", notifyError.message);
+      console.error(
+        "Failed to notify admins about report:",
+        notifyError.message,
+      );
     }
 
     sendAdminReportEmail({
@@ -3403,45 +4096,50 @@ app.get("/api/admin/reports", verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-app.patch("/api/admin/reports/:id", verifyToken, verifyAdmin, async (req, res) => {
-  const reportId = Number(req.params.id);
-  const status = cleanText(req.body?.status, 30);
-  const adminNotes = cleanText(req.body?.admin_notes, 2000);
-  const allowedStatuses = new Set([
-    "pending",
-    "reviewed",
-    "dismissed",
-    "action_taken",
-  ]);
+app.patch(
+  "/api/admin/reports/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    const reportId = Number(req.params.id);
+    const status = cleanText(req.body?.status, 30);
+    const adminNotes = cleanText(req.body?.admin_notes, 2000);
+    const allowedStatuses = new Set([
+      "pending",
+      "reviewed",
+      "dismissed",
+      "action_taken",
+    ]);
 
-  if (!Number.isFinite(reportId) || reportId <= 0) {
-    return res.status(400).json({ message: "Invalid report id." });
-  }
-
-  if (!allowedStatuses.has(status)) {
-    return res.status(400).json({ message: "Choose a valid report status." });
-  }
-
-  try {
-    const [result] = await db.execute(
-      `UPDATE reports
-       SET status = ?, admin_notes = ?, reviewed_by = ?
-       WHERE id_report = ?`,
-      [status, adminNotes, getUserIdFromRequest(req), reportId],
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Report not found." });
+    if (!Number.isFinite(reportId) || reportId <= 0) {
+      return res.status(400).json({ message: "Invalid report id." });
     }
 
-    return res.status(200).json({ message: "Report updated." });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Could not update report.",
-      details: error.message,
-    });
-  }
-});
+    if (!allowedStatuses.has(status)) {
+      return res.status(400).json({ message: "Choose a valid report status." });
+    }
+
+    try {
+      const [result] = await db.execute(
+        `UPDATE reports
+       SET status = ?, admin_notes = ?, reviewed_by = ?
+       WHERE id_report = ?`,
+        [status, adminNotes, getUserIdFromRequest(req), reportId],
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "Report not found." });
+      }
+
+      return res.status(200).json({ message: "Report updated." });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Could not update report.",
+        details: error.message,
+      });
+    }
+  },
+);
 
 app.patch(
   "/api/admin/users/:id/suspension",
@@ -3502,31 +4200,72 @@ app.patch(
 ========================= */
 
 app.post("/api/bookingProperty", verifyToken, async (req, res) => {
-  const { id_property, checkIn, checkOut } = req.body;
+  const {
+    id_property,
+    checkIn,
+    checkOut,
+    guest_full_name,
+    guest_id_number,
+    guest_phone,
+    agreed_to_terms,
+  } = req.body;
+
   const propertyId = Number(id_property);
   const tokenUserId = Number(req.user?.id);
-  const bookingUserId = Number.isFinite(tokenUserId) && tokenUserId > 0
-    ? tokenUserId
-    : null;
+  const bookingUserId =
+    Number.isFinite(tokenUserId) && tokenUserId > 0 ? tokenUserId : null;
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
   try {
+    // -- Basic validation --
     if (!propertyId || !checkIn || !checkOut || !bookingUserId) {
       return res.status(400).json({ message: "All fields are required." });
     }
-
     if (!dateRegex.test(checkIn) || !dateRegex.test(checkOut)) {
       return res
         .status(400)
         .json({ message: "Dates must use YYYY-MM-DD format." });
     }
-
     if (new Date(checkOut) <= new Date(checkIn)) {
-      return res.status(400).json({
-        message: "Check-out date must be after check-in date.",
-      });
+      return res
+        .status(400)
+        .json({ message: "Check-out date must be after check-in date." });
     }
 
+    // -- Identity fields validation --
+    const cleanName = String(guest_full_name || "").trim();
+    const cleanId = String(guest_id_number || "").trim();
+    const cleanPhone = String(guest_phone || "").trim();
+
+    if (!cleanName || cleanName.length < 5) {
+      return res
+        .status(400)
+        .json({
+          message: "Please provide your full name (minimum 5 characters).",
+        });
+    }
+    if (!cleanId || cleanId.length < 5) {
+      return res
+        .status(400)
+        .json({
+          message: "Please provide a valid ID / CIN / Passport number.",
+        });
+    }
+    if (!cleanPhone || !/^[\d\s()+-]{7,20}$/.test(cleanPhone)) {
+      return res
+        .status(400)
+        .json({ message: "Please provide a valid phone number." });
+    }
+    if (!agreed_to_terms) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "You must accept the rental agreement to confirm the booking.",
+        });
+    }
+
+    // -- Property lookup --
     const [properties] = await db.query(
       `SELECT id_property, id_user, price_per_day, available_from, available_to, status
        FROM properties
@@ -3546,7 +4285,6 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
         .status(403)
         .json({ message: "This property is not available for booking." });
     }
-
     if (Number(property.id_user) === bookingUserId) {
       return res
         .status(400)
@@ -3561,28 +4299,29 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       (availableTo && checkOut > availableTo)
     ) {
       return res.status(400).json({
-        message: "Please choose dates inside this property's availability window.",
+        message:
+          "Please choose dates inside this property's availability window.",
       });
     }
 
+    // -- Pricing --
     const nights = Math.ceil(
       (new Date(checkOut).getTime() - new Date(checkIn).getTime()) /
         (1000 * 60 * 60 * 24),
     );
     const totalPrice = Number(property.price_per_day) * nights;
 
+    // -- Double-check: user's own active booking --
     const [userActiveBooking] = await db.query(
-      `
-      SELECT id_booking
-      FROM bookings
-      WHERE id_property = ?
-        AND id_user = ?
-        AND (
-          status = 'pending'
-          OR (status = 'approved' AND end_date >= CURDATE())
-        )
-      LIMIT 1
-      `,
+      `SELECT id_booking
+       FROM bookings
+       WHERE id_property = ?
+         AND id_user = ?
+         AND (
+           status = 'pending'
+           OR (status = 'approved' AND end_date >= CURDATE())
+         )
+       LIMIT 1`,
       [propertyId, bookingUserId],
     );
 
@@ -3592,14 +4331,13 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       });
     }
 
+    // -- Double-check: date conflict --
     const [bookingConflict] = await db.query(
-      `
-      SELECT id_booking 
-      FROM bookings 
-      WHERE id_property = ? 
-      AND status IN ('pending', 'approved')
-      AND (start_date < ? AND end_date > ?)
-      `,
+      `SELECT id_booking
+       FROM bookings
+       WHERE id_property = ?
+         AND status IN ('pending', 'approved')
+         AND (start_date < ? AND end_date > ?)`,
       [propertyId, checkOut, checkIn],
     );
 
@@ -3609,16 +4347,25 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       });
     }
 
+    // -- Insert booking with identity fields --
     const [insertResult] = await db.query(
-      `
-      INSERT INTO bookings 
-      (id_property, id_user, start_date, end_date, total_price, status) 
-      VALUES (?, ?, ?, ?, ?, 'pending')
-      `,
-      [propertyId, bookingUserId, checkIn, checkOut, totalPrice],
+      `INSERT INTO bookings
+         (id_property, id_user, start_date, end_date, total_price, status,
+          guest_full_name, guest_id_number, guest_phone, agreed_to_terms)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 1)`,
+      [
+        propertyId,
+        bookingUserId,
+        checkIn,
+        checkOut,
+        totalPrice,
+        cleanName,
+        cleanId,
+        cleanPhone,
+      ],
     );
 
-    // Notify the property host about the new booking request
+    // -- Notify host --
     try {
       await db.execute(
         `INSERT INTO notifications (id_user, id_property, id_booking, type, notify_text)
@@ -3632,16 +4379,20 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
         ],
       );
     } catch (notifyErr) {
-      console.error("Failed to notify host about new booking:", notifyErr.message);
+      console.error(
+        "Failed to notify host about new booking:",
+        notifyErr.message,
+      );
     }
 
-    res.status(201).json({
-      message: "Booking request submitted successfully!",
-    });
+    res
+      .status(201)
+      .json({ message: "Booking request submitted successfully!" });
   } catch (error) {
     console.error("Database Error:", error);
     res.status(500).json({
       message: "Server error while processing your booking.",
+      details: error.message,
     });
   }
 });
@@ -3659,10 +4410,8 @@ app.get("/api/properties/:id/booked-dates", async (req, res) => {
       SELECT start_date, end_date, status
       FROM bookings
       WHERE id_property = ?
-        AND (
-          status = 'pending'
-          OR (status = 'approved' AND end_date >= CURDATE())
-        )
+        AND status = 'approved'
+        AND end_date >= CURDATE()
       ORDER BY start_date ASC
       `,
       [propertyId],
@@ -4008,10 +4757,10 @@ app.get("/api/properties/:id/reviews", async (req, res) => {
     const avgRating =
       reviews.length > 0
         ? Math.round(
-          (reviews.reduce((sum, r) => sum + Number(r.rating), 0) /
-            reviews.length) *
-          10,
-        ) / 10
+            (reviews.reduce((sum, r) => sum + Number(r.rating), 0) /
+              reviews.length) *
+              10,
+          ) / 10
         : null;
 
     res.status(200).json({ reviews, avgRating, count: reviews.length });
@@ -4213,7 +4962,9 @@ app.put("/api/notifications/:id/read", verifyToken, async (req, res) => {
     );
 
     if (rows.length === 0) {
-      return res.status(403).json({ message: "Not authorized to update this notification." });
+      return res
+        .status(403)
+        .json({ message: "Not authorized to update this notification." });
     }
 
     await db.execute(
@@ -4231,7 +4982,7 @@ app.put("/api/notifications/:id/read", verifyToken, async (req, res) => {
 });
 
 // API for favorites
-app.post('/api/favorites/toggle', verifyToken, async (req, res) => {
+app.post("/api/favorites/toggle", verifyToken, async (req, res) => {
   const id_user = getUserIdFromRequest(req);
   const id_property = Number(req.body?.id_property);
 
@@ -4256,16 +5007,22 @@ app.post('/api/favorites/toggle', verifyToken, async (req, res) => {
     }
 
     const [existing] = await db.execute(
-      'SELECT id_favorite FROM favorites WHERE id_user = ? AND id_property = ?',
-      [id_user, id_property]
+      "SELECT id_favorite FROM favorites WHERE id_user = ? AND id_property = ?",
+      [id_user, id_property],
     );
 
     if (existing.length > 0) {
-      await db.execute('DELETE FROM favorites WHERE id_user = ? AND id_property = ?', [id_user, id_property]);
-      return res.json({ message: 'Removed from favorites', saved: false });
+      await db.execute(
+        "DELETE FROM favorites WHERE id_user = ? AND id_property = ?",
+        [id_user, id_property],
+      );
+      return res.json({ message: "Removed from favorites", saved: false });
     } else {
-      await db.execute('INSERT INTO favorites (id_user, id_property) VALUES (?, ?)', [id_user, id_property]);
-      return res.json({ message: 'Added to favorites', saved: true });
+      await db.execute(
+        "INSERT INTO favorites (id_user, id_property) VALUES (?, ?)",
+        [id_user, id_property],
+      );
+      return res.json({ message: "Added to favorites", saved: true });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -4281,7 +5038,8 @@ const getFavoritesForCurrentUser = async (req, res) => {
   }
 
   try {
-    const [rows] = await db.execute(`
+    const [rows] = await db.execute(
+      `
       SELECT
         p.*,
         c.name AS city_name,
@@ -4298,17 +5056,17 @@ const getFavoritesForCurrentUser = async (req, res) => {
       WHERE f.id_user = ?
         AND p.status = 'approved'
       ORDER BY f.id_favorite DESC
-    `, [userId]);
+    `,
+      [userId],
+    );
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-app.get('/api/favorites', verifyToken, getFavoritesForCurrentUser);
-app.get('/api/favorites/:userId', verifyToken, getFavoritesForCurrentUser);
-
-
+app.get("/api/favorites", verifyToken, getFavoritesForCurrentUser);
+app.get("/api/favorites/:userId", verifyToken, getFavoritesForCurrentUser);
 
 /* =========================
    START SERVER
