@@ -114,7 +114,131 @@ const PHONE_COUNTRIES = [
     code: "MA",
     label: "Morocco",
     dialCode: "+212",
+    minLength: 9,
     localLength: 9,
+    placeholder: "6 12 34 56 78",
+    validationPattern: /^6\d{8}$/,
+    validationHint: "Moroccan mobile numbers must start with 6.",
+  },
+  {
+    code: "FR",
+    label: "France",
+    dialCode: "+33",
+    minLength: 9,
+    localLength: 9,
+    placeholder: "6 12 34 56 78",
+  },
+  {
+    code: "ES",
+    label: "Spain",
+    dialCode: "+34",
+    minLength: 9,
+    localLength: 9,
+    placeholder: "612 345 678",
+  },
+  {
+    code: "US",
+    label: "United States",
+    dialCode: "+1",
+    minLength: 10,
+    localLength: 10,
+    placeholder: "202 555 0198",
+  },
+  {
+    code: "GB",
+    label: "United Kingdom",
+    dialCode: "+44",
+    minLength: 10,
+    localLength: 10,
+    placeholder: "7123 456 789",
+  },
+  {
+    code: "DE",
+    label: "Germany",
+    dialCode: "+49",
+    minLength: 7,
+    localLength: 12,
+    placeholder: "151 2345 6789",
+  },
+  {
+    code: "IT",
+    label: "Italy",
+    dialCode: "+39",
+    minLength: 6,
+    localLength: 11,
+    placeholder: "312 345 6789",
+  },
+  {
+    code: "NL",
+    label: "Netherlands",
+    dialCode: "+31",
+    minLength: 9,
+    localLength: 9,
+    placeholder: "6 1234 5678",
+  },
+  {
+    code: "BE",
+    label: "Belgium",
+    dialCode: "+32",
+    minLength: 8,
+    localLength: 9,
+    placeholder: "470 12 34 56",
+  },
+  {
+    code: "CA",
+    label: "Canada",
+    dialCode: "+1",
+    minLength: 10,
+    localLength: 10,
+    placeholder: "416 555 0198",
+  },
+  {
+    code: "TR",
+    label: "Turkey",
+    dialCode: "+90",
+    minLength: 10,
+    localLength: 10,
+    placeholder: "532 123 45 67",
+  },
+  {
+    code: "AE",
+    label: "United Arab Emirates",
+    dialCode: "+971",
+    minLength: 9,
+    localLength: 9,
+    placeholder: "50 123 4567",
+  },
+  {
+    code: "SA",
+    label: "Saudi Arabia",
+    dialCode: "+966",
+    minLength: 9,
+    localLength: 9,
+    placeholder: "50 123 4567",
+  },
+  {
+    code: "DZ",
+    label: "Algeria",
+    dialCode: "+213",
+    minLength: 9,
+    localLength: 9,
+    placeholder: "551 23 45 67",
+  },
+  {
+    code: "TN",
+    label: "Tunisia",
+    dialCode: "+216",
+    minLength: 8,
+    localLength: 8,
+    placeholder: "20 123 456",
+  },
+  {
+    code: "EG",
+    label: "Egypt",
+    dialCode: "+20",
+    minLength: 10,
+    localLength: 10,
+    placeholder: "100 123 4567",
   },
 ];
 
@@ -371,56 +495,204 @@ function getAllowedOptionValue(value, options, fallback) {
   return options.some((option) => option.value === value) ? value : fallback;
 }
 
-function getPhoneCountry(dialCode = "+212") {
+function getPhoneCountry(countryCode = "MA") {
   return (
-    PHONE_COUNTRIES.find((country) => country.dialCode === dialCode) ||
+    PHONE_COUNTRIES.find((country) => country.code === countryCode) ||
+    PHONE_COUNTRIES.find((country) => country.dialCode === countryCode) ||
     PHONE_COUNTRIES[0]
   );
 }
 
-function getMoroccoLocalDigits(value = "") {
+function getPhoneCountryFromValue(value = "", fallbackCountryCode = "MA") {
   const rawValue = String(value).trim();
-  const hasMoroccoPrefix = rawValue.startsWith("+212");
-  let digits = rawValue.replace(/\D/g, "");
+  const digits = rawValue.replace(/\D/g, "");
 
-  if (hasMoroccoPrefix && digits.startsWith("212")) {
-    digits = digits.slice(3);
-  } else if (digits.startsWith("212")) {
-    digits = digits.slice(3);
+  if (rawValue.startsWith("+") || rawValue.startsWith("00")) {
+    const country = [...PHONE_COUNTRIES]
+      .sort(
+        (left, right) =>
+          right.dialCode.replace(/\D/g, "").length -
+          left.dialCode.replace(/\D/g, "").length,
+      )
+      .find((option) => digits.startsWith(option.dialCode.replace(/\D/g, "")));
+
+    if (country) return country;
   }
 
-  if (digits.startsWith("0")) {
+  return getPhoneCountry(fallbackCountryCode);
+}
+
+function getLocalPhoneDigits(value = "", countryCode = "MA") {
+  const country = getPhoneCountry(countryCode);
+  const rawValue = String(value).trim();
+  const dialDigits = country.dialCode.replace(/\D/g, "");
+  let digits = rawValue.replace(/\D/g, "");
+
+  if (
+    (rawValue.startsWith("+") || rawValue.startsWith("00")) &&
+    digits.startsWith(dialDigits)
+  ) {
+    digits = digits.slice(dialDigits.length);
+  } else if (
+    digits.startsWith(dialDigits) &&
+    digits.length > country.localLength
+  ) {
+    digits = digits.slice(dialDigits.length);
+  }
+
+  if (digits.startsWith("0") && country.code !== "IT") {
     digits = digits.slice(1);
   }
 
-  return digits.slice(0, getPhoneCountry("+212").localLength);
+  return digits.slice(0, country.localLength);
 }
 
-function formatMoroccoLocalPhone(value = "") {
-  const digits = getMoroccoLocalDigits(value);
-  const groups = [
-    digits.slice(0, 1),
-    digits.slice(1, 3),
-    digits.slice(3, 5),
-    digits.slice(5, 7),
-    digits.slice(7, 9),
-  ].filter(Boolean);
+function formatLocalPhone(value = "", countryCode = "MA") {
+  const country = getPhoneCountry(countryCode);
+  const digits = getLocalPhoneDigits(value, country.code);
+  const groupSizes =
+    country.code === "MA" || country.code === "FR"
+      ? [1, 2, 2, 2, 2]
+      : country.code === "US" || country.code === "CA"
+        ? [3, 3, 4]
+        : country.code === "GB"
+          ? [4, 3, 3]
+          : [3, 3, 3, 3];
+  const groups = [];
+  let cursor = 0;
+
+  groupSizes.forEach((size) => {
+    if (cursor < digits.length) {
+      groups.push(digits.slice(cursor, cursor + size));
+    }
+    cursor += size;
+  });
+
+  if (cursor < digits.length) {
+    groups.push(digits.slice(cursor));
+  }
 
   return groups.join(" ");
 }
 
-function normalizeMoroccoPhone(value = "") {
-  const digits = getMoroccoLocalDigits(value);
-  return /^6\d{8}$/.test(digits) ? `+212${digits}` : null;
+function parsePhoneDraft(value = "", fallbackCountryCode = "MA") {
+  const country = getPhoneCountryFromValue(value, fallbackCountryCode);
+  return {
+    countryCode: country.code,
+    local: formatLocalPhone(value, country.code),
+  };
 }
 
-function getPhoneValidationMessage(value = "") {
-  const digits = getMoroccoLocalDigits(value);
+function normalizePhoneValue(countryCode = "MA", value = "") {
+  const country = getPhoneCountry(countryCode);
+  const digits = getLocalPhoneDigits(value, country.code);
+  const e164Digits = `${country.dialCode.replace(/\D/g, "")}${digits}`;
+
+  if (!digits) return null;
+  if (digits.length < country.minLength || digits.length > country.localLength) {
+    return null;
+  }
+  if (country.validationPattern && !country.validationPattern.test(digits)) {
+    return null;
+  }
+  if (e164Digits.length < 7 || e164Digits.length > 15) {
+    return null;
+  }
+
+  return `+${e164Digits}`;
+}
+
+function getPhoneValidationMessage(value = "", countryCode = "MA") {
+  const country = getPhoneCountry(countryCode);
+  const digits = getLocalPhoneDigits(value, country.code);
   if (!digits) return "Phone number is required.";
-  if (!digits.startsWith("6")) return "Moroccan mobile numbers must start with 6.";
-  if (digits.length !== 9) return "Enter 9 local digits, for example 6 12 34 56 78.";
-  if (!normalizeMoroccoPhone(value)) return "Enter a valid Moroccan phone number.";
+  if (country.validationPattern && !country.validationPattern.test(digits)) {
+    return country.validationHint || `Enter a valid ${country.label} number.`;
+  }
+  if (digits.length < country.minLength || digits.length > country.localLength) {
+    return `Enter ${country.minLength === country.localLength ? country.localLength : `${country.minLength}-${country.localLength}`} local digits for ${country.label}.`;
+  }
+  if (!normalizePhoneValue(country.code, value)) {
+    return `Enter a valid ${country.label} phone number.`;
+  }
   return "";
+}
+
+function getOptionalPhoneValidationMessage(value = "", countryCode = "MA") {
+  return getLocalPhoneDigits(value, countryCode)
+    ? getPhoneValidationMessage(value, countryCode)
+    : "";
+}
+
+function CountryCodeSelect({
+  value,
+  onChange,
+  ariaLabel,
+  compactSelected = false,
+}) {
+  const [open, setOpen] = useState(false);
+  const selectRef = useRef(null);
+  const selectedCountry = getPhoneCountry(value);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!selectRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  return (
+    <div
+      className={`settings-country-select ${compactSelected ? "settings-country-select--compact" : ""} ${open ? "settings-country-select--open" : ""}`}
+      ref={selectRef}
+    >
+      <button
+        className="settings-country-select__button"
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span>
+          {compactSelected
+            ? selectedCountry.dialCode
+            : `${selectedCountry.label} ${selectedCountry.dialCode}`}
+        </span>
+        <FiChevronDown aria-hidden="true" />
+      </button>
+
+      {open && (
+        <div className="settings-country-select__menu" role="listbox">
+          {PHONE_COUNTRIES.map((country) => (
+            <button
+              className={`settings-country-select__option ${country.code === selectedCountry.code
+                ? "settings-country-select__option--selected"
+                : ""
+                }`}
+              key={country.code}
+              type="button"
+              role="option"
+              aria-selected={country.code === selectedCountry.code}
+              onClick={() => {
+                onChange(country.code);
+                setOpen(false);
+              }}
+            >
+              <span>{country.label}</span>
+              <strong>{country.dialCode}</strong>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const birthDayOptions = Array.from({ length: 31 }, (_, index) =>
@@ -746,24 +1018,17 @@ function SettingsModal({
                   errors.phone ? "settings-phone-input--error" : ""
                 }`}
               >
-                <select
-                  className="settings-phone-input__country"
-                  value={modal.draft.phoneCountry || "+212"}
-                  onChange={(event) =>
+                <CountryCodeSelect
+                  value={modal.draft.phoneCountry || "MA"}
+                  onChange={(countryCode) =>
                     onChange({
                       ...modal.draft,
-                      phoneCountry: event.target.value,
+                      phoneCountry: countryCode,
                       phoneLocal: "",
                     })
                   }
-                  aria-label="Phone country code"
-                >
-                  {PHONE_COUNTRIES.map((country) => (
-                    <option key={country.code} value={country.dialCode}>
-                      {country.label} {country.dialCode}
-                    </option>
-                  ))}
-                </select>
+                  ariaLabel="Phone country code"
+                />
                 <input
                   className="settings-phone-input__local"
                   type="tel"
@@ -772,15 +1037,20 @@ function SettingsModal({
                   onChange={(event) =>
                     onChange({
                       ...modal.draft,
-                      phoneLocal: formatMoroccoLocalPhone(event.target.value),
+                      phoneLocal: formatLocalPhone(
+                        event.target.value,
+                        modal.draft.phoneCountry,
+                      ),
                     })
                   }
-                  placeholder="6 12 34 56 78"
+                  placeholder={
+                    getPhoneCountry(modal.draft.phoneCountry).placeholder
+                  }
                   autoFocus
                 />
               </div>
               <span className="settings-helper">
-                Enter only the local mobile number. DarDarek saves it as +212.
+                Enter only the local number. DarDarek saves it in international format without spaces.
               </span>
               {errors.phone && (
                 <span className="settings-error">{errors.phone}</span>
@@ -1459,6 +1729,9 @@ export default function AccountSettings() {
     verified: false,
     error: "",
   });
+  const [emergencyPhoneDraft, setEmergencyPhoneDraft] = useState(
+    parsePhoneDraft(rawUser.emergency_contact || ""),
+  );
 
   const [profile, setProfile] = useState({
     name: rawUser.name || "",
@@ -1466,6 +1739,7 @@ export default function AccountSettings() {
     emailVerified: Boolean(rawUser.email_verified || rawUser.emailVerified),
     phone: rawUser.phone_number || rawUser.phone || "",
     phoneVerified: Boolean(rawUser.phone_verified || rawUser.phoneVerified),
+    bio: rawUser.bio || "",
     dateOfBirth: normalizeAccountDate(
       rawUser.date_of_birth || rawUser.dateOfBirth,
     ),
@@ -1563,15 +1837,16 @@ export default function AccountSettings() {
       profile.name,
       profile.email,
       profile.phone,
+      profile.bio,
       profile.dateOfBirth,
       profile.nationality,
       profile.languages.length > 0 ? "languages" : "",
       profile.contactMethod,
-      profile.emergencyContact,
+      emergencyPhoneDraft.local,
     ];
     const filled = fields.filter((value) => String(value || "").trim()).length;
     return Math.round((filled / fields.length) * 100);
-  }, [profile]);
+  }, [emergencyPhoneDraft.local, profile]);
 
   const securityStatusRows = useMemo(
     () => [
@@ -1641,6 +1916,11 @@ export default function AccountSettings() {
       phone_verified: accountUser.phone_verified,
       role: accountUser.role,
       profile_picture: accountUser.profile_picture,
+      bio: accountUser.bio,
+      nationality: accountUser.nationality,
+      languages: accountUser.languages,
+      preferred_contact: accountUser.preferred_contact,
+      emergency_contact: accountUser.emergency_contact,
       has_password: accountUser.has_password,
     };
 
@@ -1666,6 +1946,7 @@ export default function AccountSettings() {
       emailVerified: Boolean(accountUser.email_verified),
       phone: accountUser.phone_number || "",
       phoneVerified: Boolean(accountUser.phone_verified),
+      bio: accountUser.bio || "",
       dateOfBirth: normalizeAccountDate(accountUser.date_of_birth),
       nationality: accountUser.nationality || "",
       languages: supportedLanguages,
@@ -1676,6 +1957,7 @@ export default function AccountSettings() {
       ),
       emergencyContact: accountUser.emergency_contact || "",
     });
+    setEmergencyPhoneDraft(parsePhoneDraft(accountUser.emergency_contact || ""));
 
     setPreferences({
       language: getAllowedValue(
@@ -1771,8 +2053,6 @@ export default function AccountSettings() {
     navigate("/");
   };
 
-  const sanitizePhoneInput = (value) => value.replace(/[^\d\s()+-]/g, "");
-
   const isValidPhone = (value) =>
     /^[\d\s()+-]+$/.test(value) &&
     value.replace(/\D/g, "").length >= 7 &&
@@ -1789,9 +2069,10 @@ export default function AccountSettings() {
       ) &&
       language.toLowerCase().includes(languageQuery.trim().toLowerCase()),
   );
-  const emergencyContactError =
-    profile.emergencyContact &&
-    profile.emergencyContact.replace(/\D/g, "").length < 7;
+  const emergencyContactError = getOptionalPhoneValidationMessage(
+    emergencyPhoneDraft.local,
+    emergencyPhoneDraft.countryCode,
+  );
 
   const handleAvatarFileChange = (event) => {
     const file = event.target.files?.[0];
@@ -1851,12 +2132,19 @@ export default function AccountSettings() {
   };
 
   const startEmergencyVerification = () => {
-    if (!isValidPhone(profile.emergencyContact)) {
+    const emergencyError = getOptionalPhoneValidationMessage(
+      emergencyPhoneDraft.local,
+      emergencyPhoneDraft.countryCode,
+    );
+
+    if (!emergencyPhoneDraft.local || emergencyError) {
       setEmergencyVerification({
         step: "idle",
         code: "",
         verified: false,
-        error: "Enter a valid emergency phone number before verifying.",
+        error:
+          emergencyError ||
+          "Enter a valid emergency phone number before verifying.",
       });
       return;
     }
@@ -1900,10 +2188,13 @@ export default function AccountSettings() {
         : type === "email"
           ? { email: "", step: 1, code: "" }
           : type === "phone"
-            ? {
-              phoneCountry: "+212",
-              phoneLocal: formatMoroccoLocalPhone(profile.phone),
-            }
+            ? (() => {
+              const phoneDraft = parsePhoneDraft(profile.phone);
+              return {
+                phoneCountry: phoneDraft.countryCode,
+                phoneLocal: phoneDraft.local,
+              };
+            })()
             : {
               day: birthDay,
               month: birthMonth,
@@ -1934,7 +2225,10 @@ export default function AccountSettings() {
       }
     }
     if (modal.type === "phone") {
-      const phoneError = getPhoneValidationMessage(modal.draft.phoneLocal);
+      const phoneError = getPhoneValidationMessage(
+        modal.draft.phoneLocal,
+        modal.draft.phoneCountry,
+      );
       if (phoneError) {
         errors.phone = phoneError;
       }
@@ -2021,7 +2315,10 @@ export default function AccountSettings() {
           body: JSON.stringify({ code: modal.draft.code }),
         });
       } else if (modal.type === "phone") {
-        const normalizedPhone = normalizeMoroccoPhone(modal.draft.phoneLocal);
+        const normalizedPhone = normalizePhoneValue(
+          modal.draft.phoneCountry,
+          modal.draft.phoneLocal,
+        );
         data = await accountRequest("/api/users/profile", {
           method: "PUT",
           body: JSON.stringify({ phone_number: normalizedPhone }),
@@ -2339,7 +2636,7 @@ export default function AccountSettings() {
 
   const saveProfileDetails = async () => {
     if (emergencyContactError) {
-      showToast("Enter a valid emergency phone number.", "warning");
+      showToast(emergencyContactError, "warning");
       return;
     }
 
@@ -2357,13 +2654,20 @@ export default function AccountSettings() {
 
     try {
       setProfileSaving(true);
+      const normalizedEmergencyContact = emergencyPhoneDraft.local
+        ? normalizePhoneValue(
+          emergencyPhoneDraft.countryCode,
+          emergencyPhoneDraft.local,
+        )
+        : null;
       const data = await accountRequest("/api/users/profile", {
         method: "PUT",
         body: JSON.stringify({
+          bio: profile.bio,
           nationality: profile.nationality,
           languages: profile.languages,
           preferred_contact: profile.contactMethod,
-          emergency_contact: profile.emergencyContact,
+          emergency_contact: normalizedEmergencyContact,
         }),
       });
       applyAccountUser(data.user);
@@ -2743,6 +3047,28 @@ export default function AccountSettings() {
                     <div className="settings-card settings-profile-direct-card">
                       <div className="settings-profile-direct-grid">
                         <ProfileFieldCard
+                          title="Bio"
+                          description="This is the public host introduction also used on Publish."
+                          fullWidth
+                        >
+                          <textarea
+                            className="settings-input settings-textarea"
+                            value={profile.bio}
+                            maxLength={250}
+                            onChange={(event) =>
+                              setProfile({
+                                ...profile,
+                                bio: event.target.value,
+                              })
+                            }
+                            placeholder="Share a short introduction for guests."
+                          />
+                          <span className="settings-character-count">
+                            {profile.bio.length}/250
+                          </span>
+                        </ProfileFieldCard>
+
+                        <ProfileFieldCard
                           title="Nationality"
                           description="Select the nationality shown on your profile."
                         >
@@ -2860,31 +3186,57 @@ export default function AccountSettings() {
                         >
                           <div className="settings-emergency-contact">
                             <div className="settings-emergency-contact__row">
-                              <input
-                                className={`settings-input ${emergencyContactError ||
+                              <div
+                                className={`settings-phone-input settings-phone-input--inline ${emergencyContactError ||
                                   (emergencyVerification.error &&
                                     emergencyVerification.step === "idle")
-                                  ? "settings-input--error"
+                                  ? "settings-phone-input--error"
                                   : ""
                                   }`}
-                                type="tel"
-                                value={profile.emergencyContact}
-                                onChange={(event) => {
-                                  setProfile({
-                                    ...profile,
-                                    emergencyContact: sanitizePhoneInput(
-                                      event.target.value,
-                                    ),
-                                  });
-                                  setEmergencyVerification({
-                                    step: "idle",
-                                    code: "",
-                                    verified: false,
-                                    error: "",
-                                  });
-                                }}
-                                placeholder="+212 600 000 000"
-                              />
+                              >
+                                <CountryCodeSelect
+                                  value={emergencyPhoneDraft.countryCode}
+                                  compactSelected
+                                  onChange={(countryCode) => {
+                                    setEmergencyPhoneDraft({
+                                      countryCode,
+                                      local: "",
+                                    });
+                                    setEmergencyVerification({
+                                      step: "idle",
+                                      code: "",
+                                      verified: false,
+                                      error: "",
+                                    });
+                                  }}
+                                  ariaLabel="Emergency contact country code"
+                                />
+                                <input
+                                  className="settings-phone-input__local"
+                                  type="tel"
+                                  inputMode="numeric"
+                                  value={emergencyPhoneDraft.local}
+                                  onChange={(event) => {
+                                    setEmergencyPhoneDraft((current) => ({
+                                      ...current,
+                                      local: formatLocalPhone(
+                                        event.target.value,
+                                        current.countryCode,
+                                      ),
+                                    }));
+                                    setEmergencyVerification({
+                                      step: "idle",
+                                      code: "",
+                                      verified: false,
+                                      error: "",
+                                    });
+                                  }}
+                                  placeholder={
+                                    getPhoneCountry(emergencyPhoneDraft.countryCode)
+                                      .placeholder
+                                  }
+                                />
+                              </div>
                               <button
                                 className="settings-btn settings-btn--ghost settings-emergency-contact__verify"
                                 type="button"
@@ -2907,7 +3259,7 @@ export default function AccountSettings() {
                             emergencyVerification.error) && (
                               <span className="settings-error">
                                 {emergencyVerification.error ||
-                                  "Enter a valid emergency phone number."}
+                                  emergencyContactError}
                               </span>
                             )}
                         </ProfileFieldCard>

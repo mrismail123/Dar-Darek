@@ -442,14 +442,18 @@ export default function Publish() {
   const [existingImageUrls, setExistingImageUrls] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
   const [publishNotice, setPublishNotice] = useState(null);
+  const [accountBioSnapshot, setAccountBioSnapshot] = useState("");
+  const [hostBioStatus, setHostBioStatus] = useState("idle");
   const [locationMessage, setLocationMessage] = useState({
     type: "info",
-    text: "Select a point in Northern Morocco or use your current location.",
+    text: "",
   });
   const [isLocating, setIsLocating] = useState(false);
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
   const fileInputRef = useRef(null);
   const reverseGeocodeRequestRef = useRef(0);
+  const accountBioRef = useRef("");
+  const hostBioTouchedRef = useRef(false);
   const editPropertyId = new URLSearchParams(location.search).get("edit");
   const isEditMode = Boolean(editPropertyId);
 
@@ -466,6 +470,79 @@ export default function Publish() {
         ...prev,
         [name]: "",
       }));
+    }
+  };
+
+  const handleHostBioChange = (event) => {
+    hostBioTouchedRef.current = true;
+    setHostBioStatus("idle");
+    setFormData((current) => ({
+      ...current,
+      hostDescription: event.target.value,
+    }));
+  };
+
+  const syncHostBioProfile = async ({ quiet = false } = {}) => {
+    const token = localStorage.getItem("token");
+    const nextBio = formData.hostDescription.trim();
+
+    if (nextBio === accountBioSnapshot.trim()) {
+      return true;
+    }
+
+    if (!token) {
+      if (!quiet) {
+        setHostBioStatus("error");
+        setPublishNotice({
+          type: "error",
+          text: "Please sign in before updating your host bio.",
+        });
+      }
+      return false;
+    }
+
+    try {
+      setHostBioStatus("saving");
+      const response = await fetch(buildApiUrl("/api/users/profile"), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ bio: nextBio }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Could not update your host bio.");
+      }
+
+      const savedBio = data?.user?.bio || "";
+      accountBioRef.current = savedBio;
+      setAccountBioSnapshot(savedBio);
+      setFormData((current) => ({ ...current, hostDescription: savedBio }));
+      setHostBioStatus("saved");
+
+      try {
+        const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+        localStorage.setItem(
+          "user",
+          JSON.stringify({ ...storedUser, bio: savedBio }),
+        );
+      } catch {
+        /* Keep the form usable if local storage is unavailable. */
+      }
+
+      return true;
+    } catch (error) {
+      setHostBioStatus("error");
+      if (!quiet) {
+        setPublishNotice({
+          type: "error",
+          text: error.message || "Could not update your host bio.",
+        });
+      }
+      return false;
     }
   };
 
@@ -849,13 +926,16 @@ export default function Publish() {
     const { formPayload, userId } = buildPropertyPayload(false);
 
     if (!userId) {
-      
       setPublishNotice({
         type: "error",
         text: "Session expired. Please log in again.",
       });
       return;
     }
+
+    const bioSaved = await syncHostBioProfile();
+    if (!bioSaved) return;
+
     setIsSubmitting(true);
 
     try {
@@ -887,7 +967,10 @@ export default function Publish() {
         imagePreviews.forEach((url) => URL.revokeObjectURL(url));
         setImagePreviews([]);
         setExistingImageUrls([]);
-        setFormData(INITIAL_FORM_DATA);
+        setFormData({
+          ...INITIAL_FORM_DATA,
+          hostDescription: accountBioRef.current,
+        });
       }
 
       if (fileInputRef.current) {
@@ -938,6 +1021,9 @@ export default function Publish() {
       });
       return;
     }
+
+    const bioSaved = await syncHostBioProfile();
+    if (!bioSaved) return;
 
     setIsSavingDraft(true);
     setPublishNotice(null);
@@ -1011,6 +1097,49 @@ export default function Publish() {
   }, []);
 
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return undefined;
+
+    let isMounted = true;
+
+    async function loadAccountBio() {
+      try {
+        const response = await fetch(buildApiUrl("/api/users/me"), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(data?.message || "Could not load profile.");
+        }
+
+        if (!isMounted) return;
+
+        const bio = data?.user?.bio || "";
+        accountBioRef.current = bio;
+        setAccountBioSnapshot(bio);
+        setFormData((current) =>
+          hostBioTouchedRef.current
+            ? current
+            : { ...current, hostDescription: bio },
+        );
+      } catch {
+        if (isMounted) {
+          setHostBioStatus("error");
+        }
+      }
+    }
+
+    loadAccountBio();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isEditMode) {
       return;
     }
@@ -1070,7 +1199,7 @@ export default function Publish() {
           beds: property.beds || "",
           price: property.price || "",
           description: property.description || "",
-          hostDescription: property.hostDescription || "",
+          hostDescription: accountBioRef.current,
           neighborhoodDescription: property.neighborhoodDescription || "",
           checkIn: normalizeEditTime(property.checkIn, "15:00"),
           checkOut: normalizeEditTime(property.checkOut, "11:00"),
@@ -1376,6 +1505,7 @@ export default function Publish() {
                       </button>
                     </div>
 
+                    {(isReverseGeocoding || locationMessage.text) && (
                     <div
                       className={`pub-inline-message pub-inline-message--${locationMessage.type}`}
                       role="status"
@@ -1389,6 +1519,7 @@ export default function Publish() {
                           : locationMessage.text}
                       </p>
                     </div>
+                    )}
 
                     <div className="pub-location-map-shell">
                       <MapContainer
@@ -1579,8 +1710,22 @@ export default function Publish() {
                     className="pub-input pub-textarea pub-description-textarea pub-description-textarea--secondary"
                     placeholder="Ex: A responsive host, always happy to help and share the best local recommendations."
                     value={formData.hostDescription}
-                    onChange={handleChange}
+                    onChange={handleHostBioChange}
+                    onBlur={() => syncHostBioProfile({ quiet: true })}
                   />
+                  {hostBioStatus === "saving" && (
+                    <p className="pub-field-note">Saving to your profile...</p>
+                  )}
+                  {hostBioStatus === "saved" && (
+                    <p className="pub-field-note pub-field-note--success">
+                      Saved to your Account Settings bio.
+                    </p>
+                  )}
+                  {hostBioStatus === "error" && (
+                    <p className="pub-field-error">
+                      Could not sync this bio with Account Settings yet.
+                    </p>
+                  )}
                 </div>
 
                 <div className="pub-description-card">

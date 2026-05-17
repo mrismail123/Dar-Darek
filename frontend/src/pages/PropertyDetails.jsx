@@ -305,16 +305,6 @@ const normalizeDisplayList = (value) =>
     .map((item) => String(item || "").trim())
     .filter(Boolean);
 
-const formatMemberSince = (dateValue) => {
-  const date = parseLocalDate(dateValue);
-  if (!date) return "";
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric",
-  }).format(date);
-};
-
 const amenityIconMap = {
   wifi: "📶",
   hotWater: "🚿",
@@ -602,7 +592,8 @@ const getSafetyItems = (amenities) => {
 const getHostName = (host) => host?.name || "Host";
 
 const getHostSubline = (host) => {
-  return host?.name ? "Host" : "Host details not provided yet";
+  const nationality = String(host?.nationality || "").trim();
+  return nationality ? `${nationality} host` : "Host";
 };
 
 const getInitials = (name = "") =>
@@ -1253,12 +1244,16 @@ function BookingCard({
       return;
     }
 
-    // Redirect to the checkout / identity-verification page
+    // ── Intercept: redirect to Checkout page instead of calling API directly ──
     navigate(`/checkout/${id}`, {
       state: {
         checkIn: dates.checkIn,
         checkOut: dates.checkOut,
-        property,
+        propertyTitle: property.title,
+        pricePerNight: property.pricePerNight,
+        propertyImage: property.images?.[0] || null,
+        propertyCity: property.city || "",
+        lockStart: Date.now(),
       },
     });
   }
@@ -1366,12 +1361,12 @@ function BookingCard({
         )}
 
         <button
-          type="button"
+          // type="button"
           className="pd-primary-btn"
           onClick={handleReserveFunction}
-          disabled={Boolean(bookingConflictMessage)}
+          // disabled={!isBookingValid || Boolean(bookingConflictMessage)}
         >
-          Book Now
+          Reserve
         </button>
 
         <div className="pd-booking__total">
@@ -2008,21 +2003,11 @@ function HostSection({ host, property }) {
   const hostPhone = property?.host_phone || host?.phone || "";
   const hostEmail = property?.host_email || host?.email || "";
   const hostLanguages = normalizeDisplayList(host.languages);
-  const memberSince = formatMemberSince(host.createdAt);
   const hostDetails = [
-    host.nationality && { label: "Nationality", value: host.nationality },
-    hostLanguages.length > 0 && {
-      label: "Languages",
-      value: hostLanguages.join(", "),
-    },
-    memberSince && { label: "Member since", value: memberSince },
     hostPhone && { label: "Phone", value: hostPhone },
     hostEmail && { label: "Email", value: hostEmail },
   ].filter(Boolean);
-  const hostBadges = [
-    host.verified && "Verified host",
-    hostLanguages.length > 0 && `${hostLanguages.length} language${hostLanguages.length > 1 ? "s" : ""}`,
-  ].filter(Boolean);
+  const hostBadges = [host.verified && "Verified host"].filter(Boolean);
 
   return (
     <section className="pd-section" id="host-section">
@@ -2059,23 +2044,34 @@ function HostSection({ host, property }) {
               <p>{hostSubline}</p>
             </div>
           </div>
-        </div>
 
-        <div className="pd-host__details">
-          <div className="pd-host__bio-block">
-            <span>Host bio</span>
-            <p className={host.bio ? "pd-host__bio" : "pd-host__bio pd-muted-copy"}>
-              {host.bio || "Not provided yet"}
-            </p>
-          </div>
+          {hostLanguages.length > 0 && (
+            <div className="pd-host__language-panel">
+              <span>Languages spoken</span>
+              <div className="pd-host__language-list">
+                {hostLanguages.map((language) => (
+                  <span key={language}>{language}</span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {hostBadges.length > 0 && (
-            <div className="pd-host__trust-list" aria-label="Host details">
+            <div className="pd-host__trust-list pd-host__trust-list--identity" aria-label="Host signals">
               {hostBadges.map((signal) => (
                 <span key={signal}>{signal}</span>
               ))}
             </div>
           )}
+        </div>
+
+        <div className="pd-host__details">
+          <div className="pd-host__bio-block">
+            <span>About your host</span>
+            <p className={host.bio ? "pd-host__bio" : "pd-host__bio pd-muted-copy"}>
+              {host.bio || "Not provided yet"}
+            </p>
+          </div>
 
           <dl className="pd-host__info-list">
             {hostDetails.length > 0 ? (

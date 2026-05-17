@@ -16,8 +16,8 @@ import Publish from "./pages/Publish";
 import RentalRequests from "./RentalRequests";
 import AccountSettings from "./pages/AccountSettings";
 import MyBookings from "./pages/MyBookings";
-import CheckoutPage from "./pages/CheckoutPage";
 import MyProperties from "./pages/MyProperties";
+import Checkout from "./pages/Checkout";
 
 import { useToken } from "./Contexts/TokenContext";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
@@ -67,24 +67,21 @@ function App() {
         <Route path="/property-details/:id" element={<PropertyDetails />} />
 
         <Route
-          path="/publish"
-          element={<Navigate to="/new-listing" replace />}
+          path="/checkout/:propertyId"
+          element={
+            <ProtectedRoute>
+              <Checkout />
+            </ProtectedRoute>
+          }
         />
+
+        <Route path="/publish" element={<Publish />} />
+
         <Route
           path="/new-listing"
           element={
             <ProtectedRoute>
               <Publish />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Checkout / Booking Review page */}
-        <Route
-          path="/checkout/:propertyId"
-          element={
-            <ProtectedRoute>
-              <CheckoutPage />
             </ProtectedRoute>
           }
         />

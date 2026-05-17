@@ -31,6 +31,13 @@ import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettin
 
 import profilePicture1 from "../assets/1.jpg";
 import NotificationDropdown from "./NotificationDropdown";
+import { buildApiUrl } from "../lib/api";
+
+const getProfilePictureSrc = (user) => {
+  const picture = user?.profilePicture || user?.profile_picture;
+  if (!picture) return profilePicture1;
+  return String(picture).startsWith("/uploads") ? buildApiUrl(picture) : picture;
+};
 
 export default function Header() {
   const themeGlobal = useThemeGlobal();
@@ -39,6 +46,7 @@ export default function Header() {
   const userRole = user?.role;
   const isHost = userRole === "host" || userRole === "admin";
   const isAdmin = userRole === "admin";
+  const profilePictureSrc = getProfilePictureSrc(user);
 
   const [anchorEl, setAnchorEl] = React.useState(null);
   const isMenuOpen = Boolean(anchorEl);
@@ -90,8 +98,8 @@ export default function Header() {
           borderRadius: "12px",
           minWidth: "220px",
           "& .MuiAvatar-root": {
-            width: 32,
-            height: 32,
+            width: 38,
+            height: 38,
             ml: -0.5,
             mr: 1,
           },
@@ -112,7 +120,8 @@ export default function Header() {
     >
       <MenuItem onClick={() => goTo("/account-settings")} sx={{ py: 1.5 }}>
         <Avatar
-          src={user?.profilePicture || user?.profile_picture || profilePicture1}
+          src={profilePictureSrc}
+          imgProps={{ style: { objectFit: "cover" } }}
         />
         <div style={{ display: "flex", flexDirection: "column" }}>
           <span
@@ -365,12 +374,9 @@ export default function Header() {
                         />
                         <Avatar
                           alt="User Profile"
-                          src={
-                            user?.profilePicture ||
-                            user?.profile_picture ||
-                            profilePicture1
-                          }
-                          sx={{ width: 32, height: 32 }}
+                          src={profilePictureSrc}
+                          imgProps={{ style: { objectFit: "cover" } }}
+                          sx={{ width: 38, height: 38 }}
                         />
                       </Stack>
                     </IconButton>
