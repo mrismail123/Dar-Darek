@@ -1,5 +1,6 @@
 import Logo from "./assets/dardarek-logo.png";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
+import { Link } from "react-router-dom";
 
 export default function Footer() {
     const themeGlobal = useThemeGlobal();
@@ -31,6 +32,7 @@ export default function Footer() {
                         <a href="/" className="site-footer__link">List your property</a>
                         <a href="/" className="site-footer__link">Host guide</a>
                         <a href="/" className="site-footer__link">Trust & safety</a>
+                        <Link to="/privacy-policy" className="site-footer__link">Privacy Policy</Link>
                         <a href="/" className="site-footer__link">Support</a>
                     </div>
 

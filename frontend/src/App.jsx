@@ -18,6 +18,8 @@ import AccountSettings from "./pages/AccountSettings";
 import MyBookings from "./pages/MyBookings";
 import MyProperties from "./pages/MyProperties";
 import Checkout from "./pages/Checkout";
+import CookieBanner from "./pages/CookieBanner";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 import { useToken } from "./Contexts/TokenContext";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
@@ -65,6 +67,7 @@ function App() {
         <Route path="/properties" element={<PropertiesPage />} />
 
         <Route path="/property-details/:id" element={<PropertyDetails />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
         <Route
           path="/checkout/:propertyId"
@@ -149,6 +152,7 @@ function App() {
           element={<ResetPassword />}
         />
       </Routes>
+      <CookieBanner />
     </div>
   );
 }

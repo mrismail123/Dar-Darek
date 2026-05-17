@@ -800,7 +800,9 @@ const sendSmsVerificationCode = async ({ phone, code }) => {
 
 const canSendVerificationCode = (sentAt) => {
   if (!sentAt) return true;
-  return Date.now() - new Date(sentAt).getTime() >= VERIFICATION_CODE_COOLDOWN_MS;
+  return (
+    Date.now() - new Date(sentAt).getTime() >= VERIFICATION_CODE_COOLDOWN_MS
+  );
 };
 
 const sendSafeUser = (res, user) => {
@@ -1033,19 +1035,16 @@ app.put("/api/users/email", verifyToken, async (req, res) => {
         .json({ message: "Enter a different email address to verify." });
     }
 
-    if (!canSendVerificationCode(currentUser.pending_email_verification_sent_at)) {
+    if (
+      !canSendVerificationCode(currentUser.pending_email_verification_sent_at)
+    ) {
       return res.status(429).json({
         message: "Please wait a minute before requesting another email code.",
       });
     }
 
     const code = createVerificationCode();
-    const codeHash = hashVerificationCode(
-      code,
-      userId,
-      "pending-email",
-      email,
-    );
+    const codeHash = hashVerificationCode(code, userId, "pending-email", email);
     const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
 
     try {
@@ -1125,7 +1124,8 @@ app.post("/api/users/email/verify-change", verifyToken, async (req, res) => {
 
     if (
       !user.pending_email_verification_expires_at ||
-      new Date(user.pending_email_verification_expires_at).getTime() < Date.now()
+      new Date(user.pending_email_verification_expires_at).getTime() <
+        Date.now()
     ) {
       return res.status(410).json({
         message: "Code expired. Please request a new email verification code.",
@@ -1183,70 +1183,74 @@ app.post("/api/users/email/verify-change", verifyToken, async (req, res) => {
   }
 });
 
-app.post("/api/users/email/send-verification", verifyToken, async (req, res) => {
-  try {
-    const userId = getUserIdFromRequest(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Invalid authenticated user." });
-    }
+app.post(
+  "/api/users/email/send-verification",
+  verifyToken,
+  async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Invalid authenticated user." });
+      }
 
-    const [rows] = await db.query(
-      `SELECT name, email, email_verified, email_verification_sent_at
+      const [rows] = await db.query(
+        `SELECT name, email, email_verified, email_verification_sent_at
        FROM users
        WHERE id_user = ?
        LIMIT 1`,
-      [userId],
-    );
+        [userId],
+      );
 
-    const user = rows[0];
-    if (!user) {
-      return res.status(404).json({ message: "User not found." });
-    }
+      const user = rows[0];
+      if (!user) {
+        return res.status(404).json({ message: "User not found." });
+      }
 
-    if (!user.email || !ACCOUNT_EMAIL_REGEX.test(user.email)) {
-      return res
-        .status(400)
-        .json({ message: "Add a valid email address before verifying it." });
-    }
+      if (!user.email || !ACCOUNT_EMAIL_REGEX.test(user.email)) {
+        return res
+          .status(400)
+          .json({ message: "Add a valid email address before verifying it." });
+      }
 
-    if (Number(user.email_verified) === 1) {
-      return res.status(400).json({ message: "Email is already verified." });
-    }
+      if (Number(user.email_verified) === 1) {
+        return res.status(400).json({ message: "Email is already verified." });
+      }
 
-    if (!canSendVerificationCode(user.email_verification_sent_at)) {
-      return res.status(429).json({
-        message: "Please wait a minute before requesting another email code.",
+      if (!canSendVerificationCode(user.email_verification_sent_at)) {
+        return res.status(429).json({
+          message: "Please wait a minute before requesting another email code.",
+        });
+      }
+
+      const code = createVerificationCode();
+      const codeHash = hashVerificationCode(code, userId, "email", user.email);
+      const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
+
+      await sendEmailVerificationCode({
+        email: user.email,
+        name: user.name,
+        code,
       });
-    }
 
-    const code = createVerificationCode();
-    const codeHash = hashVerificationCode(code, userId, "email", user.email);
-    const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
-
-    await sendEmailVerificationCode({
-      email: user.email,
-      name: user.name,
-      code,
-    });
-
-    await db.execute(
-      `UPDATE users
+      await db.execute(
+        `UPDATE users
        SET email_verification_code_hash = ?,
            email_verification_expires_at = ?,
            email_verification_sent_at = NOW()
        WHERE id_user = ?`,
-      [codeHash, expiresAt, userId],
-    );
+        [codeHash, expiresAt, userId],
+      );
 
-    return res.status(200).json({
-      message: "Email verification code sent. It expires in 10 minutes.",
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: error.message || "Could not send email verification code.",
-    });
-  }
-});
+      return res.status(200).json({
+        message: "Email verification code sent. It expires in 10 minutes.",
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: error.message || "Could not send email verification code.",
+      });
+    }
+  },
+);
 
 app.post("/api/users/email/verify", verifyToken, async (req, res) => {
   try {
@@ -1294,14 +1298,18 @@ app.post("/api/users/email/verify", verifyToken, async (req, res) => {
       });
     }
 
-    const incomingHash = hashVerificationCode(code, userId, "email", user.email);
+    const incomingHash = hashVerificationCode(
+      code,
+      userId,
+      "email",
+      user.email,
+    );
     if (
-      !isVerificationHashMatch(
-        user.email_verification_code_hash,
-        incomingHash,
-      )
+      !isVerificationHashMatch(user.email_verification_code_hash, incomingHash)
     ) {
-      return res.status(400).json({ message: "Email verification code is wrong." });
+      return res
+        .status(400)
+        .json({ message: "Email verification code is wrong." });
     }
 
     await db.execute(
@@ -1323,74 +1331,82 @@ app.post("/api/users/email/verify", verifyToken, async (req, res) => {
   }
 });
 
-app.post("/api/users/phone/send-verification", verifyToken, async (req, res) => {
-  try {
-    const userId = getUserIdFromRequest(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Invalid authenticated user." });
-    }
+app.post(
+  "/api/users/phone/send-verification",
+  verifyToken,
+  async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Invalid authenticated user." });
+      }
 
-    const [rows] = await db.query(
-      `SELECT phone_number, phone_verified, phone_verification_sent_at
+      const [rows] = await db.query(
+        `SELECT phone_number, phone_verified, phone_verification_sent_at
        FROM users
        WHERE id_user = ?
        LIMIT 1`,
-      [userId],
-    );
+        [userId],
+      );
 
-    const user = rows[0];
-    if (!user) {
-      return res.status(404).json({ message: "User not found." });
-    }
+      const user = rows[0];
+      if (!user) {
+        return res.status(404).json({ message: "User not found." });
+      }
 
-    const normalizedPhoneNumber = normalizePhoneForUsersTable(user.phone_number);
+      const normalizedPhoneNumber = normalizePhoneForUsersTable(
+        user.phone_number,
+      );
 
-    if (!normalizedPhoneNumber || !isValidPhoneValue(normalizedPhoneNumber)) {
-      return res
-        .status(400)
-        .json({ message: "Add a valid phone number before verifying it." });
-    }
+      if (!normalizedPhoneNumber || !isValidPhoneValue(normalizedPhoneNumber)) {
+        return res
+          .status(400)
+          .json({ message: "Add a valid phone number before verifying it." });
+      }
 
-    if (Number(user.phone_verified) === 1) {
-      return res.status(400).json({ message: "Phone number is already verified." });
-    }
+      if (Number(user.phone_verified) === 1) {
+        return res
+          .status(400)
+          .json({ message: "Phone number is already verified." });
+      }
 
-    if (!canSendVerificationCode(user.phone_verification_sent_at)) {
-      return res.status(429).json({
-        message: "Please wait a minute before requesting another SMS code.",
-      });
-    }
+      if (!canSendVerificationCode(user.phone_verification_sent_at)) {
+        return res.status(429).json({
+          message: "Please wait a minute before requesting another SMS code.",
+        });
+      }
 
-    const code = createVerificationCode();
-    const codeHash = hashVerificationCode(
-      code,
-      userId,
-      "phone",
-      normalizedPhoneNumber,
-    );
-    const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
+      const code = createVerificationCode();
+      const codeHash = hashVerificationCode(
+        code,
+        userId,
+        "phone",
+        normalizedPhoneNumber,
+      );
+      const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
 
-    await sendSmsVerificationCode({ phone: normalizedPhoneNumber, code });
+      await sendSmsVerificationCode({ phone: normalizedPhoneNumber, code });
 
-    await db.execute(
-      `UPDATE users
+      await db.execute(
+        `UPDATE users
        SET phone_verification_code_hash = ?,
            phone_verification_expires_at = ?,
            phone_verification_sent_at = NOW(),
            phone_number = ?
        WHERE id_user = ?`,
-      [codeHash, expiresAt, normalizedPhoneNumber, userId],
-    );
+        [codeHash, expiresAt, normalizedPhoneNumber, userId],
+      );
 
-    return res.status(200).json({
-      message: "SMS verification code sent. It expires in 10 minutes.",
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: error.message || "Could not send SMS verification code.",
-    });
-  }
-});
+      return res.status(200).json({
+        message: "SMS verification code sent. It expires in 10 minutes.",
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: error.message || "Could not send SMS verification code.",
+      });
+    }
+  },
+);
 
 app.post("/api/users/phone/verify", verifyToken, async (req, res) => {
   try {
@@ -1445,12 +1461,11 @@ app.post("/api/users/phone/verify", verifyToken, async (req, res) => {
       user.phone_number,
     );
     if (
-      !isVerificationHashMatch(
-        user.phone_verification_code_hash,
-        incomingHash,
-      )
+      !isVerificationHashMatch(user.phone_verification_code_hash, incomingHash)
     ) {
-      return res.status(400).json({ message: "SMS verification code is wrong." });
+      return res
+        .status(400)
+        .json({ message: "SMS verification code is wrong." });
     }
 
     await db.execute(
@@ -3914,11 +3929,9 @@ app.post("/api/reports", verifyToken, async (req, res) => {
   }
 
   if (!reason || reason.length < 20) {
-    return res
-      .status(400)
-      .json({
-        message: "Please describe the issue in at least 20 characters.",
-      });
+    return res.status(400).json({
+      message: "Please describe the issue in at least 20 characters.",
+    });
   }
 
   try {
@@ -4238,18 +4251,14 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
     const cleanPhone = String(guest_phone || "").trim();
 
     if (!cleanName || cleanName.length < 5) {
-      return res
-        .status(400)
-        .json({
-          message: "Please provide your full name (minimum 5 characters).",
-        });
+      return res.status(400).json({
+        message: "Please provide your full name (minimum 5 characters).",
+      });
     }
     if (!cleanId || cleanId.length < 5) {
-      return res
-        .status(400)
-        .json({
-          message: "Please provide a valid ID / CIN / Passport number.",
-        });
+      return res.status(400).json({
+        message: "Please provide a valid ID / CIN / Passport number.",
+      });
     }
     if (!cleanPhone || !/^[\d\s()+-]{7,20}$/.test(cleanPhone)) {
       return res
@@ -4257,12 +4266,9 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
         .json({ message: "Please provide a valid phone number." });
     }
     if (!agreed_to_terms) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "You must accept the rental agreement to confirm the booking.",
-        });
+      return res.status(400).json({
+        message: "You must accept the rental agreement to confirm the booking.",
+      });
     }
 
     // -- Property lookup --
