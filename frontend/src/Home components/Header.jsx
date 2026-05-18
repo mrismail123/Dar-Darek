@@ -170,6 +170,7 @@ export default function Header() {
         >
           <EventNoteOutlinedIcon
             sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
+            
           />
           Rental Requests
         </MenuItem>
