@@ -2630,6 +2630,30 @@ export default function AccountSettings() {
     }
   };
 
+  const deactivateHostMode = async () => {
+    try {
+      setHostingSaving(true);
+      const data = await accountRequest("/api/users/deactivate-host", {
+        method: "PUT",
+      });
+      const nextRole = data.role || "user";
+      setAccountRole(nextRole);
+      setHosting((current) => ({ ...current, hostMode: false }));
+
+      const nextStoredUser = {
+        ...(ctxUser || storedUser || {}),
+        role: nextRole,
+      };
+      localStorage.setItem("user", JSON.stringify(nextStoredUser));
+      setUser(nextStoredUser);
+      showToast("Host mode deactivated.");
+    } catch (error) {
+      showToast(error.message || "Could not deactivate host mode.", "warning");
+    } finally {
+      setHostingSaving(false);
+    }
+  };
+
   const saveNotificationPreferences = () => {
     showToast("Notification delivery preferences will be connected later.");
   };
@@ -3701,6 +3725,16 @@ export default function AccountSettings() {
                               Backend verification and approval will be
                               connected later.
                             </div>
+
+                            <button
+                              className="settings-btn settings-btn--ghost settings-btn--fit"
+                              style={{ marginTop: "15px", color: "#DC2626" }}
+                              type="button"
+                              onClick={deactivateHostMode}
+                              disabled={hostingSaving}
+                            >
+                              Deactivate host mode
+                            </button>
                           </>
                         ) : (
                           <>

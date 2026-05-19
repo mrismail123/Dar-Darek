@@ -210,6 +210,42 @@ const ensureNotificationsSchema = async () => {
   notificationsSchemaReady = true;
 };
 
+let reviewsSchemaReady = false;
+
+const ensureReviewsSchema = async () => {
+  if (reviewsSchemaReady) return;
+
+  try {
+    const [indexes] = await db.query(
+      `SELECT INDEX_NAME
+       FROM INFORMATION_SCHEMA.STATISTICS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'reviews'
+         AND INDEX_NAME = 'uq_reviews_booking_user'
+       LIMIT 1`,
+    );
+
+    if (indexes.length === 0) {
+      // Remove any existing duplicates before adding the constraint
+      await db.query(
+        `DELETE r1 FROM reviews r1
+         INNER JOIN reviews r2
+         ON r1.id_booking = r2.id_booking
+           AND r1.id_user = r2.id_user
+           AND r1.id_review > r2.id_review`,
+      );
+
+      await db.query(
+        `ALTER TABLE reviews ADD UNIQUE INDEX uq_reviews_booking_user (id_booking, id_user)`,
+      );
+    }
+
+    reviewsSchemaReady = true;
+  } catch (schemaErr) {
+    console.error("Failed to migrate reviews schema:", schemaErr.message);
+  }
+};
+
 let bookingsSchemaReady = false;
 
 const ensureBookingsSchema = async () => {
@@ -251,9 +287,61 @@ const ensureBookingsSchema = async () => {
       );
     }
 
+    // Migrate bookings.status ENUM to include 'cancelled'
+    const [bookingStatusCols] = await db.query(
+      `SELECT COLUMN_TYPE
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'bookings'
+         AND COLUMN_NAME = 'status'
+       LIMIT 1`,
+    );
+
+    const bookingStatusType = bookingStatusCols[0]?.COLUMN_TYPE || "";
+
+    if (
+      bookingStatusType.includes("enum") &&
+      !bookingStatusType.includes("'cancelled'")
+    ) {
+      await db.query(
+        "ALTER TABLE bookings MODIFY COLUMN status ENUM('pending','approved','rejected','cancelled') DEFAULT 'pending'",
+      );
+    }
+
     bookingsSchemaReady = true;
   } catch (schemaErr) {
     console.error("Failed to migrate bookings schema:", schemaErr.message);
+  }
+};
+
+const BOOKING_LOCK_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+let bookingLocksSchemaReady = false;
+
+const ensureBookingLocksSchema = async () => {
+  if (bookingLocksSchemaReady) return;
+
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS booking_locks (
+        id_lock INT NOT NULL AUTO_INCREMENT,
+        id_property INT NOT NULL,
+        id_user INT NOT NULL,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id_lock),
+        KEY idx_locks_property (id_property),
+        KEY idx_locks_expires (expires_at),
+        CONSTRAINT booking_locks_property_fk FOREIGN KEY (id_property) REFERENCES properties (id_property) ON DELETE CASCADE,
+        CONSTRAINT booking_locks_user_fk FOREIGN KEY (id_user) REFERENCES users (id_user) ON DELETE CASCADE
+      )
+    `);
+
+    bookingLocksSchemaReady = true;
+  } catch (schemaErr) {
+    console.error("Failed to create booking_locks table:", schemaErr.message);
   }
 };
 
@@ -309,6 +397,8 @@ const verifyToken = async (req, res, next) => {
     await ensureModerationSchema();
     await ensureNotificationsSchema();
     await ensureBookingsSchema();
+    await ensureReviewsSchema();
+    await ensureBookingLocksSchema();
 
     const verified = jwt.verify(
       token,
@@ -507,6 +597,28 @@ app.get("/api/test-db", async (req, res) => {
 /* =========================
    USER ACCOUNT ROUTES
 ========================= */
+
+app.post('/api/verifyHostMode', async (req, res) => {
+  const { id } = req.body;
+  try {
+    const [rows] = await db.query("SELECT role FROM users WHERE id_user=?", [id]);
+    if (rows.length === 0) {
+      res.status(404).json({ message: "No user found" });
+      return;
+    }
+
+    if (rows[0].role !== "host" && rows[0].role !== "admin") {
+      res.status(400).json({ message: "You have to enable host mode" });
+      return;
+    }
+
+    res.status(200).json({ message: "go ahead" });
+  } catch (error) {
+    console.error("Error verifying host mode:", error);
+    res.status(500).json({ message: "An error occured" });
+  }
+});
+
 
 const USER_ACCOUNT_FIELDS = `
   id_user,
@@ -1125,7 +1237,7 @@ app.post("/api/users/email/verify-change", verifyToken, async (req, res) => {
     if (
       !user.pending_email_verification_expires_at ||
       new Date(user.pending_email_verification_expires_at).getTime() <
-        Date.now()
+      Date.now()
     ) {
       return res.status(410).json({
         message: "Code expired. Please request a new email verification code.",
@@ -1505,7 +1617,7 @@ app.put(
       }
 
       if (!req.file.mimetype.startsWith("image/")) {
-        fs.unlink(req.file.path, () => {});
+        fs.unlink(req.file.path, () => { });
         return res
           .status(400)
           .json({ message: "Only image files are allowed." });
@@ -1784,6 +1896,41 @@ app.put("/api/users/become-host", verifyToken, async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: "Could not enable host mode.",
+      details: error.message,
+    });
+  }
+});
+
+app.put("/api/users/deactivate-host", verifyToken, async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid authenticated user." });
+    }
+
+    const [rows] = await db.query(
+      "SELECT role FROM users WHERE id_user = ? LIMIT 1",
+      [userId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const currentRole = rows[0].role;
+    const nextRole = currentRole === "admin" ? "admin" : "user";
+
+    if (currentRole !== nextRole) {
+      await db.execute("UPDATE users SET role = ? WHERE id_user = ?", [
+        nextRole,
+        userId,
+      ]);
+    }
+
+    return res.status(200).json({ role: nextRole });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not deactivate host mode.",
       details: error.message,
     });
   }
@@ -2601,6 +2748,27 @@ app.get("/api/properties/:id/edit", verifyToken, async (req, res) => {
   }
 });
 
+const deletePropertyImages = async (propertyId) => {
+  const [images] = await db.query(
+    "SELECT image_url FROM property_images WHERE id_property = ?",
+    [propertyId],
+  );
+
+  for (const img of images) {
+    if (!img.image_url) continue;
+    const fileName = img.image_url.replace(/^\/uploads\//, "");
+    const filePath = path.join(uploadDir, fileName);
+
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch {
+      /* best-effort cleanup */
+    }
+  }
+};
+
 app.delete("/api/my-properties/:id/draft", verifyToken, async (req, res) => {
   const userId = getUserIdFromRequest(req);
   const propertyId = Number(req.params.id);
@@ -2629,6 +2797,7 @@ app.delete("/api/my-properties/:id/draft", verifyToken, async (req, res) => {
         .json({ message: "Only drafts can be deleted here." });
     }
 
+    await deletePropertyImages(propertyId);
     await db.query("DELETE FROM property_amenities WHERE id_property = ?", [
       propertyId,
     ]);
@@ -2644,6 +2813,70 @@ app.delete("/api/my-properties/:id/draft", verifyToken, async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: "Could not delete this draft.",
+      details: error.message,
+    });
+  }
+});
+
+app.delete("/api/my-properties/:id", verifyToken, async (req, res) => {
+  const userId = getUserIdFromRequest(req);
+  const propertyId = Number(req.params.id);
+
+  if (!userId) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ message: "Invalid property id." });
+  }
+
+  try {
+    const [propertyRows] = await db.query(
+      "SELECT id_property, status FROM properties WHERE id_property = ? AND id_user = ? LIMIT 1",
+      [propertyId, userId],
+    );
+
+    if (propertyRows.length === 0) {
+      return res.status(404).json({ message: "Property not found." });
+    }
+
+    // Block deletion if there are active or upcoming approved bookings
+    const [activeBookings] = await db.query(
+      `SELECT id_booking FROM bookings
+       WHERE id_property = ?
+         AND status IN ('pending', 'approved')
+         AND end_date >= CURDATE()
+       LIMIT 1`,
+      [propertyId],
+    );
+
+    if (activeBookings.length > 0) {
+      return res.status(409).json({
+        message:
+          "This property has active or upcoming bookings and cannot be deleted right now.",
+      });
+    }
+
+    await deletePropertyImages(propertyId);
+    await db.query("DELETE FROM property_amenities WHERE id_property = ?", [
+      propertyId,
+    ]);
+    await db.query("DELETE FROM property_images WHERE id_property = ?", [
+      propertyId,
+    ]);
+    await db.query("DELETE FROM reviews WHERE id_property = ?", [propertyId]);
+    await db.query("DELETE FROM notifications WHERE id_property = ?", [
+      propertyId,
+    ]);
+    await db.query(
+      "DELETE FROM properties WHERE id_property = ? AND id_user = ?",
+      [propertyId, userId],
+    );
+
+    return res.status(200).json({ message: "Property deleted." });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not delete this property.",
       details: error.message,
     });
   }
@@ -3704,6 +3937,10 @@ app.get(
       const propertyWhere = statusFilter === "all" ? "" : "WHERE p.status = ?";
       const propertyParams = statusFilter === "all" ? [] : [statusFilter];
 
+      const page = Math.max(1, Number(req.query?.page) || 1);
+      const limit = Math.min(100, Math.max(1, Number(req.query?.limit) || 50));
+      const offset = (page - 1) * limit;
+
       const [result] = await db.query(
         `
         SELECT 
@@ -3726,8 +3963,9 @@ app.get(
         CASE WHEN p.status = 'pending' THEN 0 ELSE 1 END,
         p.created_at DESC,
         p.id_property DESC
+      LIMIT ? OFFSET ?
       `,
-        propertyParams,
+        [...propertyParams, limit, offset],
       );
 
       const [statusCounts] = await db.query(`
@@ -3759,6 +3997,7 @@ app.get(
       res.status(200).json({
         pendingProperties: result,
         summary,
+        pagination: { page, limit },
       });
     } catch (error) {
       res.status(500).json({ details: error.message });
@@ -4209,8 +4448,181 @@ app.patch(
 );
 
 /* =========================
+   ADMIN: USER LIST
+========================= */
+
+app.get("/api/admin/users", verifyToken, verifyAdmin, async (req, res) => {
+  const search = cleanText(req.query?.search, 100);
+  const page = Math.max(1, Number(req.query?.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(req.query?.limit) || 50));
+  const offset = (page - 1) * limit;
+  const statusFilter = cleanText(req.query?.status, 20);
+
+  const whereClauses = ["u.role != 'admin'"];
+  const queryParams = [];
+
+  if (search) {
+    whereClauses.push("(u.name LIKE ? OR u.email LIKE ?)");
+    queryParams.push(`%${search}%`, `%${search}%`);
+  }
+
+  if (statusFilter === "suspended") {
+    whereClauses.push("u.is_suspended = 1");
+  } else if (statusFilter === "active") {
+    whereClauses.push("u.is_suspended = 0 AND u.is_active = 1");
+  } else if (statusFilter === "inactive") {
+    whereClauses.push("u.is_active = 0");
+  }
+
+  const whereString = whereClauses.length
+    ? `WHERE ${whereClauses.join(" AND ")}`
+    : "";
+
+  try {
+    const [users] = await db.query(
+      `SELECT
+         u.id_user,
+         u.name,
+         u.email,
+         u.role,
+         u.phone_number,
+         u.profile_picture,
+         u.is_active,
+         u.is_suspended,
+         u.suspension_reason,
+         u.suspended_at,
+         u.created_at,
+         (SELECT COUNT(*) FROM properties p WHERE p.id_user = u.id_user) AS property_count,
+         (SELECT COUNT(*) FROM bookings b WHERE b.id_user = u.id_user) AS booking_count
+       FROM users u
+       ${whereString}
+       ORDER BY u.is_suspended DESC, u.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...queryParams, limit, offset],
+    );
+
+    const [countResult] = await db.query(
+      `SELECT COUNT(*) AS total FROM users u ${whereString}`,
+      queryParams,
+    );
+
+    const total = Number(countResult[0]?.total) || 0;
+
+    return res.status(200).json({
+      users,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not load user list.",
+      details: error.message,
+    });
+  }
+});
+
+/* =========================
    BOOKING ROUTES
 ========================= */
+
+// Acquire a temporary hold on dates during checkout
+app.post("/api/booking-lock", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+  const { id_property, checkIn, checkOut } = req.body;
+  const propertyId = Number(id_property);
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+  if (
+    !Number.isFinite(propertyId) ||
+    propertyId <= 0 ||
+    !checkIn ||
+    !checkOut
+  ) {
+    return res.status(400).json({ message: "Property and dates are required." });
+  }
+
+  if (!dateRegex.test(checkIn) || !dateRegex.test(checkOut)) {
+    return res
+      .status(400)
+      .json({ message: "Dates must use YYYY-MM-DD format." });
+  }
+
+  try {
+    // Purge expired locks
+    await db.execute("DELETE FROM booking_locks WHERE expires_at < NOW()");
+
+    // Check for conflicting locks from OTHER users
+    const [conflictingLocks] = await db.query(
+      `SELECT id_lock FROM booking_locks
+       WHERE id_property = ?
+         AND id_user != ?
+         AND (start_date < ? AND end_date > ?)
+       LIMIT 1`,
+      [propertyId, userId, checkOut, checkIn],
+    );
+
+    if (conflictingLocks.length > 0) {
+      return res.status(409).json({
+        message:
+          "Another guest is currently completing a booking for these dates. Please wait a few minutes or choose different dates.",
+      });
+    }
+
+    // Remove any existing lock from the same user for this property
+    await db.execute(
+      "DELETE FROM booking_locks WHERE id_property = ? AND id_user = ?",
+      [propertyId, userId],
+    );
+
+    // Create the lock
+    const expiresAt = new Date(Date.now() + BOOKING_LOCK_TTL_MS);
+
+    const [result] = await db.execute(
+      `INSERT INTO booking_locks (id_property, id_user, start_date, end_date, expires_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [propertyId, userId, checkIn, checkOut, expiresAt],
+    );
+
+    return res.status(201).json({
+      lockId: result.insertId,
+      expiresAt: expiresAt.toISOString(),
+      ttlMs: BOOKING_LOCK_TTL_MS,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not acquire booking lock.",
+      details: error.message,
+    });
+  }
+});
+
+// Release a booking lock
+app.delete("/api/booking-lock/:id", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+  const lockId = Number(req.params.id);
+
+  if (!Number.isFinite(lockId) || lockId <= 0) {
+    return res.status(400).json({ message: "Invalid lock id." });
+  }
+
+  try {
+    await db.execute(
+      "DELETE FROM booking_locks WHERE id_lock = ? AND id_user = ?",
+      [lockId, userId],
+    );
+
+    return res.status(200).json({ message: "Booking lock released." });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Could not release booking lock.",
+      details: error.message,
+    });
+  }
+});
 
 app.post("/api/bookingProperty", verifyToken, async (req, res) => {
   const {
@@ -4313,7 +4725,7 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
     // -- Pricing --
     const nights = Math.ceil(
       (new Date(checkOut).getTime() - new Date(checkIn).getTime()) /
-        (1000 * 60 * 60 * 24),
+      (1000 * 60 * 60 * 24),
     );
     const totalPrice = Number(property.price_per_day) * nights;
 
@@ -4353,6 +4765,24 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       });
     }
 
+    // -- Double-check: lock conflict from another user --
+    const [lockConflict] = await db.query(
+      `SELECT id_lock FROM booking_locks
+       WHERE id_property = ?
+         AND id_user != ?
+         AND expires_at > NOW()
+         AND (start_date < ? AND end_date > ?)
+       LIMIT 1`,
+      [propertyId, bookingUserId, checkOut, checkIn],
+    );
+
+    if (lockConflict.length > 0) {
+      return res.status(409).json({
+        message:
+          "Another guest is currently completing a booking for these dates. Please try again shortly.",
+      });
+    }
+
     // -- Insert booking with identity fields --
     const [insertResult] = await db.query(
       `INSERT INTO bookings
@@ -4389,6 +4819,16 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
         "Failed to notify host about new booking:",
         notifyErr.message,
       );
+    }
+
+    // -- Clean up user's booking lock for this property --
+    try {
+      await db.execute(
+        "DELETE FROM booking_locks WHERE id_property = ? AND id_user = ?",
+        [propertyId, bookingUserId],
+      );
+    } catch {
+      /* best-effort lock cleanup */
     }
 
     res
@@ -4461,6 +4901,7 @@ app.get("/api/my-bookings", verifyToken, async (req, res) => {
         b.total_price AS totalPrice,
         CASE
           WHEN b.status = 'pending' THEN 'pending'
+          WHEN b.status = 'cancelled' THEN 'cancelled'
           WHEN b.status = 'rejected' THEN 'cancelled'
           WHEN b.status = 'approved' AND b.end_date < CURDATE() THEN 'completed'
           ELSE 'upcoming'
@@ -4519,7 +4960,7 @@ app.patch("/api/my-bookings/:id/cancel", verifyToken, async (req, res) => {
 
     const booking = rows[0];
 
-    if (booking.status === "rejected") {
+    if (booking.status === "cancelled" || booking.status === "rejected") {
       return res.status(200).json({ message: "Booking is already cancelled." });
     }
 
@@ -4530,7 +4971,7 @@ app.patch("/api/my-bookings/:id/cancel", verifyToken, async (req, res) => {
     }
 
     await db.execute(
-      "UPDATE bookings SET status = 'rejected' WHERE id_booking = ? AND id_user = ?",
+      "UPDATE bookings SET status = 'cancelled' WHERE id_booking = ? AND id_user = ?",
       [bookingId, userId],
     );
 
@@ -4763,10 +5204,10 @@ app.get("/api/properties/:id/reviews", async (req, res) => {
     const avgRating =
       reviews.length > 0
         ? Math.round(
-            (reviews.reduce((sum, r) => sum + Number(r.rating), 0) /
-              reviews.length) *
-              10,
-          ) / 10
+          (reviews.reduce((sum, r) => sum + Number(r.rating), 0) /
+            reviews.length) *
+          10,
+        ) / 10
         : null;
 
     res.status(200).json({ reviews, avgRating, count: reviews.length });
@@ -5073,6 +5514,24 @@ const getFavoritesForCurrentUser = async (req, res) => {
 
 app.get("/api/favorites", verifyToken, getFavoritesForCurrentUser);
 app.get("/api/favorites/:userId", verifyToken, getFavoritesForCurrentUser);
+
+/* =========================
+   404 CATCH-ALL & ERROR HANDLER
+========================= */
+
+app.use("/api/*path", (req, res) => {
+  res.status(404).json({
+    message: `API route not found: ${req.method} ${req.originalUrl}`,
+  });
+});
+
+app.use((err, req, res, _next) => {
+  console.error("Unhandled server error:", err);
+  res.status(500).json({
+    message: "An unexpected server error occurred.",
+    details: process.env.NODE_ENV !== "production" ? err.message : undefined,
+  });
+});
 
 /* =========================
    START SERVER

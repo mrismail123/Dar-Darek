@@ -223,7 +223,7 @@ export default function NotificationDropdown() {
         style={{ zIndex: 1300 }}
       >
         {({ TransitionProps }) => (
-          <Grow {...TransitionProps} style={{ transformOrigin: "top right" }}>
+          <Grow  {...TransitionProps} style={{ transformOrigin: "top right" }}>
             <Paper
               elevation={0}
               sx={{
@@ -240,7 +240,7 @@ export default function NotificationDropdown() {
               }}
             >
               <ClickAwayListener onClickAway={handleClose}>
-                <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                <Box sx={{ overflowY: "scroll", display: "flex", flexDirection: "column", height: "100%" }}>
                   {/* ── Header bar ── */}
                   <Box
                     sx={{
@@ -269,6 +269,7 @@ export default function NotificationDropdown() {
                       {unreadCount > 0 && (
                         <Box
                           sx={{
+                            // overflowY: "scroll",
                             background: themeGlobal.colors.primary,
                             color: "#fff",
                             fontSize: "0.68rem",
@@ -331,6 +332,7 @@ export default function NotificationDropdown() {
                       // Loading skeleton
                       <Box
                         sx={{
+
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",

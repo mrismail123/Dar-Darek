@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 
 import ClearOutlinedIcon from '@mui/icons-material/ClearOutlined';
-const SuccessAlert = ({ message, subMessage, onClose }) => {
+const SuccessAlert = ({ message, subMessage, onClose, type = "success" }) => {
   const [animate, setAnimate] = useState(false);
 
   useEffect(() => {
@@ -23,26 +23,47 @@ const SuccessAlert = ({ message, subMessage, onClose }) => {
         <div
           style={{
             ...styles.iconWrapper,
-            ...(animate ? styles.iconWrapperActive : {}),
+            ...(animate ? (type === "error" ? styles.iconWrapperErrorActive : styles.iconWrapperActive) : {}),
           }}
         >
-          <svg
-            width="60"
-            height="60"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{
-              strokeDasharray: 100,
-              strokeDashoffset: animate ? 0 : 100,
-              transition: "stroke-dashoffset 0.6s ease",
-            }}
-          >
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+          {type === "error" ? (
+            <svg
+              width="60"
+              height="60"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                strokeDasharray: 100,
+                strokeDashoffset: animate ? 0 : 100,
+                transition: "stroke-dashoffset 0.6s ease",
+              }}
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          ) : (
+            <svg
+              width="60"
+              height="60"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                strokeDasharray: 100,
+                strokeDashoffset: animate ? 0 : 100,
+                transition: "stroke-dashoffset 0.6s ease",
+              }}
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
         </div>
 
         <h2 style={styles.title}>{message}</h2>
@@ -92,6 +113,12 @@ const styles = {
     background: "#22c55e", // green success
     transform: "scale(1.1)",
     boxShadow: "0 10px 30px rgba(34,197,94,0.4)",
+  },
+
+  iconWrapperErrorActive: {
+    background: "#ef4444", // red error
+    transform: "scale(1.1)",
+    boxShadow: "0 10px 30px rgba(239,68,68,0.4)",
   },
 
   title: {

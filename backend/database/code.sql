@@ -65,7 +65,11 @@ CREATE TABLE `bookings` (
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
   `total_price` decimal(10,2) DEFAULT NULL,
-  `status` enum('pending','approved','rejected') DEFAULT 'pending',
+  `status` enum('pending','approved','rejected','cancelled') DEFAULT 'pending',
+  `guest_full_name` varchar(150) DEFAULT NULL,
+  `guest_id_number` varchar(50) DEFAULT NULL,
+  `guest_phone` varchar(30) DEFAULT NULL,
+  `agreed_to_terms` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id_booking`),
@@ -85,6 +89,29 @@ LOCK TABLES `bookings` WRITE;
 INSERT INTO `bookings` VALUES (8,92,99,'2026-05-03','2026-05-10',3500.00,'approved','2026-05-08 17:08:37','2026-05-08 17:22:39'),(9,92,99,'2026-05-03','2026-05-10',3500.00,'approved','2026-05-08 17:56:15','2026-05-08 18:58:43'),(10,88,99,'2026-05-01','2026-05-08',2800.00,'approved','2026-05-08 17:56:24','2026-05-08 17:57:27'),(11,85,99,'2026-04-30','2026-12-30',78080.00,'pending','2026-05-08 17:56:29','2026-05-08 17:56:29');
 /*!40000 ALTER TABLE `bookings` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Table structure for table `booking_locks`
+--
+
+DROP TABLE IF EXISTS `booking_locks`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `booking_locks` (
+  `id_lock` int NOT NULL AUTO_INCREMENT,
+  `id_property` int NOT NULL,
+  `id_user` int NOT NULL,
+  `start_date` date NOT NULL,
+  `end_date` date NOT NULL,
+  `expires_at` timestamp NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_lock`),
+  KEY `idx_locks_property` (`id_property`),
+  KEY `idx_locks_expires` (`expires_at`),
+  CONSTRAINT `booking_locks_property_fk` FOREIGN KEY (`id_property`) REFERENCES `properties` (`id_property`) ON DELETE CASCADE,
+  CONSTRAINT `booking_locks_user_fk` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Table structure for table `cities`
@@ -152,12 +179,17 @@ CREATE TABLE `notifications` (
   `id_notification` int NOT NULL AUTO_INCREMENT,
   `id_property` int DEFAULT NULL,
   `id_user` int DEFAULT NULL,
+  `id_booking` int DEFAULT NULL,
   `notify_text` varchar(100) NOT NULL,
+  `type` varchar(50) DEFAULT NULL,
+  `is_read` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id_notification`),
   KEY `id_property` (`id_property`),
   KEY `id_user` (`id_user`),
   CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`id_property`) REFERENCES `properties` (`id_property`) ON DELETE CASCADE,
-  CONSTRAINT `notifications_ibfk_2` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE CASCADE
+  CONSTRAINT `notifications_ibfk_2` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE CASCADE,
+  CONSTRAINT `notifications_booking_fk` FOREIGN KEY (`id_booking`) REFERENCES `bookings` (`id_booking`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -300,7 +332,8 @@ CREATE TABLE `reviews` (
   CONSTRAINT `reviews_ibfk_1` FOREIGN KEY (`id_property`) REFERENCES `properties` (`id_property`) ON DELETE CASCADE,
   CONSTRAINT `reviews_ibfk_2` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE CASCADE,
   CONSTRAINT `reviews_ibfk_3` FOREIGN KEY (`id_booking`) REFERENCES `bookings` (`id_booking`) ON DELETE CASCADE,
-  CONSTRAINT `reviews_chk_1` CHECK ((`rating` between 1 and 5))
+  CONSTRAINT `reviews_chk_1` CHECK ((`rating` between 1 and 5)),
+  UNIQUE KEY `uq_reviews_booking_user` (`id_booking`, `id_user`)
 ) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

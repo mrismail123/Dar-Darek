@@ -122,11 +122,14 @@ export default function Checkout() {
   const propertyImage = passed.propertyImage || null;
   const propertyCity = passed.propertyCity || "";
 
-  /* Timer */
+  /* Timer & Lock */
+  const lockIdRef = useRef(null);
   const lockStartRef = useRef(
     passed.lockStart ? Number(passed.lockStart) : Date.now(),
   );
-  const expiresAt = lockStartRef.current + LOCK_DURATION_MS;
+  const [expiresAt, setExpiresAt] = useState(
+    lockStartRef.current + LOCK_DURATION_MS,
+  );
 
   /* form */
   const [fullName, setFullName] = useState("");
@@ -153,6 +156,57 @@ export default function Checkout() {
         replace: true,
       });
     }
+  }, [checkIn, checkOut, token, propertyId, navigate]);
+
+  /* Acquire booking lock on mount */
+  useEffect(() => {
+    if (!checkIn || !checkOut || !token) return;
+
+    let cancelled = false;
+
+    async function acquireLock() {
+      try {
+        const { data } = await axios.post(
+          buildApiUrl("/api/booking-lock"),
+          { id_property: propertyId, checkIn, checkOut },
+          createAuthConfig(token),
+        );
+
+        if (cancelled) return;
+
+        lockIdRef.current = data.lockId;
+        if (data.expiresAt) {
+          setExpiresAt(new Date(data.expiresAt).getTime());
+        }
+      } catch (err) {
+        if (cancelled) return;
+        const msg =
+          err?.response?.data?.message ||
+          "Could not reserve your session. Please try again.";
+        setToast({ message: msg, type: "error" });
+
+        if (err?.response?.status === 409) {
+          window.setTimeout(() => {
+            navigate(`/property-details/${propertyId}`);
+          }, 2800);
+        }
+      }
+    }
+
+    acquireLock();
+
+    return () => {
+      cancelled = true;
+      // Release lock on unmount
+      if (lockIdRef.current && token) {
+        axios
+          .delete(
+            buildApiUrl(`/api/booking-lock/${lockIdRef.current}`),
+            createAuthConfig(token),
+          )
+          .catch(() => {});
+      }
+    };
   }, [checkIn, checkOut, token, propertyId, navigate]);
 
   /* ── Timer expiry ── */
@@ -213,6 +267,9 @@ export default function Checkout() {
         },
         createAuthConfig(token),
       );
+
+      /* Lock is cleaned up server-side after booking; prevent double-release */
+      lockIdRef.current = null;
 
       /* Success → go to My Bookings with success toast */
       navigate("/my-bookings", {

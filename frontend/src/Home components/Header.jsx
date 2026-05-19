@@ -32,7 +32,8 @@ import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettin
 import profilePicture1 from "../assets/1.jpg";
 import NotificationDropdown from "./NotificationDropdown";
 import { buildApiUrl } from "../lib/api";
-
+import axios from "axios";
+import SuccessAlert from "../SuccessAlert";
 const getProfilePictureSrc = (user) => {
   const picture = user?.profilePicture || user?.profile_picture;
   if (!picture) return profilePicture1;
@@ -50,6 +51,7 @@ export default function Header() {
 
   const [anchorEl, setAnchorEl] = React.useState(null);
   const isMenuOpen = Boolean(anchorEl);
+  const [alertInfo, setAlertInfo] = React.useState({ show: false, message: "", subMessage: "", type: "error" });
 
   const menuId = "primary-search-account-menu";
 
@@ -170,7 +172,7 @@ export default function Header() {
         >
           <EventNoteOutlinedIcon
             sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
-            
+
           />
           Rental Requests
         </MenuItem>
@@ -230,6 +232,41 @@ export default function Header() {
       </MenuItem>
     </Menu>
   );
+
+  const handleListYourProperyFunction = async () => {
+    if (localStorage.getItem("user")) {
+      const user = JSON.parse(localStorage.getItem("user"));
+      if (user.role !== "host" && user.role !== "admin") {
+        setAlertInfo({ 
+          show: true, 
+          message: "Host Badge Required", 
+          subMessage: "You must enable host mode in your account settings to list a property.", 
+          type: "error" 
+        });
+        return;
+      }
+      try {
+        const response = await axios.post("http://localhost:5000/api/verifyHostMode", {
+          id: user.id
+        });
+        if (response.data && response.data.message === "go ahead") {
+          navigate("/new-listing", { replace: true });
+          return;
+        }
+      } catch (error) {
+        if (error.response) {
+          setAlertInfo({ 
+            show: true, 
+            message: "Error", 
+            subMessage: error.response.data.message || "Unknown error", 
+            type: "error" 
+          });
+        } else {
+          console.error(error);
+        }
+      }
+    }
+  };
 
   return (
     <>
@@ -334,7 +371,7 @@ export default function Header() {
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <Button
                       component={Link}
-                      to="/new-listing"
+                      // to="/new-listing"
                       sx={{
                         background: themeGlobal.colors.primary,
                         display: "flex",
@@ -344,6 +381,7 @@ export default function Header() {
                         fontWeight: 500,
                       }}
                       variant="contained"
+                      onClick={handleListYourProperyFunction}
                     >
                       <HomeOutlinedIcon />
                       List your property
@@ -414,6 +452,14 @@ export default function Header() {
           </Box>
         </Container>
       </Box>
+      {alertInfo.show && (
+        <SuccessAlert
+          message={alertInfo.message}
+          subMessage={alertInfo.subMessage}
+          type={alertInfo.type}
+          onClose={() => setAlertInfo({ ...alertInfo, show: false })}
+        />
+      )}
     </>
   );
 }
