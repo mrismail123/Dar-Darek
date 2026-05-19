@@ -46,7 +46,13 @@ function App() {
           localStorage.removeItem("user");
         } else {
           setToken(savedToken);
-          setUser(decodedToken);
+          let storedUser = null;
+          try {
+            storedUser = JSON.parse(localStorage.getItem("user"));
+          } catch (e) {
+            console.error("Failed to parse stored user", e);
+          }
+          setUser(storedUser ? { ...storedUser, ...decodedToken } : decodedToken);
         }
       }
     } catch {

@@ -72,7 +72,7 @@ export default function Landing() {
                     <Location />
                     <Calendar />
                     <Guests />
-                    <Button type='submit' className='browseForm__submit' sx={{padding: "10px", background: themeGlobal.colors.primary, color: "white" }} variant='filled'>Browse stays</Button>
+                    <Button type='submit' className='browseForm__submit' sx={{ padding: "10px", background: themeGlobal.colors.primary, color: "white" }} variant='filled'>Browse stays</Button>
                 </form>
             </div>
             <div className="about landing__about">

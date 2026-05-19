@@ -21,19 +21,18 @@ export default function Footer() {
                 <div className="site-footer__links">
                     <div className="site-footer__column">
                         <h3 className="site-footer__heading">Explore</h3>
-                        <a href="/" className="site-footer__link">Latest stays</a>
-                        <a href="/" className="site-footer__link">Tangier homes</a>
-                        <a href="/" className="site-footer__link">Tetouan homes</a>
-                        <a href="/" className="site-footer__link">Chefchaouen stays</a>
+                        <Link to="/properties" className="site-footer__link">Latest stays</Link>
+                        <Link to="/properties?city=Tangier" className="site-footer__link">Tangier homes</Link>
+                        <Link to="/properties?city=Tetouan" className="site-footer__link">Tetouan homes</Link>
+                        <Link to="/properties?city=Chefchaouen" className="site-footer__link">Chefchaouen stays</Link>
                     </div>
 
                     <div className="site-footer__column">
-                        <h3 className="site-footer__heading">Hosting</h3>
-                        <a href="/" className="site-footer__link">List your property</a>
-                        <a href="/" className="site-footer__link">Host guide</a>
-                        <a href="/" className="site-footer__link">Trust & safety</a>
+                        <h3 className="site-footer__heading">Hosting & Account</h3>
+                        <Link to="/account-settings" className="site-footer__link">Account Settings</Link>
+                        <Link to="/publish" className="site-footer__link">List your property</Link>
+                        <Link to="/my-properties" className="site-footer__link">My properties</Link>
                         <Link to="/privacy-policy" className="site-footer__link">Privacy Policy</Link>
-                        <a href="/" className="site-footer__link">Support</a>
                     </div>
 
                     <div className="site-footer__column">

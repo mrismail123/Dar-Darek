@@ -237,11 +237,11 @@ export default function Header() {
     if (localStorage.getItem("user")) {
       const user = JSON.parse(localStorage.getItem("user"));
       if (user.role !== "host" && user.role !== "admin") {
-        setAlertInfo({ 
-          show: true, 
-          message: "Host Badge Required", 
-          subMessage: "You must enable host mode in your account settings to list a property.", 
-          type: "error" 
+        setAlertInfo({
+          show: true,
+          message: "Host Badge Required",
+          subMessage: "You must enable host mode in your account settings to list a property.",
+          type: "error"
         });
         return;
       }
@@ -255,11 +255,11 @@ export default function Header() {
         }
       } catch (error) {
         if (error.response) {
-          setAlertInfo({ 
-            show: true, 
-            message: "Error", 
-            subMessage: error.response.data.message || "Unknown error", 
-            type: "error" 
+          setAlertInfo({
+            show: true,
+            message: "Error",
+            subMessage: error.response.data.message || "Unknown error",
+            type: "error"
           });
         } else {
           console.error(error);

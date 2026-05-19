@@ -61,6 +61,21 @@ export default function CitySection({ title, properties, message }) {
         });
     };
 
+    const [showScrollButtons, setShowScrollButtons] = React.useState(false);
+
+    React.useEffect(() => {
+        const checkScroll = () => {
+            if (sliderRef.current) {
+                setShowScrollButtons(sliderRef.current.scrollWidth > sliderRef.current.clientWidth);
+            }
+        };
+
+        // Delay checking slightly to ensure images/layout are rendered
+        setTimeout(checkScroll, 100);
+        window.addEventListener("resize", checkScroll);
+        return () => window.removeEventListener("resize", checkScroll);
+    }, [properties]);
+
 
     // state for favorites
     const [isSaved, setIsSaved] = React.useState(false);
@@ -250,30 +265,32 @@ export default function CitySection({ title, properties, message }) {
                     </Button>
                 </Box>
                 <Box sx={{ position: "relative", minWidth: 0 }}>
-                    <Button
-                        type="button"
-                        onClick={() => scrollCards(-1)}
-                        sx={{
-                            minWidth: 0,
-                            width: "42px",
-                            height: "42px",
-                            borderRadius: "50%",
-                            position: "absolute",
-                            left: "-18px",
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            zIndex: 2,
-                            backgroundColor: "#fffdf8",
-                            color: "#7A7034",
-                            border: "1px solid rgba(215, 194, 154, 0.7)",
-                            boxShadow: "0 8px 18px rgba(73, 55, 28, 0.14)",
-                            "&:hover": {
-                                backgroundColor: "#ffffff"
-                            }
-                        }}
-                    >
-                        <ChevronLeftIcon />
-                    </Button>
+                    {showScrollButtons && (
+                        <Button
+                            type="button"
+                            onClick={() => scrollCards(-1)}
+                            sx={{
+                                minWidth: 0,
+                                width: "42px",
+                                height: "42px",
+                                borderRadius: "50%",
+                                position: "absolute",
+                                left: "-18px",
+                                top: "50%",
+                                transform: "translateY(-50%)",
+                                zIndex: 2,
+                                backgroundColor: "#fffdf8",
+                                color: "#7A7034",
+                                border: "1px solid rgba(215, 194, 154, 0.7)",
+                                boxShadow: "0 8px 18px rgba(73, 55, 28, 0.14)",
+                                "&:hover": {
+                                    backgroundColor: "#ffffff"
+                                }
+                            }}
+                        >
+                            <ChevronLeftIcon />
+                        </Button>
+                    )}
                     <Stack
                         ref={sliderRef}
                         sx={{
@@ -293,30 +310,32 @@ export default function CitySection({ title, properties, message }) {
                     >
                         {propertiesSlide}
                     </Stack>
-                    <Button
-                        type="button"
-                        onClick={() => scrollCards(1)}
-                        sx={{
-                            minWidth: 0,
-                            width: "42px",
-                            height: "42px",
-                            borderRadius: "50%",
-                            position: "absolute",
-                            right: "-18px",
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            zIndex: 2,
-                            backgroundColor: "#fffdf8",
-                            color: themeGlobal.colors.primary,
-                            border: "1px solid rgba(215, 194, 154, 0.7)",
-                            boxShadow: "0 8px 18px rgba(73, 55, 28, 0.14)",
-                            "&:hover": {
-                                backgroundColor: "#ffffff"
-                            }
-                        }}
-                    >
-                        <ChevronRightIcon />
-                    </Button>
+                    {showScrollButtons && (
+                        <Button
+                            type="button"
+                            onClick={() => scrollCards(1)}
+                            sx={{
+                                minWidth: 0,
+                                width: "42px",
+                                height: "42px",
+                                borderRadius: "50%",
+                                position: "absolute",
+                                right: "-18px",
+                                top: "50%",
+                                transform: "translateY(-50%)",
+                                zIndex: 2,
+                                backgroundColor: "#fffdf8",
+                                color: themeGlobal.colors.primary,
+                                border: "1px solid rgba(215, 194, 154, 0.7)",
+                                boxShadow: "0 8px 18px rgba(73, 55, 28, 0.14)",
+                                "&:hover": {
+                                    backgroundColor: "#ffffff"
+                                }
+                            }}
+                        >
+                            <ChevronRightIcon />
+                        </Button>
+                    )}
                 </Box>
             </Container>
         </>
