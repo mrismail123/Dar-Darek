@@ -1,0 +1,120 @@
+/* =========================
+   CONTACT HOST MODAL
+   ========================= */
+
+.contact-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(26, 26, 26, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.contact-modal-content {
+  background: #ffffff;
+  padding: 32px 40px 40px;
+  border-radius: 24px;
+  width: 90%;
+  max-width: 420px;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.12);
+  animation: slideUpContact 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  border: 1px solid rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes slideUpContact {
+  from {
+    transform: translateY(20px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.host-info {
+  margin-bottom: 24px;
+}
+
+.host-info h3 {
+  margin: 0 0 12px;
+  color: var(--navy-900);
+  font-family: "Cormorant Garamond", serif;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.host-info p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.host-info strong {
+  color: var(--navy-900);
+  font-weight: 700;
+}
+
+.contact-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.whatsapp-btn,
+.phone-btn,
+.email-btn {
+  display: block;
+  padding: 14px 20px;
+  border-radius: 14px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.whatsapp-btn {
+  background-color: #25D366;
+  color: white;
+  box-shadow: 0 4px 12px rgba(37, 211, 102, 0.2);
+}
+
+.whatsapp-btn:hover {
+  background-color: #20BA5A;
+  transform: translateY(-1px);
+}
+
+.phone-btn {
+  border: 2px solid var(--tanger-teal);
+  background-color: transparent;
+  color: var(--tanger-teal);
+}
+
+.phone-btn:hover {
+  background-color: rgba(0, 169, 181, 0.08);
+  transform: translateY(-1px);
+}
+
+.email-btn {
+  background-color: var(--tanger-teal);
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 169, 181, 0.25);
+}
+
+.email-btn:hover {
+  background-color: #0096a1;
+  transform: translateY(-1px);
+}

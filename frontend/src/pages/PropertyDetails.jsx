@@ -9,6 +9,8 @@ import Header from "../Home components/Header";
 import Footer from "../Footer";
 import { useThemeGlobal } from "../Contexts/ThemeContext";
 import { buildApiUrl, createAuthConfig } from "../lib/api";
+import SuccessAlert from "../SuccessAlert";
+import { FiShare, FiHeart, FiFlag } from "react-icons/fi";
 
 const mockProperty = {
   brand: "Dar Darek",
@@ -731,6 +733,7 @@ const normalizeProperty = (property) => {
   return {
     ...mockProperty,
     id: withFallback(property.id_property || property.id, mockProperty.id),
+    id_owner: property.id_owner || property.owner_id || property.id_user || null,
     title: withFallback(property.title, mockProperty.title),
     description: withFallback(property.description, mockProperty.description),
     city: withFallback(property.city || property.city_name, mockProperty.city),
@@ -1044,6 +1047,8 @@ function BookingCard({
   const { token, user } = useToken();
   const [isSaved, setIsSaved] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const [reportCategory, setReportCategory] = useState("property_accuracy");
   const [reportReason, setReportReason] = useState("");
@@ -1161,6 +1166,28 @@ function BookingCard({
     }
   };
 
+  const handleShareClick = async () => {
+    const url = window.location.href;
+    const title = property.title || "Dar Darek Property";
+    const text = `Check out this property: ${title}\n`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+      } catch (err) {
+        console.error("Error sharing:", err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${text}\n${url}`);
+        setAlertMessage("Link copied to clipboard!");
+        setShowAlert(true);
+      } catch (err) {
+        console.error("Failed to copy:", err);
+      }
+    }
+  };
+
   const { id } = useParams();
 
   const nights = getNightCount(dates.checkIn, dates.checkOut);
@@ -1202,7 +1229,7 @@ function BookingCard({
   // navigate
   const navigate = useNavigate();
 
-  function handleReserveFunction() {
+  async function handleReserveFunction() {
     const currentToken = localStorage.getItem("token");
 
     if (!currentToken) {
@@ -1212,6 +1239,15 @@ function BookingCard({
       });
       navigate("/Authentication", { state: { from: location.pathname } });
       return;
+    }
+
+    const userId = user?.id || user?.id_user || user?._id;
+    const ownerId = property.id_owner || property.host?.id;
+    
+    if (userId && ownerId && String(userId) === String(ownerId)) {
+        setAlertMessage("You cannot reserve your own property.");
+        setShowAlert(true);
+        return;
     }
 
     if (!dates.checkIn || !dates.checkOut) {
@@ -1244,6 +1280,27 @@ function BookingCard({
       return;
     }
 
+    try {
+      const response = await axios.get(
+        buildApiUrl("/api/my-bookings"),
+        createAuthConfig(currentToken)
+      );
+      const userBookings = Array.isArray(response.data?.bookings) ? response.data.bookings : [];
+      
+      const hasBooked = userBookings.some((b) => 
+         (String(b.propertyId) === String(property.id) || String(b.id_property) === String(property.id)) &&
+         (b.status === "upcoming" || b.status === "pending")
+      );
+      
+      if (hasBooked) {
+         setAlertMessage("You have already booked this property.");
+         setShowAlert(true);
+         return;
+      }
+    } catch (err) {
+      console.error("Could not fetch user bookings for verification", err);
+    }
+
     // ── Intercept: redirect to Checkout page instead of calling API directly ──
     navigate(`/checkout/${id}`, {
       state: {
@@ -1260,17 +1317,27 @@ function BookingCard({
 
   return (
     <div className="pd-booking-wrap">
-      <div className="pd-booking__actions">
-        <button type="button" className="pd-action-btn">
-          Share
+      {showAlert && (
+        <SuccessAlert 
+          message={alertMessage} 
+          type="error" 
+          onClose={() => setShowAlert(false)} 
+        />
+      )}
+      <div className="pd-booking__actions" style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
+        <button onClick={handleShareClick} type="button" className="pd-action-btn" style={{ flex: 1, padding: "10px", minHeight: "42px", gap: "8px", borderRadius: "12px" }}>
+          <FiShare style={{ fontSize: "1.15rem", color: "var(--text-muted)" }} />
+          <span>Share</span>
         </button>
         <button
           onClick={handleFavoriteClick}
           type="button"
           className={`pd-action-btn${isSaved ? " pd-action-btn--active" : ""}`}
           disabled={favoriteLoading}
+          style={{ flex: 1, padding: "10px", minHeight: "42px", gap: "8px", borderRadius: "12px" }}
         >
-          {isSaved ? "Saved" : "Save"}
+          <FiHeart style={{ fontSize: "1.15rem", color: isSaved ? "inherit" : "var(--text-muted)" }} fill={isSaved ? "currentColor" : "none"} />
+          <span>{isSaved ? "Saved" : "Save"}</span>
         </button>
         <button
           type="button"
@@ -1279,8 +1346,10 @@ function BookingCard({
             setReportOpen(true);
             setReportNotice(null);
           }}
+          style={{ flex: 1, padding: "10px", minHeight: "42px", gap: "8px", borderRadius: "12px" }}
         >
-          Report
+          <FiFlag style={{ fontSize: "1.15rem", color: "#ef4444" }} />
+          <span>Report</span>
         </button>
       </div>
       <aside className="pd-booking pd-card" aria-label="Booking card">
@@ -2125,26 +2194,40 @@ function HostSection({ host, property }) {
               </p>
             </div>
 
-            {hostPhone ? (
+            {(hostPhone || hostEmail) ? (
               <div className="contact-options">
-                <a
-                  href={`https://wa.me/${hostPhone.replace(/\D/g, "")}?text=${encodeURIComponent(
-                    `Hello, I'm interested in your property "${property.title}" on Dar Darek.`,
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="whatsapp-btn"
-                >
-                  Chat on WhatsApp
-                </a>
+                {hostPhone && (
+                  <>
+                    <a
+                      href={`https://wa.me/${hostPhone.replace(/\D/g, "")}?text=${encodeURIComponent(
+                        `Hello, I'm interested in your property "${property.title}" on Dar Darek.`,
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="whatsapp-btn"
+                    >
+                      Chat on WhatsApp
+                    </a>
 
-                <a href={`tel:${hostPhone}`} className="phone-btn">
-                  Call Now
-                </a>
+                    <a href={`tel:${hostPhone}`} className="phone-btn">
+                      Call Now
+                    </a>
+                  </>
+                )}
+                {hostEmail && (
+                  <a
+                    href={`mailto:${hostEmail}?subject=${encodeURIComponent(
+                      `Inquiry about your property: ${property.title}`
+                    )}`}
+                    className="email-btn"
+                  >
+                    Send an Email
+                  </a>
+                )}
               </div>
             ) : (
               <p className="pd-section__hint">
-                The host phone number is not available yet.
+                Contact information is not available yet.
               </p>
             )}
           </div>
