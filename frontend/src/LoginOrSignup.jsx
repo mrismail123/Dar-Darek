@@ -73,6 +73,7 @@ export default function LoginOrSignup() {
         password: ""
     })
     const [loginError, setLoginError] = useState("");
+    const [googleLoading, setGoogleLoading] = useState(false);
     const [loginLoading, setLoginLoading] = useState(false);
     const [signupLoading, setSignupLoading] = useState(false);
     const passwordValue = signUpInfo.password;
@@ -276,7 +277,18 @@ export default function LoginOrSignup() {
 
                                 <GoogleLogin
                                     onSuccess={async credentialResponse => {
+                                        if (googleLoading) {
+                                            return;
+                                        }
+
+                                        if (!credentialResponse?.credential) {
+                                            setLoginError("Google login did not return a valid credential.");
+                                            return;
+                                        }
+
                                         try {
+                                            setLoginError("");
+                                            setGoogleLoading(true);
                                             const response = await axios.post(buildApiUrl("/api/google-auth"), {
                                                 idToken: credentialResponse.credential
                                             });
@@ -291,10 +303,20 @@ export default function LoginOrSignup() {
                                             navigate("/", { replace: true });
                                         } catch (error) {
                                             console.error(error);
+                                            if (error.response) {
+                                                setLoginError(error.response.data.message || "Google login failed.");
+                                            } else if (error.request) {
+                                                setLoginError("Unable to reach the server. Please make sure it is running on port 5000.");
+                                            } else {
+                                                setLoginError("Google login could not be started. Please try again.");
+                                            }
+                                        } finally {
+                                            setGoogleLoading(false);
                                         }
                                     }}
                                     onError={() => {
                                         console.log('Google login failed.');
+                                        setLoginError("Google login failed. Please try again.");
                                     }}
                                 />
 

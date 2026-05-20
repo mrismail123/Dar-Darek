@@ -2350,6 +2350,13 @@ app.post("/api/google-auth", async (req, res) => {
 
   try {
     await ensureModerationSchema();
+    const jwtSecret = process.env.JWT_SECRET || "your_secret_key";
+
+    if (!idToken) {
+      return res.status(400).json({
+        message: "Google ID token is required.",
+      });
+    }
 
     const ticket = await client.verifyIdToken({
       idToken,
@@ -2357,7 +2364,19 @@ app.post("/api/google-auth", async (req, res) => {
     });
 
     const payload = ticket.getPayload();
-    const { email, name } = payload;
+    const { email, name, email_verified: emailVerified } = payload || {};
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Google account email is missing.",
+      });
+    }
+
+    if (emailVerified === false) {
+      return res.status(403).json({
+        message: "Please use a verified Google account.",
+      });
+    }
 
     const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
       email,
@@ -2376,6 +2395,8 @@ app.post("/api/google-auth", async (req, res) => {
         name,
         email,
         role: "user",
+        is_active: 1,
+        is_suspended: 0,
       };
     } else {
       user = rows[0];
@@ -2396,16 +2417,22 @@ app.post("/api/google-auth", async (req, res) => {
 
     const token = jwt.sign(
       { id: user.id, name: user.name, role: user.role },
-      process.env.JWT_SECRET,
+      jwtSecret,
       { expiresIn: "1d" },
     );
 
     res.status(200).json({
       message: "Google authentication successful.",
       token,
-      user,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
     });
   } catch (error) {
+    console.error("Google authentication failed:", error);
     res.status(500).json({
       message: "Google authentication failed.",
       details: error.message,
@@ -4683,6 +4710,18 @@ app.post("/api/bookingProperty", verifyToken, async (req, res) => {
       });
     }
 
+    // -- Update user phone number if missing --
+    if (bookingUserId) {
+      try {
+        await db.execute(
+          "UPDATE users SET phone_number = ? WHERE id_user = ? AND (phone_number IS NULL OR phone_number = '')",
+          [cleanPhone, bookingUserId]
+        );
+      } catch (err) {
+        console.error("Failed to update user phone number:", err.message);
+      }
+    }
+
     // -- Property lookup --
     const [properties] = await db.query(
       `SELECT id_property, id_user, price_per_day, available_from, available_to, status
@@ -4856,7 +4895,7 @@ app.get("/api/properties/:id/booked-dates", async (req, res) => {
       SELECT start_date, end_date, status
       FROM bookings
       WHERE id_property = ?
-        AND status = 'approved'
+        AND status IN ('approved', 'pending')
         AND end_date >= CURDATE()
       ORDER BY start_date ASC
       `,

@@ -1191,6 +1191,7 @@ function BookingCard({
   const { id } = useParams();
 
   const nights = getNightCount(dates.checkIn, dates.checkOut);
+  const hasSelectedStay = Boolean(dates.checkIn && dates.checkOut);
   const nightsTotal = nights * property.pricePerNight;
   const safeGuests = Number.isFinite(Number(guests)) ? Number(guests) : 1;
   const todayDateString = getTodayDateString();
@@ -1251,18 +1252,14 @@ function BookingCard({
     }
 
     if (!dates.checkIn || !dates.checkOut) {
-      setBookingNotice({
-        type: "error",
-        text: "Please select check-in and check-out dates.",
-      });
+      setAlertMessage("Please select check-in and check-out dates.");
+      setShowAlert(true);
       return;
     }
 
     if (!isBookingValid) {
-      setBookingNotice({
-        type: "error",
-        text: "Please choose dates inside this property's availability window.",
-      });
+      setAlertMessage("Please choose dates inside this property's availability window.");
+      setShowAlert(true);
       return;
     }
 
@@ -1273,10 +1270,8 @@ function BookingCard({
         bookedRanges,
       )
     ) {
-      setBookingNotice({
-        type: "error",
-        text: "This property is already reserved for the selected dates.",
-      });
+      setAlertMessage("This property is already reserved for the selected dates.");
+      setShowAlert(true);
       return;
     }
 
@@ -1316,7 +1311,7 @@ function BookingCard({
   }
 
   return (
-    <div className="pd-booking-wrap">
+    <div className="pd-booking-wrap" style={{ zIndex: 9999 }}>
       {showAlert && (
         <SuccessAlert 
           message={alertMessage} 
@@ -1386,6 +1381,7 @@ function BookingCard({
               onChange={(event) => onDateChange("checkOut", event.target.value)}
               min={checkOutMinDate}
               max={property.availableTo}
+              disabled={!dates.checkIn}
             />
           </label>
           <div className="pd-booking__guest-field">
@@ -1439,13 +1435,15 @@ function BookingCard({
         </button>
 
         <div className="pd-booking__total">
-          <div>
-            <span>
-              {formatCurrency(property.pricePerNight)} x {nights}{" "}
-              {nights > 1 ? "nights" : "night"}
-            </span>
-            <strong>{formatCurrency(nightsTotal)}</strong>
-          </div>
+          {hasSelectedStay ? (
+            <div>
+              <span>
+                {formatCurrency(property.pricePerNight)} x {nights}{" "}
+                {nights > 1 ? "nights" : "night"}
+              </span>
+              <strong>{formatCurrency(nightsTotal)}</strong>
+            </div>
+          ) : null}
         </div>
       </aside>
 
@@ -1977,6 +1975,7 @@ function LocationSection({ property }) {
                 title="Property map"
                 src={mapSrc}
                 loading="lazy"
+                style={{ zIndex: 0 }}
               />
               <button
                 type="button"
@@ -2624,8 +2623,8 @@ export default function PropertyDetails() {
   const [error, setError] = useState("");
   const [bookedRanges, setBookedRanges] = useState([]);
   const [dates, setDates] = useState({
-    checkIn: mockProperty.bookingDefaults.checkIn,
-    checkOut: mockProperty.bookingDefaults.checkOut,
+    checkIn: "",
+    checkOut: "",
   });
   const [hasCalendarSelection, setHasCalendarSelection] = useState(false);
   const [guests, setGuests] = useState(mockProperty.bookingDefaults.guests);
@@ -2700,20 +2699,9 @@ export default function PropertyDetails() {
   }, [id]);
 
   useEffect(() => {
-    const safeCheckIn = getLaterDateString(
-      getTodayDateString(),
-      displayProperty.availableFrom,
-      displayProperty.bookingDefaults.checkIn,
-    );
-    const defaultCheckOut = displayProperty.bookingDefaults.checkOut;
-    const safeCheckOut =
-      parseLocalDate(defaultCheckOut) > parseLocalDate(safeCheckIn)
-        ? defaultCheckOut
-        : getOffsetDateString(safeCheckIn, 1);
-
     setDates({
-      checkIn: safeCheckIn,
-      checkOut: safeCheckOut,
+      checkIn: "",
+      checkOut: "",
     });
     setHasCalendarSelection(false);
     setGuests(displayProperty.bookingDefaults.guests);

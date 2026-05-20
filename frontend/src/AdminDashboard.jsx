@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import AdminHeader from './Admin components/AdminHeader';
 import PendingPropertiesTable from './Admin components/PendingPropertiesTable';
 import AdminModerationPanel from './Admin components/AdminModerationPanel';
+import AdminUsersPanel from './Admin components/AdminUsersPanel';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Button from '@mui/material/Button';
@@ -31,7 +32,7 @@ export default function AdminDashboard() {
                     }}
                 >
                     <h2 className="font-luxury" style={{ color: "#1E293B", margin: 0 }}>
-                        {activeView === 'properties' ? 'Pending Properties' : 'Moderation Reports'}
+                        {activeView === 'properties' ? 'Pending Properties' : activeView === 'users' ? 'User Management' : 'Moderation Reports'}
                     </h2>
                     <Box sx={{ display: 'flex', gap: 1, backgroundColor: '#E2E8F0', p: 0.5, borderRadius: 2 }}>
                         <Button
@@ -48,10 +49,17 @@ export default function AdminDashboard() {
                         >
                             Reports
                         </Button>
+                        <Button
+                            onClick={() => setActiveView('users')}
+                            variant={activeView === 'users' ? 'contained' : 'text'}
+                            sx={{ textTransform: 'none', borderRadius: 1.5 }}
+                        >
+                            Users
+                        </Button>
                     </Box>
                 </Box>
 
-                {activeView === 'properties' ? <PendingPropertiesTable /> : <AdminModerationPanel />}
+                {activeView === 'properties' ? <PendingPropertiesTable /> : activeView === 'users' ? <AdminUsersPanel /> : <AdminModerationPanel />}
             </Container>
         </Box>
     );
