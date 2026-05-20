@@ -383,6 +383,51 @@ const sendAdminReportEmail = async (report) => {
   });
 };
 
+const sendSuspensionEmail = async (email, name, reason) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS || !email) {
+    return;
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const escapeHtml = (value) =>
+      String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    await transporter.sendMail({
+      from: `"Dar Darek Moderation" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Notice of Account Suspension",
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+          <h2 style="color: #d32f2f;">Account Suspended</h2>
+          <p>Dear ${escapeHtml(name)},</p>
+          <p>Your Dar Darek account has been suspended by our moderation team for the following reason:</p>
+          <div style="background-color: #f8d7da; border-left: 4px solid #d32f2f; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #721c24;"><em>"${escapeHtml(reason)}"</em></p>
+          </div>
+          <p>If you believe this is an error or wish to appeal this decision, please contact support.</p>
+          <br/>
+          <p>Regards,<br/>Dar Darek Moderation Team</p>
+        </div>
+      `,
+    });
+  } catch (err) {
+    console.error("Failed to send suspension email:", err.message);
+  }
+};
+
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(" ")[1];
@@ -4460,6 +4505,20 @@ app.patch(
         return res.status(404).json({
           message: "User not found or cannot be moderated.",
         });
+      }
+
+      if (suspend) {
+        try {
+          const [users] = await db.query(
+            "SELECT email, name FROM users WHERE id_user = ? LIMIT 1",
+            [targetUserId]
+          );
+          if (users.length > 0) {
+            sendSuspensionEmail(users[0].email, users[0].name, reason);
+          }
+        } catch (emailErr) {
+          console.error("Error sending suspension email:", emailErr);
+        }
       }
 
       return res.status(200).json({
