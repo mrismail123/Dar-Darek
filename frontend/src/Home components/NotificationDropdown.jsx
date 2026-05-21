@@ -139,11 +139,23 @@ export default function NotificationDropdown() {
 
     setOpen(false);
 
-    // Navigate to rental-requests, passing the booking id so the page can highlight it
-    if (notification.id_booking) {
-      navigate(`/rental-requests?bookingId=${notification.id_booking}`);
+    // Navigate based on notification content
+    const text = (notification.notify_text || "").toLowerCase();
+    
+    if (text.includes("new report")) {
+      navigate("/admin");
+    } else if (text.includes("needs revisions") || (text.includes("has been approved!") && !text.includes("booking"))) {
+      navigate("/my-properties");
+    } else if (notification.id_booking) {
+      if (text.includes("new booking request")) {
+        navigate(`/rental-requests?bookingId=${notification.id_booking}`);
+      } else if (text.includes("your booking")) {
+        navigate(`/my-bookings?bookingId=${notification.id_booking}`);
+      } else {
+        navigate(`/my-bookings`);
+      }
     } else {
-      navigate("/rental-requests");
+      navigate("/");
     }
   };
 

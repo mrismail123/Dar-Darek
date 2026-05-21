@@ -28,6 +28,8 @@ import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
+import HelpOutlineOutlinedIcon from "@mui/icons-material/HelpOutlineOutlined";
+import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 
 import profilePicture1 from "../assets/1.jpg";
 import NotificationDropdown from "./NotificationDropdown";
@@ -222,6 +224,16 @@ export default function Header() {
         </MenuItem>
       )}
 
+      <MenuItem
+        onClick={() => goTo("/support")}
+        sx={{ py: 1.2, color: "#374151" }}
+      >
+        <SupportAgentIcon
+          sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
+        />
+        Support
+      </MenuItem>
+
       <Divider sx={{ my: 0.5 }} />
 
       <MenuItem onClick={handleSignOut} sx={{ py: 1.2, color: "#DC2626" }}>
@@ -324,20 +336,18 @@ export default function Header() {
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <Button
                       component={Link}
-                      to="/my-favorites"
-                      className="savedFavourite"
+                      to="/support"
                       sx={{
                         color: themeGlobal.colors.gray,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "5px",
                         textTransform: "none",
                         marginRight: "15px",
-                        position: "relative",
+                        fontWeight: 500,
                       }}
                     >
-                      <FavoriteBorderOutlinedIcon />
-                      Saved
+                    <SupportAgentIcon
+                      sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
+                    />
+                      Support
                     </Button>
 
                     <Button
@@ -347,10 +357,11 @@ export default function Header() {
                         color: themeGlobal.colors.gray,
                         textTransform: "none",
                         marginRight: "20px",
+                        fontWeight: 500,
                       }}
                     >
                       <PermIdentityOutlinedIcon sx={{ marginRight: "5px" }} />
-                      Log in
+                      Log In / Sign Up
                     </Button>
 
                     <Button
@@ -360,6 +371,8 @@ export default function Header() {
                         background: themeGlobal.colors.primary,
                         display: "flex",
                         gap: "10px",
+                        textTransform: "none",
+                        fontWeight: 500,
                       }}
                       variant="contained"
                     >
@@ -439,10 +452,14 @@ export default function Header() {
                   <Button
                     component={Link}
                     to="/Authentication"
-                    sx={{ background: themeGlobal.colors.primary }}
+                    sx={{ 
+                      background: themeGlobal.colors.primary,
+                      textTransform: "none",
+                      fontWeight: 500
+                    }}
                     variant="contained"
                   >
-                    Login to become a host
+                    Log In / Sign Up
                   </Button>
                 )}
               </Box>

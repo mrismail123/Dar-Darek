@@ -25,6 +25,7 @@ import { useToken } from "./Contexts/TokenContext";
 import { useThemeGlobal } from "./Contexts/ThemeContext";
 
 import MyFavorites from "./MyFavorites";
+import Support from "./pages/Support";
 
 function App() {
   const themeGlobal = useThemeGlobal();
@@ -65,6 +66,7 @@ function App() {
     <div style={{ background: themeGlobal.colors.background }}>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/support" element={<Support />} />
         <Route path="/Authentication" element={<Authentication />} />
         <Route
           path="/Authentication/verify-account"

@@ -5614,6 +5614,61 @@ app.get("/api/favorites", verifyToken, getFavoritesForCurrentUser);
 app.get("/api/favorites/:userId", verifyToken, getFavoritesForCurrentUser);
 
 /* =========================
+   SUPPORT ROUTE
+========================= */
+
+app.post("/api/support", async (req, res) => {
+  const { name, email, subject, message } = req.body;
+
+  if (!name || !email || !subject || !message) {
+    return res.status(400).json({ message: "All fields are required." });
+  }
+
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+
+  if (!adminEmail || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.warn("Email configuration missing. Could not send support email.");
+    return res.status(500).json({ message: "Server email configuration is missing." });
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const escapeHtml = (value) =>
+    String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  try {
+    await transporter.sendMail({
+      from: `"Dar Darek Support" <${process.env.EMAIL_USER}>`,
+      to: adminEmail,
+      subject: `New Support Request: ${subject}`,
+      html: `
+        <h3>New Support Request from Dar Darek</h3>
+        <p><strong>Name:</strong> ${escapeHtml(name)}</p>
+        <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+        <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
+        <p><strong>Message:</strong></p>
+        <p>${escapeHtml(message).replace(/\n/g, '<br/>')}</p>
+      `,
+    });
+    res.status(200).json({ message: "Support request sent successfully." });
+  } catch (error) {
+    console.error("Failed to send support email:", error);
+    res.status(500).json({ message: "Failed to send support request.", details: error.message });
+    }
+});
+
+/* =========================
    404 CATCH-ALL & ERROR HANDLER
 ========================= */
 
