@@ -314,7 +314,8 @@ const ensureBookingsSchema = async () => {
   }
 };
 
-const BOOKING_LOCK_TTL_MS = 15 * 60 * 1000; // 15 minutes
+// const BOOKING_LOCK_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const BOOKING_LOCK_TTL_MS = 50 * 1000; // 15 minutes
 
 let bookingLocksSchemaReady = false;
 
@@ -4666,11 +4667,12 @@ app.post("/api/booking-lock", verifyToken, async (req, res) => {
 
     // Create the lock
     const expiresAt = new Date(Date.now() + BOOKING_LOCK_TTL_MS);
+    const ttlSeconds = Math.floor(BOOKING_LOCK_TTL_MS / 1000);
 
     const [result] = await db.execute(
       `INSERT INTO booking_locks (id_property, id_user, start_date, end_date, expires_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [propertyId, userId, checkIn, checkOut, expiresAt],
+       VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))`,
+      [propertyId, userId, checkIn, checkOut, ttlSeconds],
     );
 
     return res.status(201).json({
@@ -4956,9 +4958,18 @@ app.get("/api/properties/:id/booked-dates", async (req, res) => {
       WHERE id_property = ?
         AND status IN ('approved', 'pending')
         AND end_date >= CURDATE()
+        
+      UNION ALL
+      
+      SELECT start_date, end_date, 'locked' as status
+      FROM booking_locks
+      WHERE id_property = ?
+        AND expires_at > NOW()
+        AND end_date >= CURDATE()
+        
       ORDER BY start_date ASC
       `,
-      [propertyId],
+      [propertyId, propertyId],
     );
 
     res.status(200).json({ bookedDates });

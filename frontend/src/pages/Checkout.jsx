@@ -9,7 +9,8 @@ import { buildApiUrl, createAuthConfig } from "../lib/api";
 import "./Checkout.css";
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
-const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+// const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const LOCK_DURATION_MS = 50 * 1000; // 15 minutes
 
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-MA", {
