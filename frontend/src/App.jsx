@@ -26,6 +26,7 @@ import { useThemeGlobal } from "./Contexts/ThemeContext";
 
 import MyFavorites from "./MyFavorites";
 import Support from "./pages/Support";
+import NotFound from "./pages/NotFound";
 
 function App() {
   const themeGlobal = useThemeGlobal();
@@ -159,6 +160,9 @@ function App() {
           path="/Authentication/reset-password"
           element={<ResetPassword />}
         />
+
+        {/* Catch-all 404 Route */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
       <CookieBanner />
     </div>

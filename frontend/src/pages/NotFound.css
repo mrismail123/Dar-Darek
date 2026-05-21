@@ -1,0 +1,134 @@
+.not-found-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 0 5%;
+  font-family: inherit;
+}
+
+.not-found-header {
+  padding: 40px 0;
+}
+
+.not-found-logo {
+  height: 40px;
+  width: auto;
+}
+
+.not-found-content {
+  flex-grow: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  padding-bottom: 60px;
+  gap: 60px;
+}
+
+.not-found-text-section {
+  flex: 1;
+  max-width: 500px;
+}
+
+.not-found-oops {
+  font-size: 8rem;
+  font-weight: 800;
+  margin: 0;
+  line-height: 1.1;
+  letter-spacing: -2px;
+}
+
+.not-found-subtitle {
+  font-size: 2rem;
+  font-weight: 400;
+  color: #374151;
+  margin-top: 16px;
+  margin-bottom: 24px;
+  line-height: 1.3;
+}
+
+.not-found-error-code {
+  font-size: 1rem;
+  color: #6b7280;
+  font-weight: 500;
+  margin-bottom: 40px;
+}
+
+.not-found-links-title {
+  font-size: 1rem;
+  color: #4b5563;
+  margin-bottom: 16px;
+}
+
+.not-found-links-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.not-found-links-list li {
+  margin-bottom: 12px;
+}
+
+.not-found-links-list a {
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: opacity 0.2s ease;
+}
+
+.not-found-links-list a:hover {
+  text-decoration: underline;
+  opacity: 0.8;
+}
+
+.not-found-illustration-section {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.not-found-illustration-img {
+  width: 100%;
+  max-width: 450px;
+  height: auto;
+  object-fit: contain;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.06);
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .not-found-content {
+    flex-direction: column-reverse;
+    text-align: center;
+    gap: 40px;
+    padding-top: 20px;
+  }
+
+  .not-found-header {
+    text-align: center;
+    padding: 30px 0;
+  }
+
+  .not-found-oops {
+    font-size: 5rem;
+  }
+
+  .not-found-subtitle {
+    font-size: 1.5rem;
+  }
+
+  .not-found-links-list {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .not-found-illustration-img {
+    max-width: 300px;
+  }
+}

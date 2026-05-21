@@ -10,6 +10,7 @@ import Footer from "../Footer";
 import { useThemeGlobal } from "../Contexts/ThemeContext";
 import { buildApiUrl, createAuthConfig } from "../lib/api";
 import SuccessAlert from "../SuccessAlert";
+import NotFound from "./NotFound";
 import { FiShare, FiHeart, FiFlag } from "react-icons/fi";
 
 const mockProperty = {
@@ -2779,15 +2780,7 @@ export default function PropertyDetails() {
   }
 
   if (error) {
-    return (
-      <main className="pd-page">
-        <Header />
-        <section className="pd-section pd-title-card">
-          <p>{error}</p>
-        </section>
-        <Footer />
-      </main>
-    );
+    return <NotFound />;
   }
 
   return (
