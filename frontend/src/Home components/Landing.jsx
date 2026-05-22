@@ -1,6 +1,7 @@
 // MUI materials 
 import Button from '@mui/material/Button';
 import Container from '@mui/material/Container';
+import Alert from '@mui/material/Alert';
 // MUI icons
 import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
@@ -14,6 +15,7 @@ import Calendar from './Landing components/Calndar';
 // import theme
 import { useThemeGlobal } from '../Contexts/ThemeContext';
 import { useBrowse } from '../Contexts/BrowseContext';
+import { useState } from 'react';
 
 
 
@@ -24,6 +26,7 @@ export default function Landing() {
     // browse state
     const { browse, setBrowse } = useBrowse();
     const themeGlobal = useThemeGlobal();
+    const [browseNotice, setBrowseNotice] = useState("");
 
     // functions 
 
@@ -34,13 +37,14 @@ export default function Landing() {
         const totalGuestsPeople = browse.guests.adults + browse.guests.children;
         const totlaGuests = browse.guests.adults + browse.guests.children + browse.guests.pets;
         if (!browse.location) {
-            alert("Please select the city you wish to search for.");
+            setBrowseNotice("Choose a destination city before browsing stays.");
             return;
         }
         if (totalGuestsPeople === 0) {
-            alert("Please ensure to select at least one guest");
+            setBrowseNotice("Add at least one guest to start your search.");
             return;
         }
+        setBrowseNotice("");
 
         let url = `/properties?city=${browse.location}&guests=${totalGuestsPeople}`;
 
@@ -75,6 +79,11 @@ export default function Landing() {
                     <Button type='submit' className='browseForm__submit' sx={{ padding: "10px", background: themeGlobal.colors.primary, color: "white" }} variant='filled'>Browse stays</Button>
                 </form>
             </div>
+            {browseNotice && (
+                <Alert severity="warning" className="landing-notice">
+                    {browseNotice}
+                </Alert>
+            )}
             <div className="about landing__about">
                 <div>
                     <VerifiedUserOutlinedIcon sx={{ color: themeGlobal.colors.lineSeparetor }} />

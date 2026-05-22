@@ -877,9 +877,11 @@
 }
 
 .pd-amenity {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
+  min-height: 68px;
   padding: 14px 16px;
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: var(--radius-md);
@@ -905,14 +907,62 @@
   justify-content: center;
   border-radius: 12px;
   background: rgba(62, 142, 208, 0.08);
-  font-size: 1.1rem;
+  color: var(--chefchaouen-blue);
+  font-size: 1rem;
+}
+
+.pd-amenity__content {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
 }
 
 .pd-amenity__label {
   color: var(--text-main);
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 800;
   line-height: 1.3;
+}
+
+.pd-amenity__badge {
+  width: fit-content;
+  padding: 3px 8px;
+  border: 1px solid rgba(0, 169, 181, 0.16);
+  border-radius: 999px;
+  background: rgba(0, 169, 181, 0.08);
+  color: #087b84;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.pd-amenity__tooltip {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: calc(100% + 8px);
+  z-index: 6;
+  padding: 10px 12px;
+  border: 1px solid rgba(11, 33, 54, 0.08);
+  border-radius: 12px;
+  background: rgba(11, 33, 54, 0.96);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.45;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  box-shadow: 0 12px 28px rgba(11, 33, 54, 0.16);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.pd-amenity:hover .pd-amenity__tooltip,
+.pd-amenity:focus-within .pd-amenity__tooltip {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .pd-amenity-groups {

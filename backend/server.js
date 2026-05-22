@@ -753,12 +753,14 @@ const ACCOUNT_CITY_OPTIONS = new Set([
   "Tetouan",
 ]);
 const ACCOUNT_STAY_TYPE_OPTIONS = new Set([
-  "Apartment",
+  "Appartement",
   "Studio",
-  "House",
+  "Maison",
   "Villa",
   "Riad",
-  "Guest house",
+  "Maison d'hôtes",
+  "Traditional House",
+  "Cabin / Chalet",
 ]);
 
 const cleanText = (value, maxLength = 255) => {

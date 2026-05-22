@@ -326,7 +326,7 @@ export default function PendingPropertiesTable() {
             window.dispatchEvent(new Event('storage'));
         } catch (error) {
             console.error("Error approving property:", error);
-            alert("Failed to approve property.");
+            setErrorMessage(error.response?.data?.message || "Could not approve this property. Please try again.");
         }
     };
 

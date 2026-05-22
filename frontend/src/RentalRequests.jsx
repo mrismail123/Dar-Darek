@@ -15,6 +15,7 @@ import {
     DialogContent,
     DialogContentText,
     DialogTitle,
+    Alert,
     Paper,
     Table,
     TableBody,
@@ -69,6 +70,7 @@ export default function RentalRequests() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [requests, setRequests] = useState([]);
+    const [requestNotice, setRequestNotice] = useState(null);
 
     // Notification-driven highlight
     const [highlightedId, setHighlightedId] = useState(() => {
@@ -106,12 +108,12 @@ export default function RentalRequests() {
                 }
             } catch (error) {
                 if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-                    alert("Session expired. Please login again.");
+                    setRequestNotice({ type: "warning", text: "Your session expired. Please sign in again." });
                     navigate("/Authentication", { state: { from: location.pathname } });
                 } else if (error.response && error.response.data && error.response.data.message) {
-                    alert(error.response.data.message);
+                    setRequestNotice({ type: "warning", text: error.response.data.message });
                 } else {
-                    alert(error.message || "An error occurred while fetching rental requests.");
+                    setRequestNotice({ type: "warning", text: "Could not load rental requests. Please try again." });
                 }
             }
         };
@@ -131,7 +133,7 @@ export default function RentalRequests() {
                 prev.map((r) => (r.id === requestId ? { ...r, status: "approved" } : r))
             );
         } catch (error) {
-            alert(error.response?.data?.message || "Failed to approve request.");
+            setRequestNotice({ type: "warning", text: error.response?.data?.message || "Could not approve this request. Please try again." });
         }
     };
 
@@ -160,7 +162,7 @@ export default function RentalRequests() {
                 prev.map((r) => (r.id === requestId ? { ...r, status: "rejected", _justRejected: true } : r))
             );
         } catch (error) {
-            alert(error.response?.data?.message || "Failed to reject request.");
+            setRequestNotice({ type: "warning", text: error.response?.data?.message || "Could not reject this request. Please try again." });
         }
     };
 
@@ -177,7 +179,7 @@ export default function RentalRequests() {
                 prev.map((r) => (r.id === requestId ? { ...r, status: "pending", _justRejected: false } : r))
             );
         } catch (error) {
-            alert(error.response?.data?.message || "Failed to undo rejection.");
+            setRequestNotice({ type: "warning", text: error.response?.data?.message || "Could not restore this request. Please try again." });
         }
     };
 
@@ -285,6 +287,16 @@ export default function RentalRequests() {
                             Review and respond to guest rental requests
                         </Typography>
                     </Box>
+
+                    {requestNotice && (
+                        <Alert
+                            severity={requestNotice.type}
+                            sx={{ borderRadius: "16px", mb: 2.5 }}
+                            onClose={() => setRequestNotice(null)}
+                        >
+                            {requestNotice.text}
+                        </Alert>
+                    )}
 
                     {/* Stats */}
                     <Box

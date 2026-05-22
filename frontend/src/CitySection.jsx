@@ -2,6 +2,7 @@ import * as React from "react";
 import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
 import Stack from "@mui/material/Stack";
+import Alert from "@mui/material/Alert";
 
 // Import img
 import tangier from "./assets/Tangier2.jpg"
@@ -79,6 +80,7 @@ export default function CitySection({ title, properties, message }) {
 
     // state for favorites
     const [isSaved, setIsSaved] = React.useState(false);
+    const [favoriteNotice, setFavoriteNotice] = React.useState("");
 
 
 
@@ -102,11 +104,12 @@ export default function CitySection({ title, properties, message }) {
             console.log(user);
             // login required error
             if (!token || !user) {
-                alert("Please login to save favorites!");
+                setFavoriteNotice("Please sign in before saving stays to your favorites.");
                 return;
             }
 
             try {
+                setFavoriteNotice("");
                 const response = await axios.post(
                     buildApiUrl('/api/favorites/toggle'),
                     { id_property: property.id_property },
@@ -116,6 +119,7 @@ export default function CitySection({ title, properties, message }) {
                 setIsSaved(response.data.saved);
             } catch (error) {
                 console.error("Error toggling favorite:", error);
+                setFavoriteNotice("Could not update favorites. Please try again.");
             }
         };
 
@@ -264,6 +268,11 @@ export default function CitySection({ title, properties, message }) {
                         View more
                     </Button>
                 </Box>
+                {favoriteNotice && (
+                    <Alert severity="warning" sx={{ borderRadius: 3, mb: 2 }}>
+                        {favoriteNotice}
+                    </Alert>
+                )}
                 <Box sx={{ position: "relative", minWidth: 0 }}>
                     {showScrollButtons && (
                         <Button

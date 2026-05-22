@@ -1695,6 +1695,19 @@
   max-width: 460px;
 }
 
+.settings-stay-type-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.settings-stay-type-option svg {
+  width: 17px;
+  height: 17px;
+  color: var(--teal-dark);
+  flex: 0 0 auto;
+}
+
 .settings-preferences-actions {
   display: flex;
   justify-content: flex-end;

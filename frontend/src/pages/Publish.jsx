@@ -5,7 +5,61 @@ import "./Publish.css";
 import SuccessAlert from "../SuccessAlert";
 import { useLocation, useNavigate } from "react-router-dom";
 import { buildApiUrl } from "../lib/api";
+import { PROPERTY_TYPES } from "../lib/propertyTypes";
 import Footer from "../Footer";
+import {
+  FiAirplay,
+  FiBookOpen,
+  FiBox,
+  FiBriefcase,
+  FiCalendar,
+  FiCamera,
+  FiChevronLeft,
+  FiClock,
+  FiCoffee,
+  FiDroplet,
+  FiFeather,
+  FiHome,
+  FiImage,
+  FiMapPin,
+  FiMinus,
+  FiMonitor,
+  FiPlus,
+  FiShield,
+  FiThermometer,
+  FiTruck,
+  FiTv,
+  FiUploadCloud,
+  FiUsers,
+  FiWifi,
+  FiWind,
+  FiZap,
+} from "react-icons/fi";
+import {
+  FaBath,
+  FaBed,
+  FaBaby,
+  FaBabyCarriage,
+  FaBlender,
+  FaBookReader,
+  FaChair,
+  FaConciergeBell,
+  FaFireExtinguisher,
+  FaKey,
+  FaMountain,
+  FaParking,
+  FaPaw,
+  FaShower,
+  FaSink,
+  FaSnowflake,
+  FaStoreAlt,
+  FaSwimmingPool,
+  FaTree,
+  FaUmbrellaBeach,
+  FaUtensils,
+  FaWarehouse,
+  FaWater,
+} from "react-icons/fa";
 
 import {
   MapContainer,
@@ -60,6 +114,7 @@ const INITIAL_FORM_DATA = {
     sheets: false,
     towels: false,
     toiletries: false,
+    hairDryer: false,
     refrigerator: false,
 
     kitchen: false,
@@ -80,6 +135,13 @@ const INITIAL_FORM_DATA = {
     desk: false,
     fastWifi: false,
     smartTv: false,
+
+    crib: false,
+    childrenBooksToys: false,
+    babyBath: false,
+    windowGuards: false,
+    highChair: false,
+    babyMonitor: false,
 
     balcony: false,
     terrace: false,
@@ -107,7 +169,7 @@ const INITIAL_FORM_DATA = {
   images: [],
 };
 
-const AMENITY_GROUPS = [
+const LEGACY_AMENITY_GROUPS = [
   {
     id: "essentials",
     title: "Essentials",
@@ -208,14 +270,400 @@ const AMENITY_GROUPS = [
   },
 ];
 
-const PROPERTY_TYPES = [
-  { value: "Appartement", label: "Apartment", icon: "🏢" },
-  { value: "Studio", label: "Studio", icon: "🛋️" },
-  { value: "Maison", label: "House", icon: "🏠" },
-  { value: "Villa", label: "Villa", icon: "🏡" },
-  { value: "Riad", label: "Riad", icon: "🕌" },
-  { value: "Maison d'hôtes", label: "Guest house", icon: "🛎️" },
+const AMENITY_GROUPS = [
+  {
+    id: "essentials",
+    title: "Essentials",
+    description: "The essentials for a comfortable stay.",
+    icon: FaKey,
+    items: [
+      {
+        name: "wifi",
+        label: "WiFi",
+        icon: FiWifi,
+        badge: "Popular",
+        description: "Reliable internet access for work or streaming.",
+      },
+      {
+        name: "sheets",
+        label: "Bed linens",
+        icon: FaBed,
+        badge: "Essential",
+        description: "Fresh linens prepared for every stay.",
+      },
+      {
+        name: "refrigerator",
+        label: "Refrigerator",
+        icon: FiBox,
+        description: "Space to keep drinks, snacks, and groceries chilled.",
+      },
+    ],
+  },
+  {
+    id: "bathroom",
+    title: "Bathroom",
+    description: "Comfort and hygiene basics guests expect.",
+    icon: FaBath,
+    items: [
+      {
+        name: "hotWater",
+        label: "Hot water",
+        icon: FaShower,
+        badge: "Essential",
+        description: "Comfortable showers at any time of day.",
+      },
+      {
+        name: "towels",
+        label: "Towels",
+        icon: FaSink,
+        badge: "Essential",
+        description: "Clean towels available for guests.",
+      },
+      {
+        name: "toiletries",
+        label: "Toiletries",
+        icon: FiDroplet,
+        description: "Basic bathroom products for a smoother arrival.",
+      },
+      {
+        name: "hairDryer",
+        label: "Hair dryer",
+        icon: FiWind,
+        description: "Useful after showers or beach days.",
+      },
+    ],
+  },
+  {
+    id: "kitchen",
+    title: "Kitchen",
+    description: "For guests who enjoy a more independent stay.",
+    icon: FaUtensils,
+    items: [
+      {
+        name: "kitchen",
+        label: "Kitchen",
+        icon: FaUtensils,
+        badge: "Guest favorite",
+        description: "A practical space for preparing meals.",
+      },
+      {
+        name: "microwave",
+        label: "Microwave",
+        icon: FiBox,
+        description: "Quick reheating for simple meals.",
+      },
+      {
+        name: "oven",
+        label: "Oven",
+        icon: FiThermometer,
+        description: "Helpful for longer stays and home cooking.",
+      },
+      {
+        name: "kettle",
+        label: "Kettle",
+        icon: FiCoffee,
+        description: "Easy tea and coffee preparation.",
+      },
+      {
+        name: "coffeeMachine",
+        label: "Coffee machine",
+        icon: FiCoffee,
+        badge: "Popular",
+        description: "A welcome touch for morning coffee.",
+      },
+      {
+        name: "dishes",
+        label: "Dishes",
+        icon: FaUtensils,
+        description: "Plates, glasses, and basics for dining in.",
+      },
+    ],
+  },
+  {
+    id: "comfort",
+    title: "Comfort",
+    description: "Amenities that make every stay more enjoyable.",
+    icon: FiFeather,
+    items: [
+      {
+        name: "airConditioning",
+        label: "Air conditioning",
+        icon: FaSnowflake,
+        badge: "Popular",
+        description: "Keeps the home cool during warm days.",
+      },
+      {
+        name: "heating",
+        label: "Heating",
+        icon: FiThermometer,
+        description: "Adds comfort during colder evenings.",
+      },
+      {
+        name: "washingMachine",
+        label: "Washing machine",
+        icon: FiDroplet,
+        description: "Helpful for longer stays or beach trips.",
+      },
+      {
+        name: "dryer",
+        label: "Dryer",
+        icon: FiWind,
+        description: "Makes laundry faster and easier.",
+      },
+      {
+        name: "tv",
+        label: "Television",
+        icon: FiTv,
+        description: "Entertainment for quiet evenings indoors.",
+      },
+      {
+        name: "sofa",
+        label: "Comfortable sofa",
+        icon: FaChair,
+        description: "A comfortable place to relax after exploring.",
+      },
+    ],
+  },
+  {
+    id: "workTech",
+    title: "Work & Tech",
+    description: "Ideal for remote work or downtime.",
+    icon: FiMonitor,
+    items: [
+      {
+        name: "workspace",
+        label: "Workspace",
+        icon: FiBriefcase,
+        badge: "Guest favorite",
+        description: "A comfortable spot for laptop work.",
+      },
+      {
+        name: "desk",
+        label: "Desk",
+        icon: FaChair,
+        description: "A dedicated surface for focused work.",
+      },
+      {
+        name: "fastWifi",
+        label: "Fast WiFi",
+        icon: FiZap,
+        badge: "Popular",
+        description: "Better speed for calls, work, and streaming.",
+      },
+      {
+        name: "smartTv",
+        label: "Smart TV",
+        icon: FiAirplay,
+        description: "Stream shows and movies with ease.",
+      },
+    ],
+  },
+  {
+    id: "familyChildren",
+    title: "Family & children",
+    description: "Thoughtful details for families traveling with children.",
+    icon: FaBaby,
+    items: [
+      {
+        name: "crib",
+        label: "Crib",
+        icon: FaBabyCarriage,
+        badge: "Family friendly",
+        description: "Useful for families traveling with infants.",
+      },
+      {
+        name: "childrenBooksToys",
+        label: "Children books/toys",
+        icon: FaBookReader,
+        badge: "Family friendly",
+        description: "Simple entertainment for younger guests.",
+      },
+      {
+        name: "babyBath",
+        label: "Baby bath",
+        icon: FaBath,
+        description: "Makes bath time easier for infants.",
+      },
+      {
+        name: "windowGuards",
+        label: "Window guards",
+        icon: FiShield,
+        description: "Extra protection around accessible windows.",
+      },
+      {
+        name: "highChair",
+        label: "High chair",
+        icon: FaChair,
+        description: "Helpful for meals with small children.",
+      },
+      {
+        name: "babyMonitor",
+        label: "Baby monitor",
+        icon: FiMonitor,
+        description: "Useful for keeping an eye on sleeping infants.",
+      },
+    ],
+  },
+  {
+    id: "outdoorViews",
+    title: "Outdoor & views",
+    description: "Especially valuable for homes in Northern Morocco.",
+    icon: FaMountain,
+    items: [
+      {
+        name: "balcony",
+        label: "Balcony",
+        icon: FaStoreAlt,
+        description: "A private outdoor corner for fresh air.",
+      },
+      {
+        name: "terrace",
+        label: "Terrace",
+        icon: FaWarehouse,
+        badge: "Guest favorite",
+        description: "Outdoor space for relaxing or dining.",
+      },
+      {
+        name: "seaView",
+        label: "Sea view",
+        icon: FaWater,
+        badge: "Guest favorite",
+        description: "A view toward the coast or open water.",
+      },
+      {
+        name: "mountainView",
+        label: "Mountain view",
+        icon: FaMountain,
+        description: "Views of the Rif mountains or nearby hills.",
+      },
+      {
+        name: "medinaView",
+        label: "Medina view",
+        icon: FaStoreAlt,
+        description: "A view into the historic medina atmosphere.",
+      },
+      {
+        name: "natureView",
+        label: "Nature view",
+        icon: FaTree,
+        description: "Green or scenic surroundings from the stay.",
+      },
+      {
+        name: "beachAccess",
+        label: "Beach access",
+        icon: FaUmbrellaBeach,
+        badge: "Popular",
+        description: "Easy access to the beach nearby.",
+      },
+      {
+        name: "pool",
+        label: "Pool",
+        icon: FaSwimmingPool,
+        badge: "Popular",
+        description: "A pool available for guest use.",
+      },
+      {
+        name: "bbq",
+        label: "BBQ",
+        icon: FiZap,
+        description: "Outdoor cooking for relaxed gatherings.",
+      },
+      {
+        name: "garden",
+        label: "Garden",
+        icon: FaTree,
+        description: "A green outdoor area for guests to enjoy.",
+      },
+    ],
+  },
+  {
+    id: "services",
+    title: "Services",
+    description: "Simple touches that add convenience.",
+    icon: FaConciergeBell,
+    items: [
+      {
+        name: "breakfast",
+        label: "Breakfast",
+        icon: FiCoffee,
+        badge: "Guest favorite",
+        description: "A convenient start to the morning.",
+      },
+      {
+        name: "parking",
+        label: "Parking",
+        icon: FaParking,
+        badge: "Popular",
+        description: "Convenient parking option near the stay.",
+      },
+      {
+        name: "petFriendly",
+        label: "Pet friendly",
+        icon: FaPaw,
+        description: "Guests can bring an approved pet.",
+      },
+      {
+        name: "housekeeping",
+        label: "Housekeeping",
+        icon: FiFeather,
+        description: "Cleaning support during the stay.",
+      },
+      {
+        name: "airportShuttle",
+        label: "Airport shuttle",
+        icon: FiTruck,
+        description: "Transport help to or from the airport.",
+      },
+      {
+        name: "reception",
+        label: "Reception",
+        icon: FaConciergeBell,
+        description: "On-site help or check-in assistance.",
+      },
+    ],
+  },
+  {
+    id: "security",
+    title: "Security",
+    description: "Useful features that help guests feel at ease.",
+    icon: FiShield,
+    items: [
+      {
+        name: "smokeDetector",
+        label: "Smoke detector",
+        icon: FiShield,
+        badge: "Essential",
+        description: "Alerts guests to smoke inside the property.",
+      },
+      {
+        name: "fireExtinguisher",
+        label: "Fire extinguisher",
+        icon: FaFireExtinguisher,
+        badge: "Essential",
+        description: "A safety item for emergency use.",
+      },
+      {
+        name: "outdoorCamera",
+        label: "Outdoor camera",
+        icon: FiCamera,
+        description: "Exterior camera coverage where disclosed.",
+      },
+      {
+        name: "safeBox",
+        label: "Safe box",
+        icon: FiShield,
+        description: "A secure place for small valuables.",
+      },
+    ],
+  },
 ];
+
+const CAPACITY_ICON_MAP = {
+  guests: FiUsers,
+  bedrooms: FaBed,
+  beds: FaBed,
+  bathrooms: FaBath,
+};
 
 const API_AMENITY_TO_FORM_KEY = {
   WiFi: "wifi",
@@ -224,6 +672,8 @@ const API_AMENITY_TO_FORM_KEY = {
   sheets: "sheets",
   towels: "towels",
   toiletries: "toiletries",
+  "Hair dryer": "hairDryer",
+  hairDryer: "hairDryer",
   refrigerator: "refrigerator",
   Kitchen: "kitchen",
   kitchen: "kitchen",
@@ -243,6 +693,18 @@ const API_AMENITY_TO_FORM_KEY = {
   desk: "desk",
   fastWifi: "fastWifi",
   smartTv: "smartTv",
+  Crib: "crib",
+  crib: "crib",
+  "Children books/toys": "childrenBooksToys",
+  childrenBooksToys: "childrenBooksToys",
+  "Baby bath": "babyBath",
+  babyBath: "babyBath",
+  "Window guards": "windowGuards",
+  windowGuards: "windowGuards",
+  "High chair": "highChair",
+  highChair: "highChair",
+  "Baby monitor": "babyMonitor",
+  babyMonitor: "babyMonitor",
   balcony: "balcony",
   terrace: "terrace",
   "Sea View": "seaView",
@@ -552,6 +1014,28 @@ export default function Publish() {
       const newValue = Math.max(0, currentValue + increment);
       return { ...prev, [id]: newValue };
     });
+    setErrors((prev) => ({
+      ...prev,
+      [id]: "",
+    }));
+  };
+
+  const handleCapacityInputChange = (id, value) => {
+    if (value === "") {
+      setFormData((prev) => ({ ...prev, [id]: "" }));
+      return;
+    }
+
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      [id]: Math.min(99, Math.floor(numericValue)),
+    }));
     setErrors((prev) => ({
       ...prev,
       [id]: "",
@@ -1351,13 +1835,27 @@ export default function Publish() {
                               ? "pub-property-card--active"
                               : ""
                           }`}
+                          aria-describedby={`property-type-description-${type.value.replace(/\W+/g, "-")}`}
                           onClick={() => handlePropertyTypeSelect(type.value)}
                         >
-                          <span className="pub-property-card__icon">
-                            {type.icon}
-                          </span>
+                          {(() => {
+                            const TypeIcon = type.icon;
+
+                            return (
+                              <span className="pub-property-card__icon">
+                                <TypeIcon aria-hidden="true" />
+                              </span>
+                            );
+                          })()}
                           <span className="pub-property-card__label">
                             {type.label}
+                          </span>
+                          <span
+                            id={`property-type-description-${type.value.replace(/\W+/g, "-")}`}
+                            role="tooltip"
+                            className="pub-property-card__tooltip"
+                          >
+                            {type.description}
                           </span>
                         </button>
                       ))}
@@ -1564,15 +2062,22 @@ export default function Publish() {
                   { id: "bedrooms", label: "Bedrooms", icon: "🛏️" },
                   { id: "beds", label: "Beds", icon: "🛌" },
                   { id: "bathrooms", label: "Bathrooms", icon: "🚿" },
-                ].map(({ id, label, icon }) => (
+                ].map(({ id, label }) => (
                   <div
                     className="pub-detail-card"
                     key={id}
                     data-error-anchor={id}
                   >
                     <div className="pub-detail-card__header">
-                      <span className="pub-detail-card__icon">{icon}</span>
-                      <label className="pub-detail-card__label">{label}</label>
+                      <span className="pub-detail-card__icon">
+                        {(() => {
+                          const DetailIcon = CAPACITY_ICON_MAP[id];
+                          return <DetailIcon aria-hidden="true" />;
+                        })()}
+                      </span>
+                      <label className="pub-detail-card__label" htmlFor={id}>
+                        {label}
+                      </label>
                     </div>
 
                     <div className="pub-stepper">
@@ -1581,20 +2086,43 @@ export default function Publish() {
                         className="pub-stepper__btn"
                         onClick={() => handleStepperChange(id, -1)}
                         disabled={Number(formData[id] || 0) <= 0}
+                        aria-label={`Decrease ${label.toLowerCase()}`}
                       >
-                        -
+                        <FiMinus aria-hidden="true" />
                       </button>
-                      <span className="pub-stepper__value">
-                        {formData[id] || 0}
-                      </span>
+                      <input
+                        id={id}
+                        name={id}
+                        type="number"
+                        min="0"
+                        max="99"
+                        inputMode="numeric"
+                        className="pub-stepper__input"
+                        value={formData[id]}
+                        placeholder="0"
+                        onChange={(event) =>
+                          handleCapacityInputChange(id, event.target.value)
+                        }
+                        onWheel={stopWheelChange}
+                        onKeyDown={(event) => {
+                          if (["e", "E", "+", "-", "."].includes(event.key)) {
+                            event.preventDefault();
+                          }
+                        }}
+                        aria-label={label}
+                      />
                       <button
                         type="button"
                         className="pub-stepper__btn"
                         onClick={() => handleStepperChange(id, 1)}
+                        aria-label={`Increase ${label.toLowerCase()}`}
                       >
-                        +
+                        <FiPlus aria-hidden="true" />
                       </button>
                     </div>
+                    {errors[id] && (
+                      <p className="pub-field-error">{errors[id]}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1616,34 +2144,60 @@ export default function Publish() {
                   <div className="pub-amenity-group" key={group.id}>
                     <div className="pub-amenity-group__info">
                       <span className="pub-amenity-group__icon">
-                        {group.icon}
+                        {(() => {
+                          const GroupIcon = group.icon;
+                          return <GroupIcon aria-hidden="true" />;
+                        })()}
                       </span>
-                      <h3 className="pub-amenity-group__title">
-                        {group.title}
-                      </h3>
+                      <div>
+                        <h3 className="pub-amenity-group__title">
+                          {group.title}
+                        </h3>
+                        <p className="pub-amenity-group__description">
+                          {group.description}
+                        </p>
+                      </div>
                     </div>
 
                     <div className="pub-amenity-chips">
-                      {group.items.map((item) => (
-                        <label
-                          key={item.name}
-                          className={`pub-chip ${
-                            formData.amenities[item.name]
-                              ? "pub-chip--active"
-                              : ""
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            name={item.name}
-                            checked={formData.amenities[item.name]}
-                            onChange={handleAmenityChange}
-                            className="pub-chip__input"
-                          />
-                          <span className="pub-chip__icon">{item.icon}</span>
-                          <span className="pub-chip__label">{item.label}</span>
-                        </label>
-                      ))}
+                      {group.items.map((item) => {
+                        const AmenityIcon = item.icon;
+
+                        return (
+                          <label
+                            key={item.name}
+                            className={`pub-chip ${
+                              formData.amenities[item.name]
+                                ? "pub-chip--active"
+                                : ""
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              name={item.name}
+                              checked={formData.amenities[item.name]}
+                              onChange={handleAmenityChange}
+                              className="pub-chip__input"
+                            />
+                            <span className="pub-chip__icon">
+                              <AmenityIcon aria-hidden="true" />
+                            </span>
+                            <span className="pub-chip__body">
+                              <span className="pub-chip__label">
+                                {item.label}
+                              </span>
+                              {item.badge && (
+                                <span className="pub-chip__badge">
+                                  {item.badge}
+                                </span>
+                              )}
+                            </span>
+                            <span className="pub-chip__tooltip" role="tooltip">
+                              {item.description}
+                            </span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -1776,16 +2330,18 @@ export default function Publish() {
                     </div>
                   </div>
 
-                  <input
-                    id="checkIn"
-                    name="checkIn"
-                    type="time"
-                    className={`pub-input pub-stay-input ${
-                      errors.checkIn ? "pub-input--error" : ""
-                    }`}
-                    value={formData.checkIn}
-                    onChange={handleChange}
-                  />
+                  <div className="pub-time-picker">
+                    <input
+                      id="checkIn"
+                      name="checkIn"
+                      type="time"
+                      className={`pub-input pub-stay-input ${
+                        errors.checkIn ? "pub-input--error" : ""
+                      }`}
+                      value={formData.checkIn}
+                      onChange={handleChange}
+                    />
+                  </div>
                   {errors.checkIn && (
                     <p className="pub-field-error">{errors.checkIn}</p>
                   )}
@@ -1802,16 +2358,18 @@ export default function Publish() {
                     </div>
                   </div>
 
-                  <input
-                    id="checkOut"
-                    name="checkOut"
-                    type="time"
-                    className={`pub-input pub-stay-input ${
-                      errors.checkOut ? "pub-input--error" : ""
-                    }`}
-                    value={formData.checkOut}
-                    onChange={handleChange}
-                  />
+                  <div className="pub-time-picker">
+                    <input
+                      id="checkOut"
+                      name="checkOut"
+                      type="time"
+                      className={`pub-input pub-stay-input ${
+                        errors.checkOut ? "pub-input--error" : ""
+                      }`}
+                      value={formData.checkOut}
+                      onChange={handleChange}
+                    />
+                  </div>
                   {errors.checkOut && (
                     <p className="pub-field-error">{errors.checkOut}</p>
                   )}

@@ -24,6 +24,10 @@ import Footer from "../Footer";
 import "./AccountSettings.css";
 import Header from "../Home components/Header";
 import { API_BASE_URL } from "../lib/api";
+import {
+  PROPERTY_TYPES,
+  normalizePropertyTypeValue,
+} from "../lib/propertyTypes";
 
 const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -414,16 +418,9 @@ const commonPreferenceCities = [
   "Tetouan",
 ].sort((a, b) => a.localeCompare(b));
 
-const preferenceStayTypes = [
-  { value: "Apartment", icon: "🏢" },
-  { value: "Studio", icon: "🛋️" },
-  { value: "House", icon: "🏠" },
-  { value: "Villa", icon: "🏡" },
-  { value: "Riad", icon: "🕌" },
-  { value: "Guest house", icon: "🛎️" },
-];
-
 const billingCountryOptions = ["Morocco", "France", "Spain", "Other"];
+
+const preferenceStayTypes = PROPERTY_TYPES;
 
 const payoutMethodOptions = [
   "Bank account",
@@ -1795,7 +1792,7 @@ export default function AccountSettings() {
     language: rawUser.preferred_language || "English",
     currency: rawUser.preferred_currency || "MAD",
     preferredCity: rawUser.preferred_city || "Tangier",
-    stayType: rawUser.preferred_stay_type || "Apartment",
+    stayType: normalizePropertyTypeValue(rawUser.preferred_stay_type) || "Appartement",
   });
   const [citySearch, setCitySearch] = useState("");
   const [cityFocused, setCityFocused] = useState(false);
@@ -1976,9 +1973,9 @@ export default function AccountSettings() {
         "Tangier",
       ),
       stayType: getAllowedOptionValue(
-        accountUser.preferred_stay_type,
+        normalizePropertyTypeValue(accountUser.preferred_stay_type),
         preferenceStayTypes,
-        "Apartment",
+        "Appartement",
       ),
     });
 
@@ -4046,9 +4043,14 @@ export default function AccountSettings() {
                               setOpenPreferenceDropdown(null);
                             }}
                             getOptionValue={(option) => option.value}
-                            getOptionLabel={(option) =>
-                              `${option.icon} ${option.value}`
-                            }
+                            getOptionLabel={(option) => (
+                              <span className="settings-stay-type-option">
+                                {createElement(option.icon, {
+                                  "aria-hidden": true,
+                                })}
+                                <span>{option.label}</span>
+                              </span>
+                            )}
                           />
                         </div>
                       </div>

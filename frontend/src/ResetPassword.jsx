@@ -25,6 +25,7 @@ export default function ResetPassword() {
         token : token || null
     });
     const [resetError, setResetError] = useState("");
+    const [resetSuccess, setResetSuccess] = useState("");
     const [resetLoading, setResetLoading] = useState(false);
     const passwordValue = changePasswordInfo.password;
     const confirmPasswordValue = changePasswordInfo.confirmPassword;
@@ -57,30 +58,36 @@ export default function ResetPassword() {
         const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{10,50}$/;
         if(!changePasswordInfo.token){
             setResetError("Reset link is missing or invalid.");
+            setResetSuccess("");
             return;
         }
         if(!passwordRegex.test(changePasswordInfo.password)){
             setResetError("Password must be 10 to 50 characters long and include at least one letter and one number.");
+            setResetSuccess("");
             return;
         }
         if(changePasswordInfo.password!==changePasswordInfo.confirmPassword){
             setResetError("Password and confirm password do not match.");
+            setResetSuccess("");
             return;
         }
         try {
             setResetLoading(true);
             setResetError("");
+            setResetSuccess("");
             const response = await axios.post(buildApiUrl("/api/change-password") , changePasswordInfo);
-            alert(response.data.message || "Password updated successfully.");
-            navigate("/Authentication", { replace: true });
+            setResetSuccess(response.data.message || "Password updated successfully. You can now sign in.");
+            window.setTimeout(() => {
+                navigate("/Authentication", { replace: true });
+            }, 800);
 
         } catch (error) {
             if (error.response) {
-                setResetError(error.response.data.message || error.response.data.error || "Something went wrong while changing your password.");
+                setResetError(error.response.data.message || error.response.data.error || "Could not update your password. Please try again.");
             } else if (error.request) { 
-                setResetError("Unable to reach the server. Please make sure it is running on port 5000.");
+                setResetError("We could not reach the server. Please try again in a moment.");
             } else {
-                setResetError("Request setup failed: " + error.message);
+                setResetError("Could not start password reset. Please try again.");
             }
         } finally {
             setResetLoading(false);
@@ -115,6 +122,7 @@ export default function ResetPassword() {
                             onChange={(e)=>{
                                 setChangePasswordInfo({...changePasswordInfo , password:e.currentTarget.value });
                                 if (resetError) setResetError("");
+                                if (resetSuccess) setResetSuccess("");
                             }}
                         />
                         {passwordValue && (
@@ -145,6 +153,7 @@ export default function ResetPassword() {
                             onChange={(e)=>{
                                 setChangePasswordInfo({...changePasswordInfo , confirmPassword:e.currentTarget.value });
                                 if (resetError) setResetError("");
+                                if (resetSuccess) setResetSuccess("");
                             }}
                         />
                         {confirmTouched && (
@@ -163,6 +172,17 @@ export default function ResetPassword() {
                             role="alert"
                         >
                             {resetError}
+                        </motion.div>
+                    )}
+                    {resetSuccess && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="auth-inline-success"
+                            role="status"
+                        >
+                            {resetSuccess}
                         </motion.div>
                     )}
 

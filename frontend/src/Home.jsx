@@ -23,7 +23,7 @@ import axios from 'axios';
 import * as React from 'react';
 import Landing from './Home components/Landing';
 import SectionDivider from './SectionDivider';
-import { Box, Container } from '@mui/material';
+import { Alert, Box, Container } from '@mui/material';
 import { buildApiUrl } from './lib/api';
 
 // End MUI #############################
@@ -66,6 +66,7 @@ export default function Home() {
     // states
     const [homePageProperties, setHomePageProperties] = React.useState(null);
     const [isLoading, setIsLoading] = React.useState(true);
+    const [homeNotice, setHomeNotice] = React.useState("");
 
     const citySections = React.useMemo(() => {
         if (!homePageProperties) {
@@ -132,9 +133,9 @@ export default function Home() {
                 if (error.response) {
                     console.log(error.response.message || error.response.details || "Unknown");
                 } else if (error.request) {
-                    alert("Can't reach the server, please check the server is running on port:5000");
+                    setHomeNotice("We could not load the latest stays. Please try again in a moment.");
                 } else {
-                    alert("An error occured:", error);
+                    setHomeNotice("Something went wrong while loading stays.");
                 }
             } finally {
                 const elapsed = Date.now() - loadingStartedAt;
@@ -168,6 +169,14 @@ export default function Home() {
             {/* Start Landing */}
             <Landing />
             {/* End Landing */}
+
+            {homeNotice && (
+                <Container className="listingHomePageContainer">
+                    <Alert severity="warning" sx={{ borderRadius: 3, mb: 2 }}>
+                        {homeNotice}
+                    </Alert>
+                </Container>
+            )}
 
             {isLoading ? (
                 <HomeLoadingSection />

@@ -146,6 +146,19 @@
     box-shadow: 0 10px 22px rgba(159, 31, 31, 0.08);
 }
 
+.auth-inline-success {
+    margin: 0 0 0.9rem;
+    padding: 0.85rem 1rem;
+    border-radius: 14px;
+    border: 1px solid rgba(0, 169, 181, 0.22);
+    background: linear-gradient(135deg, rgba(0, 169, 181, 0.1), rgba(240, 253, 250, 0.96));
+    color: #087b84;
+    font-size: 0.93rem;
+    font-weight: 700;
+    line-height: 1.4;
+    box-shadow: 0 10px 22px rgba(0, 169, 181, 0.08);
+}
+
 .auth-submit-button {
     border: 0;
     transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
