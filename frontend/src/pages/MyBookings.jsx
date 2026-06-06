@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import {
   FiCalendar,
-  FiChevronDown,
   FiCheckCircle,
   FiClock,
   FiEye,
@@ -22,7 +21,6 @@ import asilahImage from "../assets/ChaouenStreets.jpg";
 import { buildApiUrl, createAuthConfig } from "../lib/api";
 import "./MyBookings.css";
 import { useThemeGlobal } from "../Contexts/ThemeContext";
-import { MdOutlineExplore } from "react-icons/md";
 
 const bookingTabs = [
   { id: "upcoming", label: "Upcoming" },
@@ -35,24 +33,24 @@ const FALLBACK_BOOKING_IMAGE = asilahImage;
 
 const statusMeta = {
   upcoming: {
-    label: "Upcoming",
+    label: "Confirmed",
     icon: FiCheckCircle,
-    tone: "success",
+    tone: "upcoming",
   },
   pending: {
-    label: "Pending request",
+    label: "Pending",
     icon: FiClock,
-    tone: "warning",
+    tone: "pending",
   },
   completed: {
     label: "Completed",
     icon: FiCheckCircle,
-    tone: "blue",
+    tone: "completed",
   },
   cancelled: {
     label: "Cancelled",
     icon: FiXCircle,
-    tone: "muted",
+    tone: "cancelled",
   },
 };
 
@@ -84,14 +82,9 @@ function normalizeBooking(booking) {
   };
 }
 
-const dateFormatter = new Intl.DateTimeFormat("en", {
+const dateFormatter = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
   month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-const monthFormatter = new Intl.DateTimeFormat("en", {
-  month: "long",
   year: "numeric",
 });
 
@@ -103,77 +96,26 @@ const priceFormatter = new Intl.NumberFormat("en-MA", {
 
 function formatDate(value) {
   if (!value) return "Date not set";
-
   const cleanValue = String(value).split("T")[0];
   const date = new Date(`${cleanValue}T12:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Date not set";
-  }
-
+  if (Number.isNaN(date.getTime())) return "Date not set";
   return dateFormatter.format(date);
-}
-
-function getBookingDate(value) {
-  return new Date(`${value}T12:00:00`);
 }
 
 function formatDateRange(checkIn, checkOut) {
   return `${formatDate(checkIn)} - ${formatDate(checkOut)}`;
 }
 
-function getMonthKey(value) {
-  const date = getBookingDate(value);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function formatMonth(value) {
-  const date = getBookingDate(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown month";
-  }
-
-  return monthFormatter.format(date);
-}
+const getNightsCount = (checkIn, checkOut) => {
+  const start = new Date(checkIn);
+  const end = new Date(checkOut);
+  const diff = end - start;
+  if (Number.isNaN(diff) || diff <= 0) return 0;
+  return Math.round(diff / (1000 * 60 * 60 * 24));
+};
 
 function formatGuests(guests) {
   return `${guests} ${guests === 1 ? "guest" : "guests"}`;
-}
-
-const emptyStateCopy = {
-  upcoming: {
-    title: "No upcoming stays yet.",
-    text: "Your confirmed trips will appear here once a host approves your stay.",
-  },
-  pending: {
-    title: "No pending requests.",
-    text: "Booking requests waiting for host approval will be gathered here.",
-  },
-  completed: {
-    title: "No completed stays yet.",
-    text: "Past trips will appear here after your stay is finished.",
-  },
-  cancelled: {
-    title: "No cancelled bookings.",
-    text: "Cancelled bookings and requests will stay here for reference.",
-  },
-};
-
-function getTimelineSteps(status) {
-  if (status === "completed") {
-    return ["done", "done", "done"];
-  }
-
-  if (status === "upcoming") {
-    return ["done", "active", "idle"];
-  }
-
-  if (status === "cancelled") {
-    return ["done", "cancelled", "idle"];
-  }
-
-  return ["active", "idle", "idle"];
 }
 
 function StatusBadge({ status }) {
@@ -181,181 +123,59 @@ function StatusBadge({ status }) {
   const Icon = meta.icon;
 
   return (
-    <span className={`bookings-status bookings-status--${meta.tone}`}>
+    <span className={`booking-status-badge booking-status-badge--${meta.tone}`}>
       <Icon aria-hidden="true" />
       {meta.label}
     </span>
   );
 }
 
-function BookingActions({ booking, onDetails, onCancel, onReview, onMessage }) {
-  if (booking.status === "upcoming") {
-    return (
-      <>
-        <button
-          className="bookings-btn bookings-btn--primary"
-          onClick={onDetails}
-        >
-          <FiEye aria-hidden="true" />
-          View details
-        </button>
-        <button
-          className="bookings-btn bookings-btn--ghost"
-          onClick={onMessage}
-          type="button"
-        >
-          <FiMessageCircle aria-hidden="true" />
-          Message host
-        </button>
-        <button
-          className="bookings-btn bookings-btn--danger"
-          onClick={onCancel}
-        >
-          <FiXCircle aria-hidden="true" />
-          Cancel booking
-        </button>
-      </>
-    );
-  }
-
-  if (booking.status === "pending") {
-    return (
-      <>
-        <button
-          className="bookings-btn bookings-btn--primary"
-          onClick={onDetails}
-        >
-          <FiEye aria-hidden="true" />
-          View request
-        </button>
-        <button
-          className="bookings-btn bookings-btn--danger"
-          onClick={onCancel}
-        >
-          <FiXCircle aria-hidden="true" />
-          Cancel request
-        </button>
-      </>
-    );
-  }
-
-  if (booking.status === "completed") {
-    return (
-      <>
-        <button
-          className="bookings-btn bookings-btn--primary"
-          onClick={onDetails}
-        >
-          <FiEye aria-hidden="true" />
-          View stay
-        </button>
-        <button
-          className="bookings-btn bookings-btn--ghost"
-          disabled={booking.reviewed}
-          onClick={onReview}
-        >
-          <FiStar aria-hidden="true" />
-          {booking.reviewed ? "Review sent" : "Leave review"}
-        </button>
-      </>
-    );
-  }
-
-  return (
-    <button className="bookings-btn bookings-btn--primary" onClick={onDetails}>
-      <FiEye aria-hidden="true" />
-      View details
-    </button>
-  );
-}
-
 function BookingModal({ booking, onClose, onViewProperty }) {
   if (!booking) return null;
-
-  const timelineStates = getTimelineSteps(booking.status);
+  const timelineStates = booking.status === "completed" ? ["done", "done", "done"] : 
+                         booking.status === "upcoming" ? ["done", "active", "idle"] : 
+                         booking.status === "cancelled" ? ["done", "cancelled", "idle"] : 
+                         ["active", "idle", "idle"];
+  
   const timelineLabels = ["Requested", "Confirmed", "Stay completed"];
 
   return (
-    <div
-      className="bookings-modal-overlay"
-      role="presentation"
-      onMouseDown={onClose}
-    >
-      <section
-        className="bookings-modal bookings-details-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="booking-details-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <button
-          className="bookings-modal__close"
-          onClick={onClose}
-          aria-label="Close"
-        >
-          <FiX aria-hidden="true" />
+    <div className="bookings-modal-overlay" onMouseDown={onClose}>
+      <section className="bookings-modal bookings-details-modal" onMouseDown={(e) => e.stopPropagation()}>
+        <button className="bookings-modal__close" onClick={onClose} aria-label="Close">
+          <FiX />
         </button>
-
         <div className="bookings-modal__image">
           <img src={booking.image} alt={booking.propertyTitle} />
-          <StatusBadge status={booking.status} />
+          <div style={{position: 'absolute', top: 16, left: 16, background: '#fff', borderRadius: 999, padding: '4px 8px'}}>
+            <StatusBadge status={booking.status} />
+          </div>
         </div>
-
         <div className="bookings-modal__body">
-          <div>
-            <p className="bookings-kicker">{booking.city}</p>
-            <h2 id="booking-details-title">{booking.propertyTitle}</h2>
-          </div>
-
+          <p className="bookings-kicker" style={{color: 'var(--teal-dark)', fontWeight: 800, fontSize: '0.8rem', textTransform: 'uppercase'}}>{booking.city}</p>
+          <h2 style={{fontFamily: 'Cormorant Garamond, serif', fontSize: '1.8rem', margin: '4px 0 16px', color: 'var(--navy-900)'}}>{booking.propertyTitle}</h2>
           <div className="bookings-detail-grid">
-            <span>
-              <FiMapPin aria-hidden="true" />
-              {booking.location}
-            </span>
-            <span>
-              <FiCalendar aria-hidden="true" />
-              {formatDateRange(booking.checkIn, booking.checkOut)}
-            </span>
-            <span>
-              <FiUsers aria-hidden="true" />
-              {formatGuests(booking.guests)}
-            </span>
-            <span>
-              <FiUser aria-hidden="true" />
-              Hosted by {booking.hostName}
-            </span>
+            <span><FiMapPin /> {booking.location}</span>
+            <span><FiCalendar /> {formatDateRange(booking.checkIn, booking.checkOut)}</span>
+            <span><FiUsers /> {formatGuests(booking.guests)}</span>
+            <span><FiUser /> Hosted by {booking.hostName}</span>
           </div>
-
           <div className="bookings-price-panel">
-            <span>Total price</span>
-            <strong>{priceFormatter.format(booking.totalPrice)}</strong>
+            <span style={{fontWeight: 700}}>Total price</span>
+            <strong style={{fontSize: '1.2rem'}}>{priceFormatter.format(booking.totalPrice)}</strong>
           </div>
-
-          <div className="bookings-timeline" aria-label="Booking timeline">
+          <div className="bookings-timeline">
             {timelineLabels.map((label, index) => (
-              <div
-                className={`bookings-timeline__step bookings-timeline__step--${timelineStates[index]}`}
-                key={label}
-              >
+              <div className={`bookings-timeline__step bookings-timeline__step--${timelineStates[index]}`} key={label}>
                 <span>{index + 1}</span>
-                <p>{label}</p>
+                <p style={{margin: 0, fontSize: '0.85rem', fontWeight: 600}}>{label}</p>
               </div>
             ))}
           </div>
-
           <div className="bookings-modal__actions">
-            <button
-              className="bookings-btn bookings-btn--ghost"
-              onClick={onClose}
-            >
-              Close
-            </button>
-            <button
-              className="bookings-btn bookings-btn--primary"
-              onClick={onViewProperty}
-            >
-              <FiHome aria-hidden="true" />
-              View property
+            <button className="action-btn action-btn--ghost" onClick={onClose} style={{width: 'auto'}}>Close</button>
+            <button className="action-btn action-btn--primary" onClick={onViewProperty} style={{width: 'auto'}}>
+              <FiHome /> View property
             </button>
           </div>
         </div>
@@ -366,128 +186,66 @@ function BookingModal({ booking, onClose, onViewProperty }) {
 
 function CancelModal({ booking, onClose, onConfirm }) {
   if (!booking) return null;
-
   return (
-    <div
-      className="bookings-modal-overlay"
-      role="presentation"
-      onMouseDown={onClose}
-    >
-      <section
-        className="bookings-modal bookings-confirm-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="booking-cancel-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <button
-          className="bookings-modal__close"
-          onClick={onClose}
-          aria-label="Close"
-        >
-          <FiX aria-hidden="true" />
+    <div className="bookings-modal-overlay" onMouseDown={onClose}>
+      <section className="bookings-modal" onMouseDown={(e) => e.stopPropagation()}>
+        <button className="bookings-modal__close" onClick={onClose}>
+          <FiX />
         </button>
         <div className="bookings-modal-icon bookings-modal-icon--danger">
-          <FiXCircle aria-hidden="true" />
+          <FiXCircle />
         </div>
-        <h2 id="booking-cancel-title">Cancel this booking?</h2>
-        <p>
-          Your booking will be marked as cancelled for this frontend preview.
+        <h2 style={{fontFamily: 'Cormorant Garamond', fontSize: '1.8rem', margin: '0 0 12px'}}>Cancel this booking?</h2>
+        <p style={{color: 'var(--text-muted)', fontSize: '0.95rem', margin: '0 0 24px'}}>
+          Are you sure you want to cancel your reservation for <strong>{booking.propertyTitle}</strong>? This cannot be undone.
         </p>
         <div className="bookings-modal__actions">
-          <button
-            className="bookings-btn bookings-btn--ghost"
-            onClick={onClose}
-          >
-            Keep booking
-          </button>
-          <button
-            className="bookings-btn bookings-btn--danger"
-            onClick={onConfirm}
-          >
-            Cancel booking
-          </button>
+          <button className="action-btn action-btn--ghost" onClick={onClose} style={{width: 'auto'}}>Keep booking</button>
+          <button className="action-btn action-btn--danger" onClick={onConfirm} style={{width: 'auto'}}>Yes, cancel</button>
         </div>
       </section>
     </div>
   );
 }
 
-function ReviewModal({
-  booking,
-  rating,
-  reviewText,
-  onRating,
-  onText,
-  onClose,
-  onSubmit,
-}) {
+function ReviewModal({ booking, rating, reviewText, onRating, onText, onClose, onSubmit }) {
   if (!booking) return null;
-
   return (
-    <div
-      className="bookings-modal-overlay"
-      role="presentation"
-      onMouseDown={onClose}
-    >
-      <section
-        className="bookings-modal bookings-review-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="booking-review-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <button
-          className="bookings-modal__close"
-          onClick={onClose}
-          aria-label="Close"
-        >
-          <FiX aria-hidden="true" />
+    <div className="bookings-modal-overlay" onMouseDown={onClose}>
+      <section className="bookings-modal" onMouseDown={(e) => e.stopPropagation()}>
+        <button className="bookings-modal__close" onClick={onClose}>
+          <FiX />
         </button>
-        <p className="bookings-kicker">Completed stay</p>
-        <h2 id="booking-review-title">Leave a review</h2>
-        <p className="bookings-review-subtitle">
+        <p className="bookings-kicker" style={{color: 'var(--teal-dark)', fontWeight: 800, fontSize: '0.8rem', textTransform: 'uppercase'}}>Completed Stay</p>
+        <h2 style={{fontFamily: 'Cormorant Garamond', fontSize: '1.8rem', margin: '4px 0 8px'}}>Leave a review</h2>
+        <p style={{color: 'var(--text-muted)', fontSize: '0.95rem', margin: '0 0 24px'}}>
           Share a quick note about your stay at {booking.propertyTitle}.
         </p>
-
-        <div className="bookings-stars" aria-label="Star rating">
+        <div className="bookings-stars">
           {[1, 2, 3, 4, 5].map((star) => (
-            <button
-              className={star <= rating ? "is-selected" : ""}
-              key={star}
-              onClick={() => onRating(star)}
-              type="button"
-              aria-label={`${star} star${star === 1 ? "" : "s"}`}
-            >
-              <FiStar aria-hidden="true" />
+            <button key={star} className={star <= rating ? "is-selected" : ""} onClick={() => onRating(star)}>
+              <FiStar />
             </button>
           ))}
         </div>
-
         <label className="bookings-review-field">
           <span>Your review</span>
           <textarea
             value={reviewText}
-            onChange={(event) => onText(event.target.value)}
+            onChange={(e) => onText(e.target.value)}
             placeholder="What made this stay memorable?"
             rows="5"
           />
         </label>
-
         <div className="bookings-modal__actions">
-          <button
-            className="bookings-btn bookings-btn--ghost"
-            onClick={onClose}
-          >
-            Close
-          </button>
-          <button
-            className="bookings-btn bookings-btn--primary"
-            onClick={onSubmit}
+          <button className="action-btn action-btn--ghost" onClick={onClose} style={{width: 'auto'}}>Close</button>
+          <button 
+            className="action-btn action-btn--primary" 
+            onClick={onSubmit} 
             disabled={reviewText.trim().length < 10}
+            style={{width: 'auto'}}
           >
-            <FiSend aria-hidden="true" />
-            Submit review
+            <FiSend /> Submit review
           </button>
         </div>
       </section>
@@ -496,68 +254,33 @@ function ReviewModal({
 }
 
 export default function MyBookings() {
-  const MIN_LOADING_MS = 850;
   const navigate = useNavigate();
   const location = useLocation();
+  const themeGlobal = useThemeGlobal();
+  
   const [activeTab, setActiveTab] = useState("upcoming");
   const [bookings, setBookings] = useState([]);
-  const [completedMonth, setCompletedMonth] = useState("all");
-  const [isMonthFilterOpen, setIsMonthFilterOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [bookingToCancel, setBookingToCancel] = useState(null);
   const [bookingToReview, setBookingToReview] = useState(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewText, setReviewText] = useState("");
-  const [toast, setToast] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
 
-  // theme 
-  const themeGlobal = useThemeGlobal();
-
-  // Show success toast if redirected from Checkout
   useEffect(() => {
     if (location.state?.successToast) {
-      showToast(location.state.successToast);
-      // Switch to the "pending" tab so user sees their new request
       setActiveTab("pending");
-      // Clear the state so a page refresh doesn't re-show it
       window.history.replaceState({}, document.title);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [location.state]);
 
   async function fetchBookings() {
     const token = localStorage.getItem("token");
-    const loadingStartedAt = Date.now();
-
-    setIsLoading(true);
-    setErrorMessage("");
-
     try {
-      const response = await axios.get(
-        buildApiUrl("/api/my-bookings"),
-        createAuthConfig(token),
-      );
-      const apiBookings = Array.isArray(response.data?.bookings)
-        ? response.data.bookings
-        : [];
-
+      const response = await axios.get(buildApiUrl("/api/my-bookings"), createAuthConfig(token));
+      const apiBookings = Array.isArray(response.data?.bookings) ? response.data.bookings : [];
       setBookings(apiBookings.map(normalizeBooking));
     } catch (error) {
-      setErrorMessage(
-        error.response?.data?.message ||
-        "We couldn't load your bookings right now.",
-      );
-    } finally {
-      const elapsed = Date.now() - loadingStartedAt;
-      const remaining = Math.max(MIN_LOADING_MS - elapsed, 0);
-
-      if (remaining > 0) {
-        await new Promise((resolve) => window.setTimeout(resolve, remaining));
-      }
-
-      setIsLoading(false);
+      console.error(error);
     }
   }
 
@@ -565,482 +288,211 @@ export default function MyBookings() {
     fetchBookings();
   }, []);
 
-  const summary = useMemo(
-    () => ({
-      total: bookings.length,
-      pending: bookings.filter((booking) => booking.status === "pending")
-        .length,
-      confirmed: bookings.filter((booking) => booking.status === "upcoming")
-        .length,
-    }),
-    [bookings],
-  );
+  const summary = useMemo(() => ({
+    total: bookings.length,
+    pending: bookings.filter((b) => b.status === "pending").length,
+    confirmed: bookings.filter((b) => b.status === "upcoming").length,
+  }), [bookings]);
 
-  const tabCounts = useMemo(
-    () =>
-      bookingTabs.reduce((counts, tab) => {
-        counts[tab.id] = bookings.filter(
-          (booking) => booking.status === tab.id,
-        ).length;
-
-        return counts;
-      }, {}),
-    [bookings],
-  );
-
-  // const completedMonthOptions = useMemo(() => {
-  //   const completedBookings = bookings
-  //     .filter((booking) => booking.status === "completed")
-  //     .sort((firstBooking, secondBooking) => {
-  //       return (
-  //         getBookingDate(secondBooking.checkOut) -
-  //         getBookingDate(firstBooking.checkOut)
-  //       );
-  //     });
-
-  //   const monthMap = new Map();
-
-  //   completedBookings.forEach((booking) => {
-  //     const key = getMonthKey(booking.checkOut);
-
-  //     if (!monthMap.has(key)) {
-  //       monthMap.set(key, formatMonth(booking.checkOut));
-  //     }
-  //   });
-
-  //   return [
-  //     { value: "all", label: "All months" },
-  //     ...Array.from(monthMap, ([value, label]) => ({ value, label })),
-  //   ];
-  // }, [bookings]);
-  const completedMonthOptions = useMemo(() => {
-      // 1. تصفية الحجوزات المكتملة مع التأكد من وجود تاريخ checkOut صالح
-      const completedBookings = bookings
-        .filter((booking) => 
-          booking.status === "completed" && 
-          booking.checkOut && 
-          !isNaN(new Date(booking.checkOut).getTime()) // تأكيد صلاحية التاريخ
-        )
-        .sort((a, b) => new Date(b.checkOut) - new Date(a.checkOut));
-
-      const monthMap = new Map();
-
-      completedBookings.forEach((booking) => {
-        // استخدم قيمة checkOut مباشرة
-        const dateValue = booking.checkOut;
-        const key = getMonthKey(dateValue);
-
-        if (!monthMap.has(key)) {
-          monthMap.set(key, formatMonth(dateValue));
-        }
-      });
-
-      // تحويل الـ Map إلى مصفوفة خيارات (Options) إذا كنت تحتاجها لـ Select
-      return [
-        { value: "all", label: "All months" },
-        ...Array.from(monthMap.entries()).map(([value, label]) => ({
-          value,
-          label,
-        })),
-      ];
-  }, [bookings]);
-
-    // تعديل الدالة لتكون دفاعية
-    function _formatMonth(value) {
-      const date = getBookingDate(value);
-      
-      // التحقق النهائي قبل التنسيق
-      if (isNaN(date.getTime())) {
-        console.error("FormatMonth received an invalid date:", value);
-        return "Unknown Month";
-      }
-      
-      return monthFormatter.format(date);
-    }
+  const tabCounts = useMemo(() => bookingTabs.reduce((counts, tab) => {
+    counts[tab.id] = bookings.filter((b) => b.status === tab.id).length;
+    return counts;
+  }, {}), [bookings]);
 
   const filteredBookings = useMemo(() => {
-    const currentBookings = bookings.filter(
-      (booking) => booking.status === activeTab,
-    );
-
-    if (activeTab !== "completed") {
-      return currentBookings;
-    }
-
-    return currentBookings
-      .filter(
-        (booking) =>
-          completedMonth === "all" ||
-          getMonthKey(booking.checkOut) === completedMonth,
-      )
-      .sort((firstBooking, secondBooking) => {
-        return (
-          getBookingDate(secondBooking.checkOut) -
-          getBookingDate(firstBooking.checkOut)
-        );
-      });
-  }, [activeTab, bookings, completedMonth]);
-
-  const isDenseCompletedGrid =
-    activeTab === "completed" && filteredBookings.length > 4;
-  const currentEmptyState = emptyStateCopy[activeTab];
-  const selectedMonthLabel =
-    completedMonthOptions.find((option) => option.value === completedMonth)
-      ?.label || "All months";
-
-  function showToast(message) {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 2600);
-  }
+    return bookings.filter((b) => b.status === activeTab).sort((a, b) => new Date(b.checkIn) - new Date(a.checkIn));
+  }, [activeTab, bookings]);
 
   async function handleCancelBooking() {
     if (!bookingToCancel) return;
-
     const token = localStorage.getItem("token");
-
     try {
-      await axios.patch(
-        buildApiUrl(`/api/my-bookings/${bookingToCancel.id}/cancel`),
-        {},
-        createAuthConfig(token),
-      );
-
-      setBookings((currentBookings) =>
-        currentBookings.map((booking) =>
-          booking.id === bookingToCancel.id
-            ? { ...booking, status: "cancelled" }
-            : booking,
-        ),
-      );
+      await axios.patch(buildApiUrl(`/api/my-bookings/${bookingToCancel.id}/cancel`), {}, createAuthConfig(token));
+      setBookings((prev) => prev.map((b) => b.id === bookingToCancel.id ? { ...b, status: "cancelled" } : b));
       setBookingToCancel(null);
       setActiveTab("cancelled");
-      showToast("Booking cancelled.");
     } catch (error) {
-      showToast(error.response?.data?.message || "Could not cancel booking.");
+      alert(error.response?.data?.message || "Could not cancel booking.");
     }
-  }
-
-  function handleOpenReview(booking) {
-    setBookingToReview(booking);
-    setReviewRating(5);
-    setReviewText("");
   }
 
   async function handleSubmitReview() {
     if (!bookingToReview) return;
-
     const token = localStorage.getItem("token");
-
     try {
-      await axios.post(
-        buildApiUrl(`/api/my-bookings/${bookingToReview.id}/review`),
-        {
-          rating: reviewRating,
-          comment: reviewText,
-        },
-        createAuthConfig(token),
-      );
-
-      setBookings((currentBookings) =>
-        currentBookings.map((booking) =>
-          booking.id === bookingToReview.id
-            ? { ...booking, reviewed: true }
-            : booking,
-        ),
-      );
+      await axios.post(buildApiUrl(`/api/my-bookings/${bookingToReview.id}/review`), {
+        rating: reviewRating,
+        comment: reviewText,
+      }, createAuthConfig(token));
+      setBookings((prev) => prev.map((b) => b.id === bookingToReview.id ? { ...b, reviewed: true } : b));
       setBookingToReview(null);
       setReviewText("");
-      showToast("Review submitted.");
     } catch (error) {
-      showToast(error.response?.data?.message || "Could not submit review.");
+      alert(error.response?.data?.message || "Could not submit review.");
     }
   }
 
-  function handleViewProperty() {
-    if (!selectedBooking) return;
-
-    navigate(`/property-details/${selectedBooking.propertyId}`);
-  }
-
-  function handleSelectCompletedMonth(value) {
-    setCompletedMonth(value);
-    setIsMonthFilterOpen(false);
-  }
-
   return (
-    <div style={{ background: themeGlobal.colors.white }} className="bookings-page">
+    <>
       <Header />
-
-      <main className="bookings-shell">
-        <section className="bookings-hero-card">
-          <div className="bookings-hero__copy">
-            <p className="bookings-kicker">Guest dashboard</p>
-            <h1>My Bookings</h1>
-            <p>
-              Manage your upcoming stays, pending requests, and past trips
-              across Northern Morocco.
-            </p>
+      <div className="bookings-page">
+        <div className="bookings-wrapper">
+          <div className="bookings-header">
+            <h1 className="bookings-title">My Bookings</h1>
+            <p className="bookings-subtitle">Manage your upcoming stays, pending requests, and past trips.</p>
           </div>
 
-          <div className="bookings-summary" aria-label="Booking summary">
-            <article className="bookings-summary-card">
-              <span>
-                <FiCalendar aria-hidden="true" />
-              </span>
-              <div>
-                <strong>{summary.total}</strong>
-                <p>Total bookings</p>
+          <div className="bookings-stats-grid">
+            <div className="stat-card">
+              <div className="stat-card__icon" style={{ color: "#00a9b5", backgroundColor: "rgba(0, 169, 181, 0.09)" }}>
+                <FiCalendar />
               </div>
-            </article>
-            <article className="bookings-summary-card">
-              <span>
-                <FiClock aria-hidden="true" />
-              </span>
-              <div>
-                <strong>{summary.pending}</strong>
-                <p>Pending requests</p>
+              <div className="stat-card__content">
+                <h3 className="stat-card__value" style={{ color: "#00a9b5" }}>{summary.total}</h3>
+                <p className="stat-card__label">Total bookings</p>
               </div>
-            </article>
-            <article className="bookings-summary-card">
-              <span>
-                <FiCheckCircle aria-hidden="true" />
-              </span>
-              <div>
-                <strong>{summary.confirmed}</strong>
-                <p>Confirmed bookings</p>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card__icon" style={{ color: "#c98517", backgroundColor: "rgba(201, 133, 23, 0.09)" }}>
+                <FiClock />
               </div>
-            </article>
+              <div className="stat-card__content">
+                <h3 className="stat-card__value" style={{ color: "#c98517" }}>{summary.pending}</h3>
+                <p className="stat-card__label">Pending requests</p>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card__icon" style={{ color: "#157f57", backgroundColor: "rgba(21, 127, 87, 0.09)" }}>
+                <FiCheckCircle />
+              </div>
+              <div className="stat-card__content">
+                <h3 className="stat-card__value" style={{ color: "#157f57" }}>{summary.confirmed}</h3>
+                <p className="stat-card__label">Confirmed stays</p>
+              </div>
+            </div>
           </div>
-        </section>
 
-        <section className="bookings-tabs-card">
-          <div
-            className="bookings-tabs"
-            role="tablist"
-            aria-label="Booking status filters"
-          >
-            {bookingTabs.map((tab) => (
-              <button
-                className={
-                  activeTab === tab.id
-                    ? "bookings-tab bookings-tab--active"
-                    : "bookings-tab"
-                }
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setIsMonthFilterOpen(false);
-                }}
-                role="tab"
-                type="button"
-                aria-selected={activeTab === tab.id}
-              >
-                <span>{tab.label}</span>
-                <strong>{tabCounts[tab.id] || 0}</strong>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="bookings-content-section">
-          {activeTab === "completed" ? (
-            <div className="bookings-list-toolbar">
-              <div>
-                <p className="bookings-kicker">Past trips</p>
-                <h2>Completed stays</h2>
-              </div>
-              <div
-                className={
-                  isMonthFilterOpen
-                    ? "bookings-month-filter bookings-month-filter--open"
-                    : "bookings-month-filter"
-                }
-              >
-                <span>Filter by month</span>
+          <div className="bookings-tabs-card">
+            <div className="bookings-tabs">
+              {bookingTabs.map((tab) => (
                 <button
-                  className="bookings-month-filter__button"
-                  type="button"
-                  aria-haspopup="listbox"
-                  aria-expanded={isMonthFilterOpen}
-                  onClick={() =>
-                    setIsMonthFilterOpen((currentState) => !currentState)
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") {
-                      setIsMonthFilterOpen(false);
-                    }
-                  }}
+                  key={tab.id}
+                  className={`bookings-tab ${activeTab === tab.id ? "bookings-tab--active" : ""}`}
+                  onClick={() => setActiveTab(tab.id)}
                 >
-                  <span>{selectedMonthLabel}</span>
-                  <FiChevronDown aria-hidden="true" />
+                  <span>{tab.label}</span>
+                  <strong>{tabCounts[tab.id]}</strong>
                 </button>
-
-                {isMonthFilterOpen ? (
-                  <div
-                    className="bookings-month-filter__menu"
-                    role="listbox"
-                    aria-label="Completed bookings month"
-                  >
-                    {completedMonthOptions.map((option) => (
-                      <button
-                        className={
-                          completedMonth === option.value
-                            ? "bookings-month-filter__option bookings-month-filter__option--active"
-                            : "bookings-month-filter__option"
-                        }
-                        key={option.value}
-                        type="button"
-                        role="option"
-                        aria-selected={completedMonth === option.value}
-                        onClick={() => handleSelectCompletedMonth(option.value)}
-                      >
-                        <span>{option.label}</span>
-                        {completedMonth === option.value ? (
-                          <FiCheckCircle aria-hidden="true" />
-                        ) : null}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
+              ))}
             </div>
-          ) : null}
+          </div>
 
-          {isLoading ? (
-            <div className="bookings-loading" aria-live="polite">
-              {[1, 2, 3, 4].map((item) => (
-                <div className="bookings-skeleton-card" key={item}>
-                  <span className="bookings-skeleton bookings-skeleton--image" />
-                  <div>
-                    <span className="bookings-skeleton bookings-skeleton--title" />
-                    <span className="bookings-skeleton bookings-skeleton--line" />
-                    <span className="bookings-skeleton bookings-skeleton--line bookings-skeleton--short" />
-                  </div>
+          <div className="bookings-content-section">
+            <div className="bookings-list-toolbar">
+              <h2>{bookingTabs.find((t) => t.id === activeTab)?.label} Bookings</h2>
+            </div>
+            
+            <div className="bookings-list">
+              {filteredBookings.length === 0 ? (
+                <div className="bookings-empty">
+                  <h3>No bookings found</h3>
+                  <p>You don't have any {activeTab} bookings at the moment.</p>
                 </div>
-              ))}
-            </div>
-          ) : errorMessage ? (
-            <div className="bookings-error">
-              <div className="bookings-empty__icon">
-                <FiXCircle aria-hidden="true" />
-              </div>
-              <h2>Bookings could not be loaded.</h2>
-              <p>{errorMessage}</p>
-              <button
-                className="bookings-btn bookings-btn--primary"
-                onClick={fetchBookings}
-              >
-                <FiClock aria-hidden="true" />
-                Retry
-              </button>
-            </div>
-          ) : filteredBookings.length > 0 ? (
-            <div
-              className={
-                isDenseCompletedGrid
-                  ? "bookings-grid bookings-grid--dense"
-                  : "bookings-grid"
-              }
-            >
-              {filteredBookings.map((booking) => (
-                <article className="bookings-card" key={booking.id}>
-                  <div className="bookings-card__image">
-                    <img src={booking.image} alt={booking.propertyTitle} />
-                    <StatusBadge status={booking.status} />
-                  </div>
-
-                  <div className="bookings-card__content">
-                    <div className="bookings-card__header">
-                      <div>
-                        <p>{booking.city}</p>
-                        <h2>{booking.propertyTitle}</h2>
+              ) : (
+                filteredBookings.map((booking) => {
+                  const nights = Math.max(getNightsCount(booking.checkIn, booking.checkOut), 1);
+                  return (
+                    <div key={booking.id} className={`booking-row ${booking.status === "cancelled" ? "booking-row--cancelled" : ""}`}>
+                      <div className="booking-row__property">
+                        <img src={booking.image} alt={booking.propertyTitle} className="booking-row__img" />
+                        <div className="booking-row__prop-info">
+                          <h4>{booking.propertyTitle}</h4>
+                          <p style={{ textTransform: "capitalize", color: "#8b5e3c" }}>{booking.city}</p>
+                          <p>Hosted by {booking.hostName}</p>
+                        </div>
                       </div>
-                      <strong>
-                        {priceFormatter.format(booking.totalPrice)}
-                      </strong>
-                    </div>
 
-                    <div className="bookings-meta">
-                      <span>
-                        <FiMapPin aria-hidden="true" />
-                        {booking.location}
-                      </span>
-                      <span>
-                        <FiCalendar aria-hidden="true" />
-                        {formatDateRange(booking.checkIn, booking.checkOut)}
-                      </span>
-                      <span>
-                        <FiUsers aria-hidden="true" />
-                        {formatGuests(booking.guests)}
-                      </span>
-                      <span>
-                        <FiUser aria-hidden="true" />
-                        Hosted by {booking.hostName}
-                      </span>
-                    </div>
+                      <div className="booking-row__dates">
+                        <FiCalendar />
+                        <div>
+                          <h4>{formatDate(booking.checkIn)}</h4>
+                          <p>- {formatDate(booking.checkOut)}</p>
+                          <p>{nights} night{nights !== 1 ? "s" : ""}</p>
+                        </div>
+                      </div>
 
-                    <div className="bookings-card__actions">
-                      <BookingActions
-                        booking={booking}
-                        onDetails={() => setSelectedBooking(booking)}
-                        onCancel={() => setBookingToCancel(booking)}
-                        onReview={() => handleOpenReview(booking)}
-                        onMessage={() =>
-                          showToast("Messaging host is frontend preview only.")
-                        }
-                      />
+                      <div className="booking-row__price">
+                        <h4>{priceFormatter.format(booking.totalPrice)}</h4>
+                        <p>(MAD {Math.round(booking.totalPrice / nights).toLocaleString("en-US")} / night)</p>
+                      </div>
+
+                      <div>
+                        <StatusBadge status={booking.status} />
+                      </div>
+
+                      <div className="booking-row__actions">
+                        <button className="action-btn action-btn--primary" onClick={() => setSelectedBooking(booking)}>
+                          <FiEye /> Details
+                        </button>
+                        
+                        {booking.status === "upcoming" && (
+                          <button className="action-btn action-btn--danger" onClick={() => setBookingToCancel(booking)}>
+                            <FiXCircle /> Cancel
+                          </button>
+                        )}
+
+                        {booking.status === "pending" && (
+                          <button className="action-btn action-btn--danger" onClick={() => setBookingToCancel(booking)}>
+                            <FiXCircle /> Cancel Request
+                          </button>
+                        )}
+
+                        {booking.status === "completed" && (
+                          <button className="action-btn action-btn--ghost" disabled={booking.reviewed} onClick={() => {
+                            setBookingToReview(booking);
+                            setReviewRating(5);
+                            setReviewText("");
+                          }}>
+                            <FiStar /> {booking.reviewed ? "Reviewed" : "Leave Review"}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  );
+                })
+              )}
             </div>
-          ) : (
-            <div className="bookings-empty">
-              <div className="bookings-empty__icon">
-                <FiCalendar aria-hidden="true" />
-              </div>
-              <h2>{currentEmptyState.title}</h2>
-              <p>{currentEmptyState.text}</p>
-              <button
-                className="bookings-btn bookings-btn--primary"
-                onClick={() => navigate("/properties?city=Tangier")}
-              >
-                <MdOutlineExplore size={18} />
-                Explore properties
-              </button>
-            </div>
-          )}
-        </section>
-      </main>
-
-      {/* <Footer /> */}
-
-      <BookingModal
-        booking={selectedBooking}
-        onClose={() => setSelectedBooking(null)}
-        onViewProperty={handleViewProperty}
-      />
-      <CancelModal
-        booking={bookingToCancel}
-        onClose={() => setBookingToCancel(null)}
-        onConfirm={handleCancelBooking}
-      />
-      <ReviewModal
-        booking={bookingToReview}
-        rating={reviewRating}
-        reviewText={reviewText}
-        onRating={setReviewRating}
-        onText={setReviewText}
-        onClose={() => setBookingToReview(null)}
-        onSubmit={handleSubmitReview}
-      />
-
-      {toast ? (
-        <div className="bookings-toast" role="status" aria-live="polite">
-          <FiCheckCircle aria-hidden="true" />
-          <span>{toast}</span>
+          </div>
         </div>
-      ) : null}
-    </div>
+      </div>
+
+      {selectedBooking && (
+        <BookingModal 
+          booking={selectedBooking} 
+          onClose={() => setSelectedBooking(null)} 
+          onViewProperty={() => navigate(`/property-details/${selectedBooking.propertyId}`)}
+        />
+      )}
+
+      {bookingToCancel && (
+        <CancelModal 
+          booking={bookingToCancel} 
+          onClose={() => setBookingToCancel(null)} 
+          onConfirm={handleCancelBooking} 
+        />
+      )}
+
+      {bookingToReview && (
+        <ReviewModal 
+          booking={bookingToReview}
+          rating={reviewRating}
+          reviewText={reviewText}
+          onRating={setReviewRating}
+          onText={setReviewText}
+          onClose={() => setBookingToReview(null)}
+          onSubmit={handleSubmitReview}
+        />
+      )}
+    </>
   );
 }
