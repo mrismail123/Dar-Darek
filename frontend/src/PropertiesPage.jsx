@@ -24,6 +24,7 @@ import MeetingRoomOutlinedIcon from '@mui/icons-material/MeetingRoomOutlined';
 import tangier from "./assets/Tangier2.jpg"
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
+import Alert from '@mui/material/Alert';
 import { useThemeGlobal } from './Contexts/ThemeContext';
 import PropertiesMap from './PropertiesMap';
 import { buildApiUrl } from './lib/api';
@@ -69,6 +70,7 @@ export default function PropertiesPage() {
     // city name & description
     const [cityName, setCityName] = useState(null);
     const [cityDescription, setCityDescription] = useState(null);
+    const [pageNotice, setPageNotice] = useState("");
 
     useEffect(() => {
         const cityNameAndDescripion = async () => {
@@ -81,9 +83,9 @@ export default function PropertiesPage() {
                 setCityDescription(response.data.cityDescription);
             } catch (error) {
                 if (error.response) {
-                    alert(error.response.data.message || "Unknown error occurred");
+                    setPageNotice(error.response.data.message || "Could not load city details.");
                 } else {
-                    alert(error.message);
+                    setPageNotice("Could not load city details. Please try again.");
                 }
             }
 
@@ -461,6 +463,11 @@ export default function PropertiesPage() {
             <div style={{ background: themeGlobal.colors.white }}>
                 <div className="showProperties">
                     <div className='propertiesAndFilter' ref={propertiesSectionRef}>
+                        {pageNotice && (
+                            <Alert severity="warning" sx={{ borderRadius: 3, mb: 2 }}>
+                                {pageNotice}
+                            </Alert>
+                        )}
                         <FilterBar onFilterApply={handleFilterOptions} />
                         {isLoading ? (
                             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px', width: '100%' }}>

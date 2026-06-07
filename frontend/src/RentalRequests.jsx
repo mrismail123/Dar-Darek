@@ -34,7 +34,9 @@ const formatPrice = (price) => {
 const getImageUrl = (imagePath) => {
   if (!imagePath) return "";
   if (imagePath.startsWith("http")) return imagePath;
-  const normalizedPath = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
+  const normalizedPath = imagePath.startsWith("/")
+    ? imagePath
+    : `/${imagePath}`;
   return buildApiUrl(normalizedPath);
 };
 
@@ -69,7 +71,10 @@ export default function RentalRequests() {
   // Scroll highlighted row into view once requests are loaded
   useEffect(() => {
     if (!highlightedId || !highlightRef.current) return;
-    highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    highlightRef.current.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
   }, [highlightedId, requests]);
 
   useEffect(() => {
@@ -82,18 +87,31 @@ export default function RentalRequests() {
           headers: { Authorization: `Bearer ${currentToken}` },
           params: { id_user: currentUser.id },
         };
-        const response = await axios.get(buildApiUrl("/api/rentalRequests"), config);
+        const response = await axios.get(
+          buildApiUrl("/api/rentalRequests"),
+          config,
+        );
         if (response.data && response.data.rentalRequests) {
           setRequests(response.data.rentalRequests);
         }
       } catch (error) {
-        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        if (
+          error.response &&
+          (error.response.status === 401 || error.response.status === 403)
+        ) {
           alert("Session expired. Please login again.");
           navigate("/Authentication", { state: { from: location.pathname } });
-        } else if (error.response && error.response.data && error.response.data.message) {
+        } else if (
+          error.response &&
+          error.response.data &&
+          error.response.data.message
+        ) {
           alert(error.response.data.message);
         } else {
-          alert(error.message || "An error occurred while fetching rental requests.");
+          alert(
+            error.message ||
+              "An error occurred while fetching rental requests.",
+          );
         }
       }
     };
@@ -110,7 +128,9 @@ export default function RentalRequests() {
         { headers: { Authorization: `Bearer ${currentToken}` } },
       );
       setRequests((prev) =>
-        prev.map((r) => (r.id === requestId ? { ...r, status: "approved" } : r))
+        prev.map((r) =>
+          r.id === requestId ? { ...r, status: "approved" } : r,
+        ),
       );
     } catch (error) {
       alert(error.response?.data?.message || "Failed to approve request.");
@@ -118,7 +138,10 @@ export default function RentalRequests() {
   };
 
   // --- Reject confirmation dialog state ---
-  const [rejectConfirm, setRejectConfirm] = useState({ open: false, requestId: null });
+  const [rejectConfirm, setRejectConfirm] = useState({
+    open: false,
+    requestId: null,
+  });
 
   // Opens the confirmation dialog instead of rejecting immediately
   const handleReject = (requestId) => {
@@ -139,7 +162,11 @@ export default function RentalRequests() {
         { headers: { Authorization: `Bearer ${currentToken}` } },
       );
       setRequests((prev) =>
-        prev.map((r) => (r.id === requestId ? { ...r, status: "rejected", _justRejected: true } : r))
+        prev.map((r) =>
+          r.id === requestId
+            ? { ...r, status: "rejected", _justRejected: true }
+            : r,
+        ),
       );
     } catch (error) {
       alert(error.response?.data?.message || "Failed to reject request.");
@@ -156,7 +183,11 @@ export default function RentalRequests() {
         { headers: { Authorization: `Bearer ${currentToken}` } },
       );
       setRequests((prev) =>
-        prev.map((r) => (r.id === requestId ? { ...r, status: "pending", _justRejected: false } : r))
+        prev.map((r) =>
+          r.id === requestId
+            ? { ...r, status: "pending", _justRejected: false }
+            : r,
+        ),
       );
     } catch (error) {
       alert(error.response?.data?.message || "Failed to undo rejection.");
@@ -167,7 +198,11 @@ export default function RentalRequests() {
     (totals, request) => {
       const safeStatus = String(request.status || "").toLowerCase();
       totals.all += 1;
-      if (safeStatus === "approved" || safeStatus === "accepted" || safeStatus === "confirmed") {
+      if (
+        safeStatus === "approved" ||
+        safeStatus === "accepted" ||
+        safeStatus === "confirmed"
+      ) {
         totals.accepted += 1;
       } else if (safeStatus === "rejected" || safeStatus === "cancelled") {
         totals.rejected += 1;
@@ -176,7 +211,7 @@ export default function RentalRequests() {
       }
       return totals;
     },
-    { all: 0, pending: 0, accepted: 0, rejected: 0 }
+    { all: 0, pending: 0, accepted: 0, rejected: 0 },
   );
 
   const statsCards = [
@@ -225,7 +260,9 @@ export default function RentalRequests() {
 
           <div className="requests-header">
             <h1 className="requests-title">Rental requests</h1>
-            <p className="requests-subtitle">Review and respond to guest rental requests</p>
+            <p className="requests-subtitle">
+              Review and respond to guest rental requests
+            </p>
           </div>
 
           <div className="requests-stats-grid">
@@ -233,12 +270,18 @@ export default function RentalRequests() {
               <div key={card.label} className="stat-card">
                 <div
                   className="stat-card__icon"
-                  style={{ color: card.iconColor, backgroundColor: card.iconBg }}
+                  style={{
+                    color: card.iconColor,
+                    backgroundColor: card.iconBg,
+                  }}
                 >
                   {card.icon}
                 </div>
                 <div className="stat-card__content">
-                  <h3 className="stat-card__value" style={{ color: card.valueColor }}>
+                  <h3
+                    className="stat-card__value"
+                    style={{ color: card.valueColor }}
+                  >
                     {card.value}
                   </h3>
                   <p className="stat-card__label">{card.label}</p>
@@ -254,10 +297,14 @@ export default function RentalRequests() {
               </div>
             ) : (
               requests.map((request) => {
-                const requestStatus = String(request.status || "").toLowerCase();
+                const requestStatus = String(
+                  request.status || "",
+                ).toLowerCase();
                 const isPendingRequest = requestStatus === "pending";
-                const isConfirmed = requestStatus === "approved" || requestStatus === "confirmed";
-                const isRejected = requestStatus === "rejected" || requestStatus === "cancelled";
+                const isConfirmed =
+                  requestStatus === "approved" || requestStatus === "confirmed";
+                const isRejected =
+                  requestStatus === "rejected" || requestStatus === "cancelled";
 
                 const isHighlighted = request.id === highlightedId;
 
@@ -276,7 +323,12 @@ export default function RentalRequests() {
                       />
                       <div className="request-row__prop-info">
                         <h4>{request.title}</h4>
-                        <p style={{ textTransform: "capitalize", color: "#8b5e3c" }}>
+                        <p
+                          style={{
+                            textTransform: "capitalize",
+                            color: "#8b5e3c",
+                          }}
+                        >
                           {request.city_name || request.city || "Morocco"}
                         </p>
                         <p>{request.property_type || "Entire stay"}</p>
@@ -297,8 +349,12 @@ export default function RentalRequests() {
                         <h4>{formatDate(request.checkIn)}</h4>
                         <p>- {formatDate(request.checkOut)}</p>
                         <p>
-                          {getNightsCount(request.checkIn, request.checkOut)} night
-                          {getNightsCount(request.checkIn, request.checkOut) === 1 ? "" : "s"}
+                          {getNightsCount(request.checkIn, request.checkOut)}{" "}
+                          night
+                          {getNightsCount(request.checkIn, request.checkOut) ===
+                          1
+                            ? ""
+                            : "s"}
                         </p>
                       </div>
                     </div>
@@ -310,7 +366,10 @@ export default function RentalRequests() {
                         (MAD{" "}
                         {Math.round(
                           Number(request.totalPrice || 0) /
-                            Math.max(getNightsCount(request.checkIn, request.checkOut), 1)
+                            Math.max(
+                              getNightsCount(request.checkIn, request.checkOut),
+                              1,
+                            ),
                         ).toLocaleString("en-US")}{" "}
                         / night)
                       </p>
@@ -384,13 +443,20 @@ export default function RentalRequests() {
           <div className="custom-modal">
             <h3 className="custom-modal__title">Reject this request?</h3>
             <p className="custom-modal__text">
-              Are you sure you want to reject this booking request? <strong>This cannot be undone</strong> once you leave the page.
+              Are you sure you want to reject this booking request?{" "}
+              <strong>This cannot be undone</strong> once you leave the page.
             </p>
             <div className="custom-modal__actions">
-              <button className="modal-btn modal-btn--cancel" onClick={cancelReject}>
+              <button
+                className="modal-btn modal-btn--cancel"
+                onClick={cancelReject}
+              >
                 Keep it
               </button>
-              <button className="modal-btn modal-btn--confirm" onClick={confirmReject}>
+              <button
+                className="modal-btn modal-btn--confirm"
+                onClick={confirmReject}
+              >
                 Yes, reject
               </button>
             </div>

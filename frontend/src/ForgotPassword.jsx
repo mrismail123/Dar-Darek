@@ -18,6 +18,7 @@ export default function ForgotPassword() {
 
     // alert pop up if the email is not found.
     const [emailSearch , setEmailSearch] = useState("");
+    const [emailSuccess, setEmailSuccess] = useState("");
     
     
 
@@ -35,23 +36,25 @@ export default function ForgotPassword() {
 
         if(!emailRegex.test(trimmedEmail)){
             setEmailSearch("Please enter a valid email address.");
+            setEmailSuccess("");
             return;
         }
 
         try {
             setForgotLoading(true);
             setEmailSearch("");
+            setEmailSuccess("");
             const response = await axios.post(buildApiUrl("/api/forgot-password") , {
                 email: trimmedEmail
             });
-            alert(response.data.message || "Please check your email to reset your password.");
+            setEmailSuccess(response.data.message || "Please check your email to reset your password.");
         } catch (error) {
             if (error.response) {
-                setEmailSearch(error.response.data.message || error.response.data.error || "Unexpected behaviour!");
+                setEmailSearch(error.response.data.message || error.response.data.error || "Could not send the reset link. Please try again.");
             } else if (error.request) { 
-                setEmailSearch("Unable to reach the server. Please make sure it is running on port 5000.");
+                setEmailSearch("We could not reach the server. Please try again in a moment.");
             } else {
-                setEmailSearch("Request setup failed: " + error.message);
+                setEmailSearch("Could not start password recovery. Please try again.");
             }
         } finally {
             setForgotLoading(false);
@@ -87,6 +90,7 @@ export default function ForgotPassword() {
                             onChange={(e)=>{
                                 setAccountEmail({...accountEmail , email : e.currentTarget.value});
                                 if (emailSearch) setEmailSearch("");
+                                if (emailSuccess) setEmailSuccess("");
                             }}
                         />
                     </div>
@@ -99,6 +103,17 @@ export default function ForgotPassword() {
                             role="alert"
                         >
                             {emailSearch}
+                        </motion.div>
+                    )}
+                    {emailSuccess && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="auth-inline-success"
+                            role="status"
+                        >
+                            {emailSuccess}
                         </motion.div>
                     )}
 

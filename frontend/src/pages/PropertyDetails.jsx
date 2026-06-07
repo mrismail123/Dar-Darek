@@ -9,14 +9,61 @@ import Header from "../Home components/Header";
 import Footer from "../Footer";
 import { useThemeGlobal } from "../Contexts/ThemeContext";
 import { buildApiUrl, createAuthConfig } from "../lib/api";
+import { getPropertyTypeLabel } from "../lib/propertyTypes";
 import SuccessAlert from "../SuccessAlert";
 import NotFound from "./NotFound";
-import { FiShare, FiHeart, FiFlag } from "react-icons/fi";
+import {
+  FiAirplay,
+  FiBox,
+  FiBriefcase,
+  FiCamera,
+  FiCoffee,
+  FiDroplet,
+  FiFeather,
+  FiFlag,
+  FiHeart,
+  FiInfo,
+  FiMonitor,
+  FiShield,
+  FiShare,
+  FiThermometer,
+  FiTruck,
+  FiTv,
+  FiUsers,
+  FiWifi,
+  FiWind,
+  FiZap,
+} from "react-icons/fi";
+import {
+  FaBath,
+  FaBed,
+  FaBaby,
+  FaBabyCarriage,
+  FaBookReader,
+  FaChair,
+  FaConciergeBell,
+  FaFireExtinguisher,
+  FaHome,
+  FaKey,
+  FaMountain,
+  FaParking,
+  FaPaw,
+  FaShower,
+  FaSink,
+  FaSnowflake,
+  FaStoreAlt,
+  FaSwimmingPool,
+  FaTree,
+  FaUmbrellaBeach,
+  FaUtensils,
+  FaWarehouse,
+  FaWater,
+} from "react-icons/fa";
 
 const mockProperty = {
   brand: "Dar Darek",
   title: "Bright apartment with ocean views",
-  propertyType: "Entire home",
+  propertyType: "Appartement",
   city: "Tangier",
   neighborhood: "Malabata",
   address: "Boulevard Mohamed VI, Malabata, Tangier",
@@ -308,7 +355,7 @@ const normalizeDisplayList = (value) =>
     .map((item) => String(item || "").trim())
     .filter(Boolean);
 
-const amenityIconMap = {
+const LEGACY_AMENITY_ICON_MAP = {
   wifi: "📶",
   hotWater: "🚿",
   sheets: "🛏️",
@@ -359,12 +406,73 @@ const amenityIconMap = {
   safeBox: "🔒",
 };
 
+const amenityIconMap = {
+  wifi: FiWifi,
+  hotWater: FaShower,
+  sheets: FaBed,
+  towels: FaSink,
+  toiletries: FiDroplet,
+  hairDryer: FiWind,
+  refrigerator: FiBox,
+
+  kitchen: FaUtensils,
+  microwave: FiBox,
+  oven: FiThermometer,
+  kettle: FiCoffee,
+  coffeeMachine: FiCoffee,
+  dishes: FaUtensils,
+
+  airConditioning: FaSnowflake,
+  heating: FiThermometer,
+  washingMachine: FiDroplet,
+  dryer: FiWind,
+  tv: FiTv,
+  sofa: FaChair,
+
+  workspace: FiBriefcase,
+  desk: FaChair,
+  fastWifi: FiZap,
+  smartTv: FiAirplay,
+
+  crib: FaBabyCarriage,
+  childrenBooksToys: FaBookReader,
+  babyBath: FaBath,
+  windowGuards: FiShield,
+  highChair: FaChair,
+  babyMonitor: FiMonitor,
+
+  balcony: FaStoreAlt,
+  terrace: FaWarehouse,
+  seaView: FaWater,
+  mountainView: FaMountain,
+  medinaView: FaStoreAlt,
+  natureView: FaTree,
+  beachAccess: FaUmbrellaBeach,
+  pool: FaSwimmingPool,
+  bbq: FiZap,
+  garden: FaTree,
+
+  breakfast: FiCoffee,
+  parking: FaParking,
+  petFriendly: FaPaw,
+  housekeeping: FiFeather,
+  airportShuttle: FiTruck,
+  reception: FaConciergeBell,
+
+  smokeDetector: FiShield,
+  fireExtinguisher: FaFireExtinguisher,
+  outdoorCamera: FiCamera,
+  safeBox: FiShield,
+  services: FiInfo,
+};
+
 const amenityLabelToKeyMap = {
   WiFi: "wifi",
   "Hot water": "hotWater",
   "Bed linens": "sheets",
   Towels: "towels",
   Toiletries: "toiletries",
+  "Hair dryer": "hairDryer",
   Refrigerator: "refrigerator",
 
   Kitchen: "kitchen",
@@ -387,6 +495,12 @@ const amenityLabelToKeyMap = {
   Desk: "desk",
   "Fast WiFi": "fastWifi",
   "Smart TV": "smartTv",
+  Crib: "crib",
+  "Children books/toys": "childrenBooksToys",
+  "Baby bath": "babyBath",
+  "Window guards": "windowGuards",
+  "High chair": "highChair",
+  "Baby monitor": "babyMonitor",
 
   Balcony: "balcony",
   Terrace: "terrace",
@@ -416,7 +530,11 @@ const amenityLabelToKeyMap = {
 const amenityGroups = [
   {
     title: "Essentials",
-    keys: ["wifi", "hotWater", "sheets", "towels", "toiletries"],
+    keys: ["wifi", "sheets", "refrigerator"],
+  },
+  {
+    title: "Bathroom",
+    keys: ["hotWater", "towels", "toiletries", "hairDryer"],
   },
   {
     title: "Kitchen",
@@ -444,6 +562,17 @@ const amenityGroups = [
   {
     title: "Work & Tech",
     keys: ["workspace", "desk", "fastWifi", "smartTv"],
+  },
+  {
+    title: "Family & Children",
+    keys: [
+      "crib",
+      "childrenBooksToys",
+      "babyBath",
+      "windowGuards",
+      "highChair",
+      "babyMonitor",
+    ],
   },
   {
     title: "Outdoor & Views",
@@ -497,6 +626,8 @@ const getAmenityKey = (amenityName = "") => {
   if (name.includes("sheet") || name.includes("linen")) return "sheets";
   if (name.includes("towel")) return "towels";
   if (name.includes("toiletr")) return "toiletries";
+  if (name.includes("hair dryer") || name.includes("hairdryer"))
+    return "hairDryer";
   if (name.includes("refrigerator") || name.includes("fridge"))
     return "refrigerator";
 
@@ -518,6 +649,13 @@ const getAmenityKey = (amenityName = "") => {
 
   if (name.includes("workspace")) return "workspace";
   if (name.includes("desk")) return "desk";
+  if (name.includes("crib")) return "crib";
+  if (name.includes("children") || name.includes("toy"))
+    return "childrenBooksToys";
+  if (name.includes("baby bath")) return "babyBath";
+  if (name.includes("window guard")) return "windowGuards";
+  if (name.includes("high chair")) return "highChair";
+  if (name.includes("baby monitor")) return "babyMonitor";
 
   if (name.includes("balcony") || name.includes("balcon")) return "balcony";
   if (name.includes("terrace")) return "terrace";
@@ -561,6 +699,115 @@ const getAmenityGroups = (amenities) => {
   });
 
   return groupedAmenities.filter((group) => group.amenities.length > 0);
+};
+
+const amenityDetails = {
+  wifi: {
+    badge: "Popular",
+    description: "Reliable internet access for work or streaming.",
+  },
+  fastWifi: {
+    badge: "Popular",
+    description: "Better speed for calls, work, and streaming.",
+  },
+  hotWater: {
+    badge: "Essential",
+    description: "Comfortable showers at any time of day.",
+  },
+  sheets: {
+    badge: "Essential",
+    description: "Fresh linens prepared for every stay.",
+  },
+  towels: {
+    badge: "Essential",
+    description: "Clean towels available for guests.",
+  },
+  toiletries: {
+    description: "Basic bathroom products for a smoother arrival.",
+  },
+  hairDryer: {
+    description: "Useful after showers or beach days.",
+  },
+  kitchen: {
+    badge: "Guest favorite",
+    description: "A practical space for preparing meals.",
+  },
+  coffeeMachine: {
+    badge: "Popular",
+    description: "A welcome touch for morning coffee.",
+  },
+  workspace: {
+    badge: "Guest favorite",
+    description: "A comfortable spot for laptop work.",
+  },
+  airConditioning: {
+    badge: "Popular",
+    description: "Keeps the home cool during warm days.",
+  },
+  crib: {
+    badge: "Family friendly",
+    description: "Useful for families traveling with infants.",
+  },
+  childrenBooksToys: {
+    badge: "Family friendly",
+    description: "Simple entertainment for younger guests.",
+  },
+  babyBath: {
+    description: "Makes bath time easier for infants.",
+  },
+  windowGuards: {
+    description: "Extra protection around accessible windows.",
+  },
+  highChair: {
+    description: "Helpful for meals with small children.",
+  },
+  babyMonitor: {
+    description: "Useful for keeping an eye on sleeping infants.",
+  },
+  parking: {
+    badge: "Popular",
+    description: "Convenient parking option near the stay.",
+  },
+  beachAccess: {
+    badge: "Popular",
+    description: "Easy access to the beach nearby.",
+  },
+  pool: {
+    badge: "Popular",
+    description: "A pool available for guest use.",
+  },
+  seaView: {
+    badge: "Guest favorite",
+    description: "A view toward the coast or open water.",
+  },
+  terrace: {
+    badge: "Guest favorite",
+    description: "Outdoor space for relaxing or dining.",
+  },
+  breakfast: {
+    badge: "Guest favorite",
+    description: "A convenient start to the morning.",
+  },
+  smokeDetector: {
+    badge: "Essential",
+    description: "Alerts guests to smoke inside the property.",
+  },
+  fireExtinguisher: {
+    badge: "Essential",
+    description: "A safety item for emergency use.",
+  },
+};
+
+const getAmenityDetail = (amenity) => {
+  const key = amenity.key || getAmenityKey(amenity.label);
+
+  return {
+    badge: amenity.badge || amenityDetails[key]?.badge || "",
+    description:
+      amenity.description ||
+      amenityDetails[key]?.description ||
+      "A helpful feature included with this stay.",
+  };
 };
 
 const getSafetyItems = (amenities) => {
@@ -1096,7 +1343,8 @@ function BookingCard({
 
     // login required error
     if (!token || !user) {
-      alert("Please login to save favorites!");
+      setAlertMessage("Please sign in before saving this property.");
+      setShowAlert(true);
       return;
     }
 
@@ -1515,6 +1763,32 @@ function BookingCard({
   );
 }
 
+function AmenityTile({ amenity }) {
+  const AmenityIcon = amenity.icon;
+  const detail = getAmenityDetail(amenity);
+
+  return (
+    <div className="pd-amenity" key={amenity.label}>
+      <span className="pd-amenity__icon" aria-hidden="true">
+        {typeof AmenityIcon === "function" ? (
+          <AmenityIcon />
+        ) : (
+          <FiInfo aria-hidden="true" />
+        )}
+      </span>
+      <span className="pd-amenity__content">
+        <span className="pd-amenity__label">{amenity.label}</span>
+        {detail.badge && (
+          <span className="pd-amenity__badge">{detail.badge}</span>
+        )}
+      </span>
+      <span className="pd-amenity__tooltip" role="tooltip">
+        {detail.description}
+      </span>
+    </div>
+  );
+}
+
 function AmenitiesSection({ amenities }) {
   const [showAllAmenities, setShowAllAmenities] = useState(false);
   const visibleAmenities = amenities.slice(0, 6);
@@ -1537,12 +1811,7 @@ function AmenitiesSection({ amenities }) {
               <h3>{group.title}</h3>
               <div className="pd-amenities pd-amenities--grouped">
                 {group.amenities.map((amenity) => (
-                  <div className="pd-amenity" key={amenity.label}>
-                    <span className="pd-amenity__icon" aria-hidden="true">
-                      {amenity.icon}
-                    </span>
-                    <span className="pd-amenity__label">{amenity.label}</span>
-                  </div>
+                  <AmenityTile amenity={amenity} key={amenity.label} />
                 ))}
               </div>
             </div>
@@ -1551,12 +1820,7 @@ function AmenitiesSection({ amenities }) {
       ) : (
         <div className="pd-amenities">
           {visibleAmenities.map((amenity) => (
-            <div className="pd-amenity" key={amenity.label}>
-              <span className="pd-amenity__icon" aria-hidden="true">
-                {amenity.icon}
-              </span>
-              <span className="pd-amenity__label">{amenity.label}</span>
-            </div>
+            <AmenityTile amenity={amenity} key={amenity.label} />
           ))}
         </div>
       )}
@@ -2937,7 +3201,8 @@ export default function PropertyDetails() {
             <section className="pd-summary" aria-label="Property summary">
               <div className="pd-summary__content">
                 <h2 className="pd-summary__headline">
-                  {displayProperty.propertyType} in {displayProperty.city}
+                  {getPropertyTypeLabel(displayProperty.propertyType)} in{" "}
+                  {displayProperty.city}
                 </h2>
                 <div className="pd-summary__details">
                   <span>

@@ -4,6 +4,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import Slider from '@mui/material/Slider';
 import Box from '@mui/material/Box';
 import './filterBar.css';
+import { PROPERTY_TYPES, getPropertyTypeLabel } from './lib/propertyTypes';
 
 export default function FilterBar({ onFilterApply }) {
     const [openDropdown, setOpenDropdown] = useState(null);
@@ -49,10 +50,10 @@ export default function FilterBar({ onFilterApply }) {
 
     const totalGuests = guests.adults + guests.children;
     const guestLabel = totalGuests > 0 ? `${totalGuests} guest${totalGuests > 1 ? 's' : ''}` : 'Any guests';
-    const typeLabel = propertyTypes.length > 0 ? propertyTypes.join(', ') : 'All types';
+    const typeLabel = propertyTypes.length > 0 ? propertyTypes.map(getPropertyTypeLabel).join(', ') : 'All types';
     const priceLabel = `$${priceRange[0]} – $${priceRange[1]}${priceRange[1] === 500 ? '+' : ''}`;
 
-    const propertyOptions = ['House', 'Apartment', 'Villa', 'Riad'];
+    const propertyOptions = PROPERTY_TYPES;
     const bedroomOptions = ['Any', '1', '2', '3', '4+'];
     const sortOptions = ['Most popular', 'Price: Low to High', 'Price: High to Low', 'Newest'];
 
@@ -152,13 +153,13 @@ export default function FilterBar({ onFilterApply }) {
                 {openDropdown === 'type' && (
                     <div className="dropdownMenu typeMenu">
                         {propertyOptions.map(type => (
-                            <label className="checkboxLabel" key={type}>
+                            <label className="checkboxLabel" key={type.value}>
                                 <input
                                     type="checkbox"
-                                    checked={propertyTypes.includes(type)}
-                                    onChange={() => togglePropertyType(type)}
+                                    checked={propertyTypes.includes(type.value)}
+                                    onChange={() => togglePropertyType(type.value)}
                                 />
-                                <span>{type}</span>
+                                <span>{type.label}</span>
                             </label>
                         ))}
                     </div>

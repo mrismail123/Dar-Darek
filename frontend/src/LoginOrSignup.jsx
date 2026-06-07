@@ -73,6 +73,9 @@ export default function LoginOrSignup() {
         password: ""
     })
     const [loginError, setLoginError] = useState("");
+    const [loginSuccess, setLoginSuccess] = useState("");
+    const [signupError, setSignupError] = useState("");
+    const [signupSuccess, setSignupSuccess] = useState("");
     const [googleLoading, setGoogleLoading] = useState(false);
     const [loginLoading, setLoginLoading] = useState(false);
     const [signupLoading, setSignupLoading] = useState(false);
@@ -110,19 +113,21 @@ export default function LoginOrSignup() {
         const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{10,50}$/;
 
         if (!trimmedFirstName || !trimmedLastName) {
-            alert("First name and last name are required.");
+            setSignupError("Please enter your first and last name.");
             return;
         }
         if (!passwordRegex.test(signUpInfo.password)) {
-            alert("Password must be 10 to 50 characters long and include at least one letter and one number.");
+            setSignupError("Use 10 to 50 characters with at least one letter and one number.");
             return;
         }
         if (signUpInfo.password !== signUpInfo.confirmPassword) {
-            alert("Password and confirm password do not match.");
+            setSignupError("The password confirmation does not match yet.");
             return;
         }
         try {
             setSignupLoading(true);
+            setSignupError("");
+            setSignupSuccess("");
             const request = await axios.post(buildApiUrl('/api/signup'), {
                 ...signUpInfo,
                 firstName: trimmedFirstName,
@@ -130,21 +135,23 @@ export default function LoginOrSignup() {
                 email: trimmedEmail
             })
             const response = request.data;
-            alert(response.message);
+            setSignupSuccess(response.message || "Account created. Check your email to verify it.");
             setLoginInfo({ ...loginInfo, email: trimmedEmail, password: signUpInfo.password });
             // changeMode();
 
-            navigate("/Authentication/verify-account", { replace: true });
+            window.setTimeout(() => {
+                navigate("/Authentication/verify-account", { replace: true });
+            }, 650);
 
 
         } catch (error) {
             console.error("FULL ERROR OBJECT:", error);
             if (error.response) {
-                alert(error.response.data.message || error.response.data.error || "Something went wrong while creating your account.");
+                setSignupError(error.response.data.message || error.response.data.error || "Could not create your account. Please try again.");
             } else if (error.request) {
-                alert("Unable to reach the server. Please make sure it is running on port 5000.");
+                setSignupError("We could not reach the server. Please try again in a moment.");
             } else {
-                alert("Request setup failed: " + error.message);
+                setSignupError("Could not start signup. Please try again.");
             }
         } finally {
             setSignupLoading(false);
@@ -186,12 +193,14 @@ export default function LoginOrSignup() {
             console.log("Logged in token:", response.token);
 
             
-            alert(`Welcome back, ${response.user.name}.`);
-            if (response.user.role === "admin") {
-                navigate("/admin", { replace: true })
-            } else {
-                navigate(from, { replace: true });
-            }
+            setLoginSuccess(`Welcome back, ${response.user.name}. Taking you to your space...`);
+            window.setTimeout(() => {
+                if (response.user.role === "admin") {
+                    navigate("/admin", { replace: true })
+                } else {
+                    navigate(from, { replace: true });
+                }
+            }, 650);
         } catch (error) {
             console.error("Error :", error);
             if (error.response) {
@@ -226,12 +235,12 @@ export default function LoginOrSignup() {
 
                                 <div className="mb-3">
                                     <label className="form-label" htmlFor="email">Email</label>
-                                    <input onChange={(e) => { setLoginInfo({ ...loginInfo, email: e.target.value }); if (loginError) setLoginError(""); }} value={loginInfo.email} className="form-control rounded-pill py-2 px-3" type="email" name="email" id="email" required disabled={loginLoading} />
+                                    <input onChange={(e) => { setLoginInfo({ ...loginInfo, email: e.target.value }); if (loginError) setLoginError(""); if (loginSuccess) setLoginSuccess(""); }} value={loginInfo.email} className="form-control rounded-pill py-2 px-3" type="email" name="email" id="email" required disabled={loginLoading} />
                                 </div>
 
                                 <div className="mb-3">
                                     <label className="form-label" htmlFor="pass">Password</label>
-                                    <input onChange={(e) => { setLoginInfo({ ...loginInfo, password: e.target.value }); if (loginError) setLoginError(""); }} value={loginInfo.password} className="form-control rounded-pill py-2 px-3" type="password" name="password" id="pass" required disabled={loginLoading} />
+                                    <input onChange={(e) => { setLoginInfo({ ...loginInfo, password: e.target.value }); if (loginError) setLoginError(""); if (loginSuccess) setLoginSuccess(""); }} value={loginInfo.password} className="form-control rounded-pill py-2 px-3" type="password" name="password" id="pass" required disabled={loginLoading} />
                                     <p onClick={() => {
                                         navigate("/Authentication/forgot-password");
                                     }} className="auth-forgot-password mb-0">Forgot password?</p>
@@ -246,6 +255,18 @@ export default function LoginOrSignup() {
                                         role="alert"
                                     >
                                         {loginError}
+                                    </motion.div>
+                                )}
+
+                                {loginSuccess && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -6 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="auth-inline-success"
+                                        role="status"
+                                    >
+                                        {loginSuccess}
                                     </motion.div>
                                 )}
 
@@ -324,7 +345,7 @@ export default function LoginOrSignup() {
                                     appId="1453411473064303"
                                     onSuccess={(response) => {
                                         console.log("Facebook login success:", response);
-                                        alert("Facebook login is not fully connected to the server yet.");
+                                        setLoginError("Facebook login is not connected yet. Please use email or Google for now.");
                                     }}
                                     onFail={(error) => {
                                         console.log("Facebook login failed:", error);
@@ -368,17 +389,17 @@ export default function LoginOrSignup() {
                                 <p className="text-center text-muted mb-3">Login or sign up</p>
 
                                 <label className="form-label" htmlFor="fullName">Full name</label>
-                                <input onChange={(e) => setSignUpInfo({ ...signUpInfo, firstName: e.target.value })} value={signUpInfo.firstName} className="form-control rounded-top-4 rounded-bottom-0 py-2 px-3 mb-0" type="text" name="first name" id="firtName" placeholder="First Name" required disabled={signupLoading} />
-                                <input onChange={(e) => setSignUpInfo({ ...signUpInfo, lastName: e.target.value })} value={signUpInfo.lastName} className="form-control rounded-bottom-4 rounded-top-0 py-2 px-3 mb-3" type="text" name="last name" id="lastName" placeholder="Last Name" required disabled={signupLoading} />
+                                <input onChange={(e) => { setSignUpInfo({ ...signUpInfo, firstName: e.target.value }); if (signupError) setSignupError(""); if (signupSuccess) setSignupSuccess(""); }} value={signUpInfo.firstName} className="form-control rounded-top-4 rounded-bottom-0 py-2 px-3 mb-0" type="text" name="first name" id="firtName" placeholder="First Name" required disabled={signupLoading} />
+                                <input onChange={(e) => { setSignUpInfo({ ...signUpInfo, lastName: e.target.value }); if (signupError) setSignupError(""); if (signupSuccess) setSignupSuccess(""); }} value={signUpInfo.lastName} className="form-control rounded-bottom-4 rounded-top-0 py-2 px-3 mb-3" type="text" name="last name" id="lastName" placeholder="Last Name" required disabled={signupLoading} />
 
                                 <div className="mb-3">
                                     <label className="form-label" htmlFor="email">Email</label>
-                                    <input onChange={(e) => setSignUpInfo({ ...signUpInfo, email: e.target.value })} value={signUpInfo.email} className="form-control rounded-pill py-2 px-3" type="email" name="email" id="email" placeholder="Email" pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$" required disabled={signupLoading} />
+                                    <input onChange={(e) => { setSignUpInfo({ ...signUpInfo, email: e.target.value }); if (signupError) setSignupError(""); if (signupSuccess) setSignupSuccess(""); }} value={signUpInfo.email} className="form-control rounded-pill py-2 px-3" type="email" name="email" id="email" placeholder="Email" pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$" required disabled={signupLoading} />
                                 </div>
 
                                 <div className="mb-3">
                                     <label className="form-label" htmlFor="pass">Password</label>
-                                    <input onChange={(e) => setSignUpInfo({ ...signUpInfo, password: e.target.value })} value={signUpInfo.password} minLength={10} maxLength={50} className="form-control rounded-pill py-2 px-3" type="password" name="password" id="pass" placeholder="Password" required disabled={signupLoading} />
+                                    <input onChange={(e) => { setSignUpInfo({ ...signUpInfo, password: e.target.value }); if (signupError) setSignupError(""); if (signupSuccess) setSignupSuccess(""); }} value={signUpInfo.password} minLength={10} maxLength={50} className="form-control rounded-pill py-2 px-3" type="password" name="password" id="pass" placeholder="Password" required disabled={signupLoading} />
                                     {passwordValue && (
                                         <div className="password-strength-wrap">
                                             <div className="password-strength-track">
@@ -395,7 +416,7 @@ export default function LoginOrSignup() {
 
                                 <div className="mb-3">
                                     <label className="form-label" htmlFor="confirm">Confirm password</label>
-                                    <input onChange={(e) => setSignUpInfo({ ...signUpInfo, confirmPassword: e.target.value })} value={signUpInfo.confirmPassword} className={confirmInputClass} type="password" name="confirm password" id="confirm" placeholder="Confirm password" required disabled={signupLoading} />
+                                    <input onChange={(e) => { setSignUpInfo({ ...signUpInfo, confirmPassword: e.target.value }); if (signupError) setSignupError(""); if (signupSuccess) setSignupSuccess(""); }} value={signUpInfo.confirmPassword} className={confirmInputClass} type="password" name="confirm password" id="confirm" placeholder="Confirm password" required disabled={signupLoading} />
                                     {confirmTouched && (
                                         <div className={confirmMatches ? "confirm-password-hint confirm-password-hint--match" : "confirm-password-hint confirm-password-hint--mismatch"}>
                                             {confirmMatches ? "Passwords match." : "Passwords do not match yet."}
@@ -409,12 +430,36 @@ export default function LoginOrSignup() {
                                         id="phoneNumber"
                                         placeholder="Phone number"
                                         value={signUpInfo.phoneNumber}
-                                        onChange={(e) => setSignUpInfo({ ...signUpInfo, phoneNumber: e })}
+                                        onChange={(e) => { setSignUpInfo({ ...signUpInfo, phoneNumber: e }); if (signupError) setSignupError(""); if (signupSuccess) setSignupSuccess(""); }}
                                         defaultCountry="MA"
                                         required
                                         disabled={signupLoading}
                                     />
                                 </div>
+
+                                {signupError && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -6 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="auth-inline-error"
+                                        role="alert"
+                                    >
+                                        {signupError}
+                                    </motion.div>
+                                )}
+
+                                {signupSuccess && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -6 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="auth-inline-success"
+                                        role="status"
+                                    >
+                                        {signupSuccess}
+                                    </motion.div>
+                                )}
 
                                 <button
                                     className="btn w-100 rounded-pill py-2 text-white auth-submit-button"
