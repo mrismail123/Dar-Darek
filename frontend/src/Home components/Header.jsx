@@ -27,8 +27,6 @@ import EventNoteOutlinedIcon from "@mui/icons-material/EventNoteOutlined";
 import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
-import HelpOutlineOutlinedIcon from "@mui/icons-material/HelpOutlineOutlined";
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 
 import profilePicture1 from "../assets/1.jpg";
@@ -47,8 +45,7 @@ export default function Header() {
   const { token, setToken, user, setUser } = useToken();
   const navigate = useNavigate();
   const userRole = user?.role;
-  const isHost = userRole === "host" || userRole === "admin";
-  const isAdmin = userRole === "admin";
+  const isHost = userRole === "host";
   const profilePictureSrc = getProfilePictureSrc(user);
 
   const [anchorEl, setAnchorEl] = React.useState(null);
@@ -145,18 +142,6 @@ export default function Header() {
 
       <Divider sx={{ my: 0.5 }} />
 
-      {isAdmin && (
-        <MenuItem
-          onClick={() => goTo("/admin")}
-          sx={{ py: 1.2, color: "#374151" }}
-        >
-          <AdminPanelSettingsOutlinedIcon
-            sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
-          />
-          Admin Dashboard
-        </MenuItem>
-      )}
-
       <MenuItem
         onClick={() => goTo("/my-bookings")}
         sx={{ py: 1.2, color: "#374151" }}
@@ -248,7 +233,11 @@ export default function Header() {
   const handleListYourProperyFunction = async () => {
     if (localStorage.getItem("user")) {
       const user = JSON.parse(localStorage.getItem("user"));
-      if (user.role !== "host" && user.role !== "admin") {
+      if (user.role === "admin") {
+        navigate("/admin", { replace: true });
+        return;
+      }
+      if (user.role !== "host") {
         setAlertInfo({
           show: true,
           message: "Host Badge Required",
@@ -258,9 +247,13 @@ export default function Header() {
         return;
       }
       try {
-        const response = await axios.post("http://localhost:5000/api/verifyHostMode", {
-          id: user.id
-        });
+        const response = await axios.post(
+          buildApiUrl("/api/verifyHostMode"),
+          {},
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          },
+        );
         if (response.data && response.data.message === "go ahead") {
           navigate("/new-listing", { replace: true });
           return;

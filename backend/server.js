@@ -509,6 +509,16 @@ const verifyAdmin = (req, res, next) => {
   next();
 };
 
+const blockAdminAccess = (req, res, next) => {
+  if (req.user?.role === "admin") {
+    return res
+      .status(403)
+      .json({ message: "Admins can only access the management dashboard." });
+  }
+
+  next();
+};
+
 const getOptionalAuthenticatedUser = async (req) => {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(" ")[1];
@@ -644,8 +654,8 @@ app.get("/api/test-db", async (req, res) => {
    USER ACCOUNT ROUTES
 ========================= */
 
-app.post('/api/verifyHostMode', async (req, res) => {
-  const { id } = req.body;
+app.post('/api/verifyHostMode', verifyToken, blockAdminAccess, async (req, res) => {
+  const id = getUserIdFromRequest(req);
   try {
     const [rows] = await db.query("SELECT role FROM users WHERE id_user=?", [id]);
     if (rows.length === 0) {
@@ -653,7 +663,7 @@ app.post('/api/verifyHostMode', async (req, res) => {
       return;
     }
 
-    if (rows[0].role !== "host" && rows[0].role !== "admin") {
+    if (rows[0].role !== "host") {
       res.status(400).json({ message: "You have to enable host mode" });
       return;
     }
@@ -1914,7 +1924,7 @@ app.put("/api/users/create-password", verifyToken, async (req, res) => {
   }
 });
 
-app.put("/api/users/become-host", verifyToken, async (req, res) => {
+app.put("/api/users/become-host", verifyToken, blockAdminAccess, async (req, res) => {
   try {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1949,7 +1959,7 @@ app.put("/api/users/become-host", verifyToken, async (req, res) => {
   }
 });
 
-app.put("/api/users/deactivate-host", verifyToken, async (req, res) => {
+app.put("/api/users/deactivate-host", verifyToken, blockAdminAccess, async (req, res) => {
   try {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -2638,7 +2648,7 @@ const getOwnedProperty = async (propertyId, userId) => {
   return rows[0] || null;
 };
 
-app.get("/api/my-properties", verifyToken, async (req, res) => {
+app.get("/api/my-properties", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = getUserIdFromRequest(req);
 
   if (!userId) {
@@ -2727,7 +2737,7 @@ app.get("/api/my-properties", verifyToken, async (req, res) => {
   }
 });
 
-app.get("/api/properties/:id/edit", verifyToken, async (req, res) => {
+app.get("/api/properties/:id/edit", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = getUserIdFromRequest(req);
   const propertyId = Number(req.params.id);
 
@@ -2844,7 +2854,7 @@ const deletePropertyImages = async (propertyId) => {
   }
 };
 
-app.delete("/api/my-properties/:id/draft", verifyToken, async (req, res) => {
+app.delete("/api/my-properties/:id/draft", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = getUserIdFromRequest(req);
   const propertyId = Number(req.params.id);
 
@@ -2893,7 +2903,7 @@ app.delete("/api/my-properties/:id/draft", verifyToken, async (req, res) => {
   }
 });
 
-app.delete("/api/my-properties/:id", verifyToken, async (req, res) => {
+app.delete("/api/my-properties/:id", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = getUserIdFromRequest(req);
   const propertyId = Number(req.params.id);
 
@@ -2960,6 +2970,7 @@ app.delete("/api/my-properties/:id", verifyToken, async (req, res) => {
 app.put(
   "/api/properties/:id",
   verifyToken,
+  blockAdminAccess,
   upload.array("images", 12),
   async (req, res) => {
     const userId = getUserIdFromRequest(req);
@@ -3200,6 +3211,7 @@ app.put(
 app.get(
   "/api/my-properties/:id/availability",
   verifyToken,
+  blockAdminAccess,
   async (req, res) => {
     const userId = getUserIdFromRequest(req);
     const propertyId = Number(req.params.id);
@@ -3291,6 +3303,7 @@ app.get(
 app.put(
   "/api/my-properties/:id/availability",
   verifyToken,
+  blockAdminAccess,
   async (req, res) => {
     const userId = getUserIdFromRequest(req);
     const propertyId = Number(req.params.id);
@@ -3798,6 +3811,7 @@ app.post("/api/cityForAbout", async (req, res) => {
 app.post(
   "/api/publishProperty",
   verifyToken,
+  blockAdminAccess,
   upload.array("images", 12),
   async (req, res) => {
     try {
@@ -4219,7 +4233,7 @@ const REPORT_CATEGORIES = new Set([
   "other",
 ]);
 
-app.post("/api/reports", verifyToken, async (req, res) => {
+app.post("/api/reports", verifyToken, blockAdminAccess, async (req, res) => {
   const reporterId = getUserIdFromRequest(req);
   const propertyId = Number(req.body?.id_property);
   const bookingId = req.body?.id_booking ? Number(req.body.id_booking) : null;
@@ -4619,7 +4633,7 @@ app.get("/api/admin/users", verifyToken, verifyAdmin, async (req, res) => {
 ========================= */
 
 // Acquire a temporary hold on dates during checkout
-app.post("/api/booking-lock", verifyToken, async (req, res) => {
+app.post("/api/booking-lock", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
   const { id_property, checkIn, checkOut } = req.body;
   const propertyId = Number(id_property);
@@ -4691,7 +4705,7 @@ app.post("/api/booking-lock", verifyToken, async (req, res) => {
 });
 
 // Release a booking lock
-app.delete("/api/booking-lock/:id", verifyToken, async (req, res) => {
+app.delete("/api/booking-lock/:id", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
   const lockId = Number(req.params.id);
 
@@ -4714,7 +4728,7 @@ app.delete("/api/booking-lock/:id", verifyToken, async (req, res) => {
   }
 });
 
-app.post("/api/bookingProperty", verifyToken, async (req, res) => {
+app.post("/api/bookingProperty", verifyToken, blockAdminAccess, async (req, res) => {
   const {
     id_property,
     checkIn,
@@ -4983,7 +4997,7 @@ app.get("/api/properties/:id/booked-dates", async (req, res) => {
   }
 });
 
-app.get("/api/my-bookings", verifyToken, async (req, res) => {
+app.get("/api/my-bookings", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
 
   if (!Number.isFinite(userId) || userId <= 0) {
@@ -5044,7 +5058,7 @@ app.get("/api/my-bookings", verifyToken, async (req, res) => {
   }
 });
 
-app.patch("/api/my-bookings/:id/cancel", verifyToken, async (req, res) => {
+app.patch("/api/my-bookings/:id/cancel", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
   const bookingId = Number(req.params.id);
 
@@ -5095,7 +5109,7 @@ app.patch("/api/my-bookings/:id/cancel", verifyToken, async (req, res) => {
   }
 });
 
-app.post("/api/my-bookings/:id/review", verifyToken, async (req, res) => {
+app.post("/api/my-bookings/:id/review", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
   const bookingId = Number(req.params.id);
   const safeRating = Number(req.body?.rating);
@@ -5166,7 +5180,7 @@ app.post("/api/my-bookings/:id/review", verifyToken, async (req, res) => {
   }
 });
 
-app.get("/api/rentalRequests", verifyToken, async (req, res) => {
+app.get("/api/rentalRequests", verifyToken, blockAdminAccess, async (req, res) => {
   const tokenUserId = Number(req.user?.id);
   const queryUserId = Number(req.query?.id_user);
   const id_user =
@@ -5216,7 +5230,7 @@ app.get("/api/rentalRequests", verifyToken, async (req, res) => {
   }
 });
 
-app.patch("/api/rentalRequests/:id/status", verifyToken, async (req, res) => {
+app.patch("/api/rentalRequests/:id/status", verifyToken, blockAdminAccess, async (req, res) => {
   const bookingId = Number(req.params.id);
   const { status } = req.body;
   const tokenUserId = Number(req.user?.id);
@@ -5332,7 +5346,7 @@ app.get("/api/properties/:id/reviews", async (req, res) => {
   }
 });
 
-app.post("/api/reviews", verifyToken, async (req, res) => {
+app.post("/api/reviews", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
   const { id_property, rating, comment } = req.body;
   const propertyId = Number(id_property);
@@ -5404,6 +5418,7 @@ app.post("/api/reviews", verifyToken, async (req, res) => {
 app.get(
   "/api/properties/:id/review-eligibility",
   verifyToken,
+  blockAdminAccess,
   async (req, res) => {
     const userId = Number(req.user?.id);
     const propertyId = Number(req.params.id);
@@ -5449,7 +5464,7 @@ app.get(
 );
 
 // PATCH /api/reviews/:id/reply — host replies to a review (one time, host-only)
-app.patch("/api/reviews/:id/reply", verifyToken, async (req, res) => {
+app.patch("/api/reviews/:id/reply", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
   const reviewId = Number(req.params.id);
   const reply = String(req.body?.reply || "").trim();
@@ -5511,7 +5526,7 @@ app.patch("/api/reviews/:id/reply", verifyToken, async (req, res) => {
 ========================= */
 
 // GET /api/notifications — fetch all notifications for the logged-in user (newest first)
-app.get("/api/notifications", verifyToken, async (req, res) => {
+app.get("/api/notifications", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
 
   try {
@@ -5545,7 +5560,7 @@ app.get("/api/notifications", verifyToken, async (req, res) => {
 
 // PUT /api/notifications/mark-all-read — mark ALL notifications as read for the user
 // NOTE: must be declared BEFORE /:id/read so Express matches it first
-app.put("/api/notifications/mark-all-read", verifyToken, async (req, res) => {
+app.put("/api/notifications/mark-all-read", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
 
   try {
@@ -5564,7 +5579,7 @@ app.put("/api/notifications/mark-all-read", verifyToken, async (req, res) => {
 });
 
 // PUT /api/notifications/:id/read — mark a single notification as read
-app.put("/api/notifications/:id/read", verifyToken, async (req, res) => {
+app.put("/api/notifications/:id/read", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
   const notificationId = Number(req.params.id);
 
@@ -5600,7 +5615,7 @@ app.put("/api/notifications/:id/read", verifyToken, async (req, res) => {
 });
 
 // API for favorites
-app.post("/api/favorites/toggle", verifyToken, async (req, res) => {
+app.post("/api/favorites/toggle", verifyToken, blockAdminAccess, async (req, res) => {
   const id_user = getUserIdFromRequest(req);
   const id_property = Number(req.body?.id_property);
 
@@ -5683,8 +5698,8 @@ const getFavoritesForCurrentUser = async (req, res) => {
   }
 };
 
-app.get("/api/favorites", verifyToken, getFavoritesForCurrentUser);
-app.get("/api/favorites/:userId", verifyToken, getFavoritesForCurrentUser);
+app.get("/api/favorites", verifyToken, blockAdminAccess, getFavoritesForCurrentUser);
+app.get("/api/favorites/:userId", verifyToken, blockAdminAccess, getFavoritesForCurrentUser);
 
 /* =========================
    SUPPORT ROUTE

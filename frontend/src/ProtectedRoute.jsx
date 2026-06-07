@@ -10,6 +10,10 @@ export default function ProtectedRoute({ children, requiredRole }){
         return <Navigate to="/Authentication" replace />
     }
 
+    if (user?.role === "admin" && requiredRole !== "admin") {
+        return <Navigate to="/admin" replace />
+    }
+
     if (requiredRole && user?.role !== requiredRole) {
         return <Navigate to="/" replace />
     }

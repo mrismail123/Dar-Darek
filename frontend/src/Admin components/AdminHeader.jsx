@@ -19,7 +19,7 @@ import { useToken } from '../Contexts/TokenContext';
 
 export default function AdminHeader() {
     const themeGlobal = useThemeGlobal();
-    const { token, setToken, user, setUser } = useToken();
+    const { setToken, user, setUser } = useToken();
     const navigate = useNavigate();
 
     const [anchorEl, setAnchorEl] = useState(null);
