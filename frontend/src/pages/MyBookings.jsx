@@ -342,7 +342,7 @@ export default function MyBookings() {
             <p className="bookings-subtitle">Manage your upcoming stays, pending requests, and past trips.</p>
           </div>
 
-          <div className="bookings-stats-grid">
+          {/* <div className="bookings-stats-grid">
             <div className="stat-card">
               <div className="stat-card__icon" style={{ color: "#00a9b5", backgroundColor: "rgba(0, 169, 181, 0.09)" }}>
                 <FiCalendar />
@@ -370,7 +370,7 @@ export default function MyBookings() {
                 <p className="stat-card__label">Confirmed stays</p>
               </div>
             </div>
-          </div>
+          </div> */}
 
           <div className="bookings-tabs-card">
             <div className="bookings-tabs">

@@ -1,4 +1,5 @@
-import Logo from "../assets/dardarek-logo.png";
+// import Logo from "../assets/dardarek-logo.png";
+import Logo from "../assets/Logo3.png";
 import "../Home.css";
 
 import React from "react";
@@ -313,11 +314,11 @@ export default function Header() {
             }}
           >
             <img
-              style={{ maxWidth: "100%", height: "70px" }}
+              style={{ maxWidth: "100%", height: "100px" }}
               src={Logo}
               alt="DarDarek"
             />
-            <h3 className="mb-0">DarDarek</h3>
+            <h3 style={{marginBottom:"10px !important"}} className="">DarDarek</h3>
           </Link>
 
           <Box sx={{ flexGrow: 1 }}>
