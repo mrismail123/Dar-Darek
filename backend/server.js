@@ -5302,6 +5302,8 @@ app.get("/api/properties/:id/reviews", async (req, res) => {
          r.comment,
          r.created_at,
          r.id_booking,
+         r.host_reply,
+         r.host_reply_at,
          u.name AS reviewer_name
        FROM reviews r
        JOIN users u ON r.id_user = u.id_user
@@ -5443,6 +5445,64 @@ app.get(
     }
   },
 );
+
+// PATCH /api/reviews/:id/reply — host replies to a review (one time, host-only)
+app.patch("/api/reviews/:id/reply", verifyToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+  const reviewId = Number(req.params.id);
+  const reply = String(req.body?.reply || "").trim();
+
+  if (!Number.isFinite(userId) || userId <= 0) {
+    return res.status(401).json({ message: "Invalid authenticated user." });
+  }
+
+  if (!Number.isFinite(reviewId) || reviewId <= 0) {
+    return res.status(400).json({ message: "Invalid review id." });
+  }
+
+  if (reply.length < 10) {
+    return res.status(400).json({ message: "Reply must be at least 10 characters." });
+  }
+
+  if (reply.length > 1000) {
+    return res.status(400).json({ message: "Reply cannot exceed 1000 characters." });
+  }
+
+  try {
+    // Verify the logged-in user is the property owner for this review
+    const [rows] = await db.query(
+      `SELECT r.id_review, r.host_reply, p.id_user AS host_id
+       FROM reviews r
+       JOIN properties p ON r.id_property = p.id_property
+       WHERE r.id_review = ?
+       LIMIT 1`,
+      [reviewId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Review not found." });
+    }
+
+    const review = rows[0];
+
+    if (Number(review.host_id) !== userId) {
+      return res.status(403).json({ message: "Only the property host can reply to this review." });
+    }
+
+    if (review.host_reply) {
+      return res.status(409).json({ message: "You have already replied to this review." });
+    }
+
+    await db.execute(
+      "UPDATE reviews SET host_reply = ?, host_reply_at = NOW() WHERE id_review = ?",
+      [reply, reviewId],
+    );
+
+    res.status(200).json({ message: "Reply posted successfully.", reply, host_reply_at: new Date().toISOString() });
+  } catch (error) {
+    res.status(500).json({ message: "Server error while posting reply.", details: error.message });
+  }
+});
 
 /* =========================
    NOTIFICATION ROUTES

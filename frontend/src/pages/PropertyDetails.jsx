@@ -1624,7 +1624,7 @@ function StarRating({
   );
 }
 
-function ReviewsSection({ propertyId }) {
+function ReviewsSection({ propertyId, hostUserId }) {
   const { token, user } = useToken();
   const [reviews, setReviews] = useState([]);
   const [avgRating, setAvgRating] = useState(null);
@@ -1640,6 +1640,12 @@ function ReviewsSection({ propertyId }) {
   const [formSuccess, setFormSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
+
+  // Per-review reply state: { [id_review]: { open, text, submitting, error } }
+  const [replyState, setReplyState] = useState({});
+
+  const currentUserId = user?.id || user?.id_user;
+  const isHost = hostUserId && currentUserId && String(hostUserId) === String(currentUserId);
 
   useEffect(() => {
     if (!propertyId) return;
@@ -1705,6 +1711,8 @@ function ReviewsSection({ propertyId }) {
         comment: formComment.trim(),
         created_at: new Date().toISOString(),
         reviewer_name: user?.name || "You",
+        host_reply: null,
+        host_reply_at: null,
       };
       const updatedReviews = [newReview, ...reviews];
       setReviews(updatedReviews);
@@ -1727,6 +1735,45 @@ function ReviewsSection({ propertyId }) {
       );
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const setReplyField = (reviewId, patch) => {
+    setReplyState((prev) => ({
+      ...prev,
+      [reviewId]: { ...prev[reviewId], ...patch },
+    }));
+  };
+
+  const handleReplySubmit = async (e, reviewId) => {
+    e.preventDefault();
+    const state = replyState[reviewId] || {};
+    const replyText = (state.text || "").trim();
+    if (replyText.length < 10) {
+      setReplyField(reviewId, { error: "Reply must be at least 10 characters." });
+      return;
+    }
+    setReplyField(reviewId, { submitting: true, error: "" });
+    try {
+      const res = await axios.patch(
+        buildApiUrl(`/api/reviews/${reviewId}/reply`),
+        { reply: replyText },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      // Optimistically update the review in state
+      setReviews((prev) =>
+        prev.map((r) =>
+          r.id_review === reviewId
+            ? { ...r, host_reply: res.data.reply, host_reply_at: res.data.host_reply_at }
+            : r,
+        ),
+      );
+      setReplyField(reviewId, { open: false, text: "", submitting: false, error: "" });
+    } catch (err) {
+      setReplyField(reviewId, {
+        submitting: false,
+        error: err.response?.data?.message || "Failed to post reply. Please try again.",
+      });
     }
   };
 
@@ -1782,21 +1829,102 @@ function ReviewsSection({ propertyId }) {
       ) : hasReviews ? (
         <>
           <div className="pd-comments">
-            {visibleReviews.map((review) => (
-              <article className="pd-comment" key={review.id_review}>
-                <div className="pd-comment__head">
-                  <span aria-hidden="true">
-                    {(review.reviewer_name || "?").slice(0, 1).toUpperCase()}
-                  </span>
-                  <div>
-                    <h3>{review.reviewer_name}</h3>
-                    <p>{formatReviewDate(review.created_at)}</p>
+            {visibleReviews.map((review) => {
+              const rState = replyState[review.id_review] || {};
+              const replyOpen = rState.open || false;
+
+              return (
+                <article className="pd-comment" key={review.id_review}>
+                  <div className="pd-comment__head">
+                    <span aria-hidden="true">
+                      {(review.reviewer_name || "?").slice(0, 1).toUpperCase()}
+                    </span>
+                    <div>
+                      <h3>{review.reviewer_name}</h3>
+                      <p>{formatReviewDate(review.created_at)}</p>
+                    </div>
                   </div>
-                </div>
-                <StarRating value={Number(review.rating)} />
-                <p className="pd-comment__text">{review.comment}</p>
-              </article>
-            ))}
+                  <StarRating value={Number(review.rating)} />
+                  <p className="pd-comment__text">{review.comment}</p>
+
+                  {/* Host reply bubble (shown if reply exists) */}
+                  {review.host_reply && (
+                    <div className="pd-comment__host-reply">
+                      <div className="pd-comment__host-reply-header">
+                        <span className="pd-comment__host-reply-icon" aria-hidden="true">🏠</span>
+                        <span className="pd-comment__host-reply-label">Response from the host</span>
+                        {review.host_reply_at && (
+                          <span className="pd-comment__host-reply-date">
+                            {formatReviewDate(review.host_reply_at)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="pd-comment__host-reply-text">{review.host_reply}</p>
+                    </div>
+                  )}
+
+                  {/* Reply form — only shown to the host for reviews without a reply */}
+                  {isHost && !review.host_reply && (
+                    <div className="pd-comment__host-reply-action">
+                      {!replyOpen ? (
+                        <button
+                          type="button"
+                          className="pd-comment__reply-toggle"
+                          onClick={() => setReplyField(review.id_review, { open: true, text: "", error: "" })}
+                        >
+                          <span aria-hidden="true">↩</span> Reply to this review
+                        </button>
+                      ) : (
+                        <form
+                          className="pd-comment__reply-form"
+                          onSubmit={(e) => handleReplySubmit(e, review.id_review)}
+                          noValidate
+                        >
+                          <div className="pd-comment__reply-form-head">
+                            <span className="pd-comment__host-reply-icon" aria-hidden="true">🏠</span>
+                            <span className="pd-comment__host-reply-label">Your response</span>
+                          </div>
+                          <textarea
+                            className="pd-comment__reply-textarea"
+                            rows={3}
+                            placeholder="Write a professional, courteous response to this guest's review… (min. 10 characters)"
+                            value={rState.text || ""}
+                            onChange={(e) => setReplyField(review.id_review, { text: e.target.value })}
+                            maxLength={1000}
+                            autoFocus
+                          />
+                          <span className="pd-comment__reply-char-count">
+                            {(rState.text || "").length}/1000
+                          </span>
+                          {rState.error && (
+                            <p className="pd-comment__reply-error" role="alert">
+                              {rState.error}
+                            </p>
+                          )}
+                          <div className="pd-comment__reply-actions">
+                            <button
+                              type="button"
+                              className="pd-secondary-btn pd-comment__reply-cancel"
+                              onClick={() => setReplyField(review.id_review, { open: false, error: "" })}
+                              disabled={rState.submitting}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              className="pd-primary-btn pd-comment__reply-submit"
+                              disabled={rState.submitting}
+                            >
+                              {rState.submitting ? "Posting…" : "Post reply"}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </div>
           {reviews.length > 4 && (
             <button
@@ -1908,6 +2036,7 @@ function ReviewsSection({ propertyId }) {
     </section>
   );
 }
+
 
 function LocationSection({ property }) {
   const [mapKey, setMapKey] = useState(0);
@@ -2899,7 +3028,7 @@ export default function PropertyDetails() {
         <div className="pd-lower-sections">
           <LocationSection property={displayProperty} />
 
-          <ReviewsSection propertyId={id} />
+          <ReviewsSection propertyId={id} hostUserId={displayProperty.id_owner} />
 
           <HostSection host={displayProperty.host} property={displayProperty} />
 
