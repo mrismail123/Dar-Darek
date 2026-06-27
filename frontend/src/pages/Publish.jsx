@@ -7,6 +7,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { buildApiUrl } from "../lib/api";
 import { PROPERTY_TYPES } from "../lib/propertyTypes";
 import Footer from "../Footer";
+import Header from "../Home components/Header";
 import {
   FiAirplay,
   FiBookOpen,
@@ -19,7 +20,6 @@ import {
   FiCoffee,
   FiDroplet,
   FiFeather,
-  FiHome,
   FiImage,
   FiMapPin,
   FiMinus,
@@ -1471,6 +1471,8 @@ export default function Publish() {
     }
   };
 
+  // Draft persistence is retained for compatibility, but has no Publish page control.
+  // eslint-disable-next-line no-unused-vars
   const handleSaveDraft = async () => {
     const currentToken = localStorage.getItem("token");
 
@@ -1723,6 +1725,8 @@ export default function Publish() {
   return (
     <>
       <div className="pub-page">
+        <Header />
+
         <header className="pub-hero">
           <div className="pub-hero__container">
             <div className="pub-hero__content">
@@ -1731,15 +1735,15 @@ export default function Publish() {
                 className="pub-back-btn"
                 onClick={handleGoBack}
               >
-                <span aria-hidden="true">←</span>
+                <FiChevronLeft aria-hidden="true" />
                 Back
               </button>
 
               <span className="pub-hero__eyebrow">Dar Darek Host Area</span>
 
               <h1 className="pub-hero__title">
-                Create a truly unique <br />
-                <em>stay experience.</em>
+                Share a stay guests will
+                <em> remember.</em>
               </h1>
 
               <p className="pub-hero__lead">
@@ -1747,16 +1751,12 @@ export default function Publish() {
                 authentic experiences across the most beautiful destinations in
                 Northern Morocco.
               </p>
-            </div>
 
-            <div className="pub-hero__visual">
-              <div className="pub-hero__brand">
-                {/* <img
-                src={logoImage}
-                alt="Dar Darek logo"
-                className="pub-hero__logo-image"
-              /> */}
-                {/* <h2 className="pub-hero__brand-name">Dar Darek</h2> */}
+              <div className="pub-hero__note">
+                <span>
+                  <FiShield aria-hidden="true" />
+                  Reviewed before going live
+                </span>
               </div>
             </div>
           </div>
@@ -1788,6 +1788,8 @@ export default function Publish() {
               </div>
             )}
 
+            <div className="pub-form-layout">
+              <div className="pub-form-main">
             <section className="pub-section">
               <div className="pub-section__head">
                 <div className="pub-section__meta">
@@ -1960,19 +1962,6 @@ export default function Publish() {
                     </div>
                   </div>
 
-                  <div className="pub-field">
-                    <label className="pub-label" htmlFor="accessInstructions">
-                      Access details
-                    </label>
-                    <textarea
-                      id="accessInstructions"
-                      name="accessInstructions"
-                      className="pub-input pub-textarea pub-textarea--medium"
-                      placeholder="Ex: The entrance is on the left of the main door, just past the small alley. Add anything here that may help guests find the property easily."
-                      value={formData.accessInstructions}
-                      onChange={handleChange}
-                    />
-                  </div>
                   <input
                     type="hidden"
                     name="latitude"
@@ -1988,11 +1977,12 @@ export default function Publish() {
                 <aside className="pub-location-aside">
                   <div className="pub-location-card pub-location-card--map">
                     <div className="pub-location-card__top">
-                      <span className="pub-location-card__icon">📍</span>
-                      <h3 className="pub-location-card__title">Map location</h3>
-                    </div>
-
-                    <div className="pub-location-actions">
+                      <div className="pub-location-card__heading">
+                        <span className="pub-location-card__icon">📍</span>
+                        <h3 className="pub-location-card__title">
+                          Map location
+                        </h3>
+                      </div>
                       <button
                         type="button"
                         className="pub-location-action-btn"
@@ -2042,89 +2032,20 @@ export default function Publish() {
                     </div>
                   </div>
                 </aside>
-              </div>
-            </section>
 
-            <section className="pub-section">
-              <div className="pub-section__head">
-                <div className="pub-section__meta">
-                  <h2 className="pub-section__title">Capacity & Spaces</h2>
-                  <p className="pub-section__hint">
-                    Indicate how many guests your space can comfortably
-                    accommodate.
-                  </p>
+                <div className="pub-field">
+                  <label className="pub-label" htmlFor="accessInstructions">
+                    Access details
+                  </label>
+                  <textarea
+                    id="accessInstructions"
+                    name="accessInstructions"
+                    className="pub-input pub-textarea pub-textarea--medium"
+                    placeholder="Ex: The entrance is on the left of the main door, just past the small alley. Add anything here that may help guests find the property easily."
+                    value={formData.accessInstructions}
+                    onChange={handleChange}
+                  />
                 </div>
-              </div>
-
-              <div className="pub-details-grid">
-                {[
-                  { id: "guests", label: "Guests", icon: "👥" },
-                  { id: "bedrooms", label: "Bedrooms", icon: "🛏️" },
-                  { id: "beds", label: "Beds", icon: "🛌" },
-                  { id: "bathrooms", label: "Bathrooms", icon: "🚿" },
-                ].map(({ id, label }) => (
-                  <div
-                    className="pub-detail-card"
-                    key={id}
-                    data-error-anchor={id}
-                  >
-                    <div className="pub-detail-card__header">
-                      <span className="pub-detail-card__icon">
-                        {(() => {
-                          const DetailIcon = CAPACITY_ICON_MAP[id];
-                          return <DetailIcon aria-hidden="true" />;
-                        })()}
-                      </span>
-                      <label className="pub-detail-card__label" htmlFor={id}>
-                        {label}
-                      </label>
-                    </div>
-
-                    <div className="pub-stepper">
-                      <button
-                        type="button"
-                        className="pub-stepper__btn"
-                        onClick={() => handleStepperChange(id, -1)}
-                        disabled={Number(formData[id] || 0) <= 0}
-                        aria-label={`Decrease ${label.toLowerCase()}`}
-                      >
-                        <FiMinus aria-hidden="true" />
-                      </button>
-                      <input
-                        id={id}
-                        name={id}
-                        type="number"
-                        min="0"
-                        max="99"
-                        inputMode="numeric"
-                        className="pub-stepper__input"
-                        value={formData[id]}
-                        placeholder="0"
-                        onChange={(event) =>
-                          handleCapacityInputChange(id, event.target.value)
-                        }
-                        onWheel={stopWheelChange}
-                        onKeyDown={(event) => {
-                          if (["e", "E", "+", "-", "."].includes(event.key)) {
-                            event.preventDefault();
-                          }
-                        }}
-                        aria-label={label}
-                      />
-                      <button
-                        type="button"
-                        className="pub-stepper__btn"
-                        onClick={() => handleStepperChange(id, 1)}
-                        aria-label={`Increase ${label.toLowerCase()}`}
-                      >
-                        <FiPlus aria-hidden="true" />
-                      </button>
-                    </div>
-                    {errors[id] && (
-                      <p className="pub-field-error">{errors[id]}</p>
-                    )}
-                  </div>
-                ))}
               </div>
             </section>
 
@@ -2586,53 +2507,156 @@ export default function Publish() {
               </div>
             </section>
 
-            <section className="pub-section pub-section--highlight">
-              <div className="pub-section__head">
-                <div className="pub-section__meta">
-                  <h2 className="pub-section__title">Pricing</h2>
-                  <p className="pub-section__hint">
-                    Set a fair and competitive nightly rate in Moroccan dirhams.
-                  </p>
-                </div>
               </div>
 
-              <div className="pub-price-wrap">
-                <div className="pub-price-box">
-                  <span className="pub-price-currency">MAD</span>
-                  <input
-                    id="price"
-                    name="price"
-                    type="number"
-                    min="0"
-                    className={`pub-input pub-input--price ${
-                      errors.price ? "pub-input--error" : ""
-                    }`}
-                    placeholder="0"
-                    value={formData.price}
-                    onChange={handleChange}
-                    onWheel={stopWheelChange}
-                    onKeyDown={(e) => {
-                      if (["e", "E", "+", "-"].includes(e.key)) {
-                        e.preventDefault();
-                      }
-                    }}
-                  />
-                  {errors.price && (
-                    <p className="pub-field-error">{errors.price}</p>
-                  )}
-                  <span className="pub-price-unit">/ night</span>
-                </div>
+              <aside className="pub-sidebar" aria-label="Listing setup summary">
+                <div className="pub-sidebar-stack">
+                  <section className="pub-sidebar-card">
+                    <div className="pub-sidebar-section__head">
+                      <div>
+                        <h3>Capacity & Spaces</h3>
+                        <p>How many guests can stay comfortably?</p>
+                      </div>
+                      <FiUsers aria-hidden="true" />
+                    </div>
 
-                <div className="pub-price-tip">
-                  <span className="pub-price-tip__icon">💡</span>
-                  <p>
-                    Similar homes in Northern Morocco are typically priced
-                    between <strong>350</strong> and <strong>900 MAD</strong>{" "}
-                    per night.
-                  </p>
+                    <div className="pub-details-grid">
+                      {[
+                        { id: "guests", label: "Guests" },
+                        { id: "bedrooms", label: "Bedrooms" },
+                        { id: "beds", label: "Beds" },
+                        { id: "bathrooms", label: "Bathrooms" },
+                      ].map(({ id, label }) => (
+                        <div
+                          className="pub-detail-card"
+                          key={id}
+                          data-error-anchor={id}
+                        >
+                          <div className="pub-detail-card__header">
+                            <span className="pub-detail-card__icon">
+                              {(() => {
+                                const DetailIcon = CAPACITY_ICON_MAP[id];
+                                return <DetailIcon aria-hidden="true" />;
+                              })()}
+                            </span>
+                            <label
+                              className="pub-detail-card__label"
+                              htmlFor={id}
+                            >
+                              {label}
+                            </label>
+                          </div>
+
+                          <div className="pub-stepper">
+                            <button
+                              type="button"
+                              className="pub-stepper__btn"
+                              onClick={() => handleStepperChange(id, -1)}
+                              disabled={Number(formData[id] || 0) <= 0}
+                              aria-label={`Decrease ${label.toLowerCase()}`}
+                            >
+                              <FiMinus aria-hidden="true" />
+                            </button>
+                            <input
+                              id={id}
+                              name={id}
+                              type="number"
+                              min="0"
+                              max="99"
+                              inputMode="numeric"
+                              className="pub-stepper__input"
+                              value={formData[id]}
+                              placeholder="0"
+                              onChange={(event) =>
+                                handleCapacityInputChange(
+                                  id,
+                                  event.target.value,
+                                )
+                              }
+                              onWheel={stopWheelChange}
+                              onKeyDown={(event) => {
+                                if (
+                                  ["e", "E", "+", "-", "."].includes(
+                                    event.key,
+                                  )
+                                ) {
+                                  event.preventDefault();
+                                }
+                              }}
+                              aria-label={label}
+                            />
+                            <button
+                              type="button"
+                              className="pub-stepper__btn"
+                              onClick={() => handleStepperChange(id, 1)}
+                              aria-label={`Increase ${label.toLowerCase()}`}
+                            >
+                              <FiPlus aria-hidden="true" />
+                            </button>
+                          </div>
+                          {errors[id] && (
+                            <p className="pub-field-error">{errors[id]}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section
+                    className="pub-sidebar-card pub-sidebar-card--price"
+                    data-error-anchor="price"
+                  >
+                    <div className="pub-sidebar-section__head">
+                      <div>
+                        <h3>Nightly price</h3>
+                        <p>Set your rate in Moroccan dirhams.</p>
+                      </div>
+                      <FiZap aria-hidden="true" />
+                    </div>
+
+                    <div className="pub-price-wrap">
+                      <div className="pub-price-box">
+                        <span className="pub-price-currency">MAD</span>
+                        <input
+                          id="price"
+                          name="price"
+                          type="number"
+                          min="0"
+                          className={`pub-input pub-input--price ${
+                            errors.price ? "pub-input--error" : ""
+                          }`}
+                          placeholder="0"
+                          value={formData.price}
+                          onChange={handleChange}
+                          onWheel={stopWheelChange}
+                          onKeyDown={(e) => {
+                            if (["e", "E", "+", "-"].includes(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
+                        />
+                        <span className="pub-price-unit">/ night</span>
+                      </div>
+                      {errors.price && (
+                        <p className="pub-field-error">{errors.price}</p>
+                      )}
+
+                      <div className="pub-price-tip">
+                        <FiZap
+                          className="pub-price-tip__icon"
+                          aria-hidden="true"
+                        />
+                        <p>
+                          Similar homes in Northern Morocco are typically priced
+                          between <strong>350</strong> and{" "}
+                          <strong>900 MAD</strong> per night.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
                 </div>
-              </div>
-            </section>
+              </aside>
+            </div>
 
             <div className="pub-submit-bar">
               <div className="pub-submit-bar__text">
@@ -2644,7 +2668,7 @@ export default function Publish() {
                 <span>
                   {isEditMode
                     ? "Your updates will be saved to this existing property."
-                    : "Your listing will soon be visible to thousands of travelers."}
+                    : "Your listing will be submitted for review before it goes live."}
                 </span>
               </div>
 
@@ -2652,14 +2676,9 @@ export default function Publish() {
                 <button
                   type="button"
                   className="pub-draft-btn"
-                  disabled={isSubmitting || isSavingDraft || isEditLoading}
-                  onClick={handleSaveDraft}
+                  disabled={isSubmitting || isEditLoading}
                 >
-                  {isSavingDraft ? (
-                    <span className="pub-submit-btn__spinner pub-submit-btn__spinner--dark" />
-                  ) : (
-                    "Save draft"
-                  )}
+                  Save draft
                 </button>
 
                 <button
@@ -2669,12 +2688,13 @@ export default function Publish() {
                 >
                   {isSubmitting ? (
                     <span className="pub-submit-btn__spinner" />
+                  ) : isEditMode &&
+                    ["draft", "rejected"].includes(editingStatus) ? (
+                    "Submit listing"
+                  ) : isEditMode ? (
+                    "Save changes"
                   ) : (
-                    isEditMode && ["draft", "rejected"].includes(editingStatus)
-                      ? "Submit listing"
-                      : isEditMode
-                        ? "Save changes"
-                        : "Publish listing"
+                    "Publish listing"
                   )}
                 </button>
               </div>

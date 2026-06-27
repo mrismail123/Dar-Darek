@@ -29,7 +29,7 @@ import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import HelpOutlineOutlinedIcon from "@mui/icons-material/HelpOutlineOutlined";
-import SupportAgentIcon from '@mui/icons-material/SupportAgent';
+import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 
 import profilePicture1 from "../assets/1.jpg";
 import NotificationDropdown from "./NotificationDropdown";
@@ -39,7 +39,9 @@ import SuccessAlert from "../SuccessAlert";
 const getProfilePictureSrc = (user) => {
   const picture = user?.profilePicture || user?.profile_picture;
   if (!picture) return profilePicture1;
-  return String(picture).startsWith("/uploads") ? buildApiUrl(picture) : picture;
+  return String(picture).startsWith("/uploads")
+    ? buildApiUrl(picture)
+    : picture;
 };
 
 export default function Header() {
@@ -53,7 +55,12 @@ export default function Header() {
 
   const [anchorEl, setAnchorEl] = React.useState(null);
   const isMenuOpen = Boolean(anchorEl);
-  const [alertInfo, setAlertInfo] = React.useState({ show: false, message: "", subMessage: "", type: "error" });
+  const [alertInfo, setAlertInfo] = React.useState({
+    show: false,
+    message: "",
+    subMessage: "",
+    type: "error",
+  });
 
   const menuId = "primary-search-account-menu";
 
@@ -174,7 +181,6 @@ export default function Header() {
         >
           <EventNoteOutlinedIcon
             sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
-
           />
           Rental Requests
         </MenuItem>
@@ -252,15 +258,19 @@ export default function Header() {
         setAlertInfo({
           show: true,
           message: "Host Badge Required",
-          subMessage: "You must enable host mode in your account settings to list a property.",
-          type: "error"
+          subMessage:
+            "You must enable host mode in your account settings to list a property.",
+          type: "error",
         });
         return;
       }
       try {
-        const response = await axios.post("http://localhost:5000/api/verifyHostMode", {
-          id: user.id
-        });
+        const response = await axios.post(
+          "http://localhost:5000/api/verifyHostMode",
+          {
+            id: user.id,
+          },
+        );
         if (response.data && response.data.message === "go ahead") {
           navigate("/new-listing", { replace: true });
           return;
@@ -271,7 +281,7 @@ export default function Header() {
             show: true,
             message: "Error",
             subMessage: error.response.data.message || "Unknown error",
-            type: "error"
+            type: "error",
           });
         } else {
           console.error(error);
@@ -344,9 +354,9 @@ export default function Header() {
                         fontWeight: 500,
                       }}
                     >
-                    <SupportAgentIcon
-                      sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
-                    />
+                      <SupportAgentIcon
+                        sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
+                      />
                       Support
                     </Button>
 
@@ -452,10 +462,10 @@ export default function Header() {
                   <Button
                     component={Link}
                     to="/Authentication"
-                    sx={{ 
+                    sx={{
                       background: themeGlobal.colors.primary,
                       textTransform: "none",
-                      fontWeight: 500
+                      fontWeight: 500,
                     }}
                     variant="contained"
                   >
