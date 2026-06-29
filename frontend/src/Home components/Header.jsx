@@ -1,4 +1,5 @@
-import Logo from "../assets/dardarek-logo.png";
+// import Logo from "../assets/dardarek-logo.png";
+import Logo from "../assets/Logo3.png";
 import "../Home.css";
 
 import React from "react";
@@ -49,8 +50,7 @@ export default function Header() {
   const { token, setToken, user, setUser } = useToken();
   const navigate = useNavigate();
   const userRole = user?.role;
-  const isHost = userRole === "host" || userRole === "admin";
-  const isAdmin = userRole === "admin";
+  const isHost = userRole === "host";
   const profilePictureSrc = getProfilePictureSrc(user);
 
   const [anchorEl, setAnchorEl] = React.useState(null);
@@ -152,18 +152,6 @@ export default function Header() {
 
       <Divider sx={{ my: 0.5 }} />
 
-      {isAdmin && (
-        <MenuItem
-          onClick={() => goTo("/admin")}
-          sx={{ py: 1.2, color: "#374151" }}
-        >
-          <AdminPanelSettingsOutlinedIcon
-            sx={{ mr: 2, color: "#6B7280", fontSize: "1.3rem" }}
-          />
-          Admin Dashboard
-        </MenuItem>
-      )}
-
       <MenuItem
         onClick={() => goTo("/my-bookings")}
         sx={{ py: 1.2, color: "#374151" }}
@@ -254,7 +242,11 @@ export default function Header() {
   const handleListYourProperyFunction = async () => {
     if (localStorage.getItem("user")) {
       const user = JSON.parse(localStorage.getItem("user"));
-      if (user.role !== "host" && user.role !== "admin") {
+      if (user.role === "admin") {
+        navigate("/admin", { replace: true });
+        return;
+      }
+      if (user.role !== "host") {
         setAlertInfo({
           show: true,
           message: "Host Badge Required",
@@ -266,9 +258,10 @@ export default function Header() {
       }
       try {
         const response = await axios.post(
-          "http://localhost:5000/api/verifyHostMode",
+          buildApiUrl("/api/verifyHostMode"),
+          {},
           {
-            id: user.id,
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
           },
         );
         if (response.data && response.data.message === "go ahead") {
@@ -330,11 +323,13 @@ export default function Header() {
             }}
           >
             <img
-              style={{ maxWidth: "100%", height: "70px" }}
+              style={{ maxWidth: "100%", height: "100px" }}
               src={Logo}
               alt="DarDarek"
             />
-            <h3 className="mb-0">DarDarek</h3>
+            <h3 style={{ marginBottom: "10px !important" }} className="">
+              DarDarek
+            </h3>
           </Link>
 
           <Box sx={{ flexGrow: 1 }}>

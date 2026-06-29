@@ -419,7 +419,7 @@ export default function MyProperties() {
           </div>
         </div>
 
-        <div className="properties-stats-grid">
+        {/* <div className="properties-stats-grid">
           <div className="stat-card">
             <div className="stat-card__icon" style={{ color: "#157f57", backgroundColor: "rgba(21, 127, 87, 0.09)" }}><FiCheckCircle /></div>
             <div className="stat-card__content"><h3 className="stat-card__value" style={{ color: "#157f57" }}>{summary.active}</h3><p className="stat-card__label">Active</p></div>
@@ -436,7 +436,7 @@ export default function MyProperties() {
             <div className="stat-card__icon" style={{ color: "#2b52a1", backgroundColor: "rgba(43, 82, 161, 0.09)" }}><FiSliders /></div>
             <div className="stat-card__content"><h3 className="stat-card__value" style={{ color: "#2b52a1" }}>{formatCompactPrice(summary.monthlyRevenue)}</h3><p className="stat-card__label">Monthly</p></div>
           </div>
-        </div>
+        </div> */}
 
         <div className="properties-tabs-card">
           <div className="properties-tabs">

@@ -28,6 +28,16 @@ import MyFavorites from "./MyFavorites";
 import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
 
+function ClientRoute({ children }) {
+  const { token, user } = useToken();
+
+  if (token && user?.role === "admin") {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return children;
+}
+
 function App() {
   const themeGlobal = useThemeGlobal();
   const { setToken, setUser } = useToken();
@@ -66,17 +76,63 @@ function App() {
   return (
     <div style={{ background: themeGlobal.colors.background }}>
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/support" element={<Support />} />
-        <Route path="/Authentication" element={<Authentication />} />
+        <Route
+          path="/"
+          element={
+            <ClientRoute>
+              <Home />
+            </ClientRoute>
+          }
+        />
+        <Route
+          path="/support"
+          element={
+            <ClientRoute>
+              <Support />
+            </ClientRoute>
+          }
+        />
+        <Route
+          path="/Authentication"
+          element={
+            <ClientRoute>
+              <Authentication />
+            </ClientRoute>
+          }
+        />
         <Route
           path="/Authentication/verify-account"
-          element={<VerifyAccountPage />}
+          element={
+            <ClientRoute>
+              <VerifyAccountPage />
+            </ClientRoute>
+          }
         />
-        <Route path="/properties" element={<PropertiesPage />} />
+        <Route
+          path="/properties"
+          element={
+            <ClientRoute>
+              <PropertiesPage />
+            </ClientRoute>
+          }
+        />
 
-        <Route path="/property-details/:id" element={<PropertyDetails />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route
+          path="/property-details/:id"
+          element={
+            <ClientRoute>
+              <PropertyDetails />
+            </ClientRoute>
+          }
+        />
+        <Route
+          path="/privacy-policy"
+          element={
+            <ClientRoute>
+              <PrivacyPolicy />
+            </ClientRoute>
+          }
+        />
 
         <Route
           path="/checkout/:propertyId"
@@ -87,7 +143,14 @@ function App() {
           }
         />
 
-        <Route path="/publish" element={<Publish />} />
+        <Route
+          path="/publish"
+          element={
+            <ClientRoute>
+              <Publish />
+            </ClientRoute>
+          }
+        />
 
         <Route
           path="/new-listing"
@@ -154,15 +217,30 @@ function App() {
 
         <Route
           path="/Authentication/forgot-password"
-          element={<ForgotPassword />}
+          element={
+            <ClientRoute>
+              <ForgotPassword />
+            </ClientRoute>
+          }
         />
         <Route
           path="/Authentication/reset-password"
-          element={<ResetPassword />}
+          element={
+            <ClientRoute>
+              <ResetPassword />
+            </ClientRoute>
+          }
         />
 
         {/* Catch-all 404 Route */}
-        <Route path="*" element={<NotFound />} />
+        <Route
+          path="*"
+          element={
+            <ClientRoute>
+              <NotFound />
+            </ClientRoute>
+          }
+        />
       </Routes>
       <CookieBanner />
     </div>

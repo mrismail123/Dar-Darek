@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   FiClock,
@@ -53,6 +53,7 @@ export default function RentalRequests() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [requests, setRequests] = useState([]);
+  const [activeTab, setActiveTab] = useState("all");
 
   // Notification-driven highlight
   const [highlightedId, setHighlightedId] = useState(() => {
@@ -214,40 +215,32 @@ export default function RentalRequests() {
     { all: 0, pending: 0, accepted: 0, rejected: 0 },
   );
 
-  const statsCards = [
-    {
-      label: "All Requests",
-      value: requestStats.all,
-      icon: <FiInbox />,
-      iconColor: "#00a9b5",
-      iconBg: "rgba(0, 169, 181, 0.09)",
-      valueColor: "#00a9b5",
-    },
-    {
-      label: "Pending",
-      value: requestStats.pending,
-      icon: <FiClock />,
-      iconColor: "#c98517",
-      iconBg: "rgba(201, 133, 23, 0.09)",
-      valueColor: "#c98517",
-    },
-    {
-      label: "Accepted",
-      value: requestStats.accepted,
-      icon: <FiCheckCircle />,
-      iconColor: "#157f57",
-      iconBg: "rgba(21, 127, 87, 0.09)",
-      valueColor: "#157f57",
-    },
-    {
-      label: "Rejected",
-      value: requestStats.rejected,
-      icon: <FiXCircle />,
-      iconColor: "#b73232",
-      iconBg: "rgba(183, 50, 50, 0.09)",
-      valueColor: "#b73232",
-    },
+  const requestTabs = [
+    { id: "all", label: "All requests", count: requestStats.all },
+    { id: "pending", label: "Pending", count: requestStats.pending },
+    { id: "accepted", label: "Accepted", count: requestStats.accepted },
+    { id: "rejected", label: "Rejected", count: requestStats.rejected },
   ];
+
+  const filteredRequests = useMemo(
+    () =>
+      requests.filter((request) => {
+        if (activeTab === "all") return true;
+        const status = String(request.status || "").toLowerCase();
+        if (activeTab === "accepted") {
+          return (
+            status === "approved" ||
+            status === "accepted" ||
+            status === "confirmed"
+          );
+        }
+        if (activeTab === "rejected") {
+          return status === "rejected" || status === "cancelled";
+        }
+        return status === activeTab;
+      }),
+    [activeTab, requests],
+  );
 
   return (
     <>
@@ -266,37 +259,26 @@ export default function RentalRequests() {
           </div>
 
           <div className="requests-stats-grid">
-            {statsCards.map((card) => (
-              <div key={card.label} className="stat-card">
-                <div
-                  className="stat-card__icon"
-                  style={{
-                    color: card.iconColor,
-                    backgroundColor: card.iconBg,
-                  }}
-                >
-                  {card.icon}
-                </div>
-                <div className="stat-card__content">
-                  <h3
-                    className="stat-card__value"
-                    style={{ color: card.valueColor }}
-                  >
-                    {card.value}
-                  </h3>
-                  <p className="stat-card__label">{card.label}</p>
-                </div>
-              </div>
+            {requestTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`requests-tab ${activeTab === tab.id ? "requests-tab--active" : ""}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <span>{tab.label}</span>
+                <strong>{tab.count}</strong>
+              </button>
             ))}
           </div>
 
           <div className="requests-list">
-            {requests.length === 0 ? (
+            {filteredRequests.length === 0 ? (
               <div className="requests-empty">
                 <p>No rental requests available.</p>
               </div>
             ) : (
-              requests.map((request) => {
+              filteredRequests.map((request) => {
                 const requestStatus = String(
                   request.status || "",
                 ).toLowerCase();

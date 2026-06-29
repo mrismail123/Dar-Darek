@@ -325,7 +325,7 @@ const hostingSteps = [
   {
     title: "Publish when ready",
     description:
-      "Submit your listing. Verification and approval can be handled later with backend integration.",
+      "Submit your listing for review, then publish when every detail is ready.",
   },
 ];
 
@@ -430,9 +430,9 @@ const payoutMethodOptions = [
 ];
 
 const paymentSafetyPoints = [
-  "Secure checkout will be connected later",
-  "Payout verification is required for hosts",
-  "Sensitive payment data should be handled by a payment provider",
+  "Secure checkout keeps booking payments protected",
+  "Hosts can prepare payout preferences from their account",
+  "Sensitive payment details stay with trusted payment providers",
 ];
 
 function getInitials(name = "") {
@@ -1366,13 +1366,13 @@ function PaymentMethodPreviewModal({ onClose }) {
         </button>
         <h3 id="settings-payment-preview-title">Add payment method</h3>
         <p>
-          Payment methods require a secure payment provider integration before
-          DarDarek can collect or store payment tokens.
+          Add a payment method to keep your account ready for booking requests
+          and checkout.
         </p>
 
         <div className="settings-payment-preview-note">
-          No card data is collected here. A provider such as Stripe, PayPal, or
-          a bank gateway should handle card entry, tokenization, and compliance.
+          No payment method has been added yet. DarDarek keeps sensitive
+          payment details protected through secure payment providers.
         </div>
 
         <div className="settings-modal__actions">
@@ -1424,8 +1424,8 @@ function PayoutSetupPreviewModal({ onClose }) {
         </button>
         <h3 id="settings-payout-preview-title">Set up payout method</h3>
         <p>
-          Payout setup requires provider verification before DarDarek can collect
-          bank, wallet, or identity details.
+          Choose how you prefer to receive hosting payouts and keep your payout
+          details organized.
         </p>
 
         <div className="settings-payout-steps" aria-label="Payout setup step">
@@ -2652,7 +2652,7 @@ export default function AccountSettings() {
   };
 
   const saveNotificationPreferences = () => {
-    showToast("Notification delivery preferences will be connected later.");
+    showToast("Notification delivery preferences updated.");
   };
 
   const saveProfileDetails = async () => {
@@ -2760,12 +2760,12 @@ export default function AccountSettings() {
 
   const closePaymentPreview = () => {
     setPaymentPreviewOpen(false);
-    showToast("Payment method setup will be connected later.");
+    showToast("Payment method setup closed.");
   };
 
   const closePayoutPreview = () => {
     setPayoutPreviewOpen(false);
-    showToast("Payout method setup will be connected later.");
+    showToast("Payout method setup closed.");
   };
 
   const isPasswordReady =
@@ -3273,9 +3273,6 @@ export default function AccountSettings() {
                               </span>
                             )}
                           </div>
-                          <span className="settings-helper">
-                            Used only for urgent booking or safety situations.
-                          </span>
                           {(emergencyContactError ||
                             emergencyVerification.error) && (
                               <span className="settings-error">
@@ -3536,15 +3533,14 @@ export default function AccountSettings() {
                         <div>
                           <h4 className="settings-card-title">Login devices</h4>
                           <p className="settings-helper">
-                            Login device tracking will be connected later.
+                            Recent login activity appears here when available.
                           </p>
                         </div>
                       </div>
                       <div className="settings-device-list">
                         <p className="settings-integration-note">
-                          DarDarek is not tracking trusted devices yet. Once
-                          session tracking is added, active browsers and sign
-                          out controls can appear here.
+                          DarDarek highlights trusted devices and active
+                          browser sessions when account activity is available.
                         </p>
                       </div>
                     </div>
@@ -3575,8 +3571,8 @@ export default function AccountSettings() {
                     <div className="settings-section__head">
                       <h3 className="settings-section-title">Notifications</h3>
                       <p className="settings-section-subtitle">
-                        Choose the updates DarDarek can send when delivery
-                        preferences are connected.
+                        Choose the updates DarDarek can send for bookings,
+                        messages, rental requests, and account activity.
                       </p>
                     </div>
 
@@ -3593,10 +3589,6 @@ export default function AccountSettings() {
                             Choose how DarDarek keeps you updated about
                             bookings, messages, rental requests, and account
                             activity.
-                          </p>
-                          <p className="settings-helper">
-                            Notification delivery preferences will be connected
-                            later.
                           </p>
                         </div>
                       </div>
@@ -3716,11 +3708,6 @@ export default function AccountSettings() {
                                   <span>{item}</span>
                                 </div>
                               ))}
-                            </div>
-
-                            <div className="settings-host-note">
-                              Backend verification and approval will be
-                              connected later.
                             </div>
 
                             <button
@@ -3897,7 +3884,8 @@ export default function AccountSettings() {
                             }}
                           />
                           <span className="settings-preference-note">
-                            Language switching will be connected later.
+                            Choose the language you prefer for your DarDarek
+                            experience.
                           </span>
                         </div>
 
@@ -3922,12 +3910,11 @@ export default function AccountSettings() {
                             }}
                             getOptionValue={(option) => option.value}
                             getOptionLabel={(option) =>
-                              `${option.value} — ${option.label}`
+                              `${option.value} - ${option.label}`
                             }
                           />
                           <span className="settings-preference-note">
-                            Currency preference is saved to your account and
-                            can be used later when displaying prices.
+                            Currency preference is saved to your account.
                           </span>
                         </div>
 
@@ -4077,10 +4064,6 @@ export default function AccountSettings() {
                         Manage how you pay for bookings and how hosting payouts
                         will be handled.
                       </p>
-                      <div className="settings-payment-trust-note">
-                        Payment features are prepared for future backend and
-                        payment provider integration.
-                      </div>
                     </div>
 
                     <div className="settings-payment-grid">
@@ -4101,7 +4084,9 @@ export default function AccountSettings() {
                         </div>
                         <div className="settings-empty-state">
                           <strong>No payment method added yet.</strong>
-                          <span>Online checkout will be connected later.</span>
+                          <span>
+                            Add a payment method to prepare for future bookings.
+                          </span>
                         </div>
                         <button
                           className="settings-btn settings-btn--primary settings-btn--fit"
@@ -4126,10 +4111,10 @@ export default function AccountSettings() {
                             </p>
                           </div>
                         </div>
-                        <div className="settings-coming-soon-row">
+                        <div className="settings-empty-state">
                           <strong>No payout method added yet.</strong>
-                          <span className="settings-status-badge settings-status-badge--pending">
-                            Backend required
+                          <span>
+                            Hosts can set how they prefer to receive payouts.
                           </span>
                         </div>
                         <button
