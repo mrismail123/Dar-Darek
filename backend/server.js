@@ -314,8 +314,7 @@ const ensureBookingsSchema = async () => {
   }
 };
 
-// const BOOKING_LOCK_TTL_MS = 15 * 60 * 1000; // 15 minutes
-const BOOKING_LOCK_TTL_MS = 50 * 1000; // 15 minutes
+const BOOKING_LOCK_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 let bookingLocksSchemaReady = false;
 
@@ -769,7 +768,7 @@ const ACCOUNT_STAY_TYPE_OPTIONS = new Set([
   "Maison",
   "Villa",
   "Riad",
-  "Maison d'hôtes",
+  "Maison d'hÃ´tes",
   "Traditional House",
   "Cabin / Chalet",
 ]);
@@ -2537,7 +2536,10 @@ const normalizeDateOnly = (value) => {
   if (!value) return null;
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().split("T")[0];
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }
 
   return String(value).split("T")[0];
@@ -2925,20 +2927,28 @@ app.delete("/api/my-properties/:id", verifyToken, blockAdminAccess, async (req, 
       return res.status(404).json({ message: "Property not found." });
     }
 
-    // Block deletion if there are active or upcoming approved bookings
+    // Block deletion if there are active or upcoming bookings
     const [activeBookings] = await db.query(
-      `SELECT id_booking FROM bookings
+      `SELECT
+         COUNT(*) AS bookingCount,
+         MIN(start_date) AS earliestCheckin,
+         MAX(end_date) AS latestCheckout
+       FROM bookings
        WHERE id_property = ?
          AND status IN ('pending', 'approved')
-         AND end_date >= CURDATE()
-       LIMIT 1`,
+         AND end_date >= CURDATE()`,
       [propertyId],
     );
 
-    if (activeBookings.length > 0) {
+    const bookingCount = Number(activeBookings[0]?.bookingCount) || 0;
+
+    if (bookingCount > 0) {
       return res.status(409).json({
         message:
           "This property has active or upcoming bookings and cannot be deleted right now.",
+        bookingCount,
+        earliestCheckin: activeBookings[0].earliestCheckin,
+        latestCheckout: activeBookings[0].latestCheckout,
       });
     }
 
@@ -4131,7 +4141,7 @@ app.post(
               hostId,
               propertyId,
               "APPROVE",
-              `Your property "${propertyTitle}" has been approved and is now live! 🎉`,
+              `Your property "${propertyTitle}" has been approved and is now live! ðŸŽ‰`,
             ],
           );
         } catch (notifyErr) {
@@ -4653,10 +4663,32 @@ app.post("/api/booking-lock", verifyToken, blockAdminAccess, async (req, res) =>
       .status(400)
       .json({ message: "Dates must use YYYY-MM-DD format." });
   }
+  if (checkOut <= checkIn) {
+    return res
+      .status(400)
+      .json({ message: "Check-out date must be after check-in date." });
+  }
 
   try {
     // Purge expired locks
     await db.execute("DELETE FROM booking_locks WHERE expires_at < NOW()");
+
+    // Check for existing bookings before sending the guest to checkout.
+    const [conflictingBookings] = await db.query(
+      `SELECT id_booking
+       FROM bookings
+       WHERE id_property = ?
+         AND status IN ('pending', 'approved')
+         AND (start_date < ? AND end_date > ?)
+       LIMIT 1`,
+      [propertyId, checkOut, checkIn],
+    );
+
+    if (conflictingBookings.length > 0) {
+      return res.status(409).json({
+        message: "This property is already reserved for the selected dates.",
+      });
+    }
 
     // Check for conflicting locks from OTHER users
     const [conflictingLocks] = await db.query(
@@ -4969,7 +5001,7 @@ app.get("/api/properties/:id/booked-dates", async (req, res) => {
   try {
     const [bookedDates] = await db.query(
       `
-      SELECT start_date, end_date, status
+      SELECT start_date, end_date, status, NULL AS expires_at
       FROM bookings
       WHERE id_property = ?
         AND status IN ('approved', 'pending')
@@ -4977,7 +5009,7 @@ app.get("/api/properties/:id/booked-dates", async (req, res) => {
         
       UNION ALL
       
-      SELECT start_date, end_date, 'locked' as status
+      SELECT start_date, end_date, 'locked' as status, expires_at
       FROM booking_locks
       WHERE id_property = ?
         AND expires_at > NOW()
@@ -4988,7 +5020,18 @@ app.get("/api/properties/:id/booked-dates", async (req, res) => {
       [propertyId, propertyId],
     );
 
-    res.status(200).json({ bookedDates });
+    res.status(200).json({
+      bookedDates: bookedDates.map((range) => ({
+        startDate: normalizeDateOnly(range.start_date),
+        endDate: normalizeDateOnly(range.end_date),
+        status: range.status,
+        expiresAt: range.expires_at
+          ? range.expires_at instanceof Date
+            ? range.expires_at.toISOString()
+            : String(range.expires_at)
+          : null,
+      })),
+    });
   } catch (error) {
     res.status(500).json({
       message: "Server error while fetching booked dates.",
@@ -5268,13 +5311,13 @@ app.patch("/api/rentalRequests/:id/status", verifyToken, blockAdminAccess, async
       bookingId,
     ]);
 
-    // ── Trigger notification ──────────────────────────────────────────────
+    // â”€â”€ Trigger notification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (status === "approved" || status === "rejected") {
       const { tenant_id, id_property, property_title } = rows[0];
       const notifyType = status === "approved" ? "APPROVE" : "REJECT";
       const notifyText =
         status === "approved"
-          ? `Your request for "${property_title}" was approved! 🎉`
+          ? `Your request for "${property_title}" was approved! ðŸŽ‰`
           : `Your request for "${property_title}" was rejected.`;
 
       try {
@@ -5284,11 +5327,11 @@ app.patch("/api/rentalRequests/:id/status", verifyToken, blockAdminAccess, async
           [tenant_id, id_property, bookingId, notifyType, notifyText],
         );
       } catch (notifyErr) {
-        // Non-fatal — log but don't fail the main response
+        // Non-fatal â€” log but don't fail the main response
         console.error("Failed to insert notification:", notifyErr.message);
       }
     }
-    // ─────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     res.status(200).json({ message: `Booking ${status} successfully.` });
   } catch (error) {
@@ -5463,7 +5506,7 @@ app.get(
   },
 );
 
-// PATCH /api/reviews/:id/reply — host replies to a review (one time, host-only)
+// PATCH /api/reviews/:id/reply â€” host replies to a review (one time, host-only)
 app.patch("/api/reviews/:id/reply", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
   const reviewId = Number(req.params.id);
@@ -5525,7 +5568,7 @@ app.patch("/api/reviews/:id/reply", verifyToken, blockAdminAccess, async (req, r
    NOTIFICATION ROUTES
 ========================= */
 
-// GET /api/notifications — fetch all notifications for the logged-in user (newest first)
+// GET /api/notifications â€” fetch all notifications for the logged-in user (newest first)
 app.get("/api/notifications", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
 
@@ -5558,7 +5601,7 @@ app.get("/api/notifications", verifyToken, blockAdminAccess, async (req, res) =>
   }
 });
 
-// PUT /api/notifications/mark-all-read — mark ALL notifications as read for the user
+// PUT /api/notifications/mark-all-read â€” mark ALL notifications as read for the user
 // NOTE: must be declared BEFORE /:id/read so Express matches it first
 app.put("/api/notifications/mark-all-read", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
@@ -5578,7 +5621,7 @@ app.put("/api/notifications/mark-all-read", verifyToken, blockAdminAccess, async
   }
 });
 
-// PUT /api/notifications/:id/read — mark a single notification as read
+// PUT /api/notifications/:id/read â€” mark a single notification as read
 app.put("/api/notifications/:id/read", verifyToken, blockAdminAccess, async (req, res) => {
   const userId = Number(req.user?.id);
   const notificationId = Number(req.params.id);
@@ -5781,5 +5824,5 @@ app.use((err, req, res, _next) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`ðŸš€ Server running on http://localhost:${PORT}`);
 });

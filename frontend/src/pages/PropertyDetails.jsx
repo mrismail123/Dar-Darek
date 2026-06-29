@@ -230,6 +230,7 @@ const normalizeBookedRange = (range) => {
     startDate,
     endDate,
     status: range.status,
+    expiresAt: range.expires_at || range.expiresAt || null,
   };
 };
 
@@ -293,11 +294,16 @@ const formatCurrency = (amount) =>
   }).format(amount);
 
 const getNightCount = (checkIn, checkOut) => {
-  const start = new Date(checkIn);
-  const end = new Date(checkOut);
+  const start = parseLocalDate(checkIn);
+  const end = parseLocalDate(checkOut);
+
+  if (!start || !end) {
+    return 1;
+  }
+
   const diff = end.getTime() - start.getTime();
 
-  if (!checkIn || !checkOut || Number.isNaN(diff) || diff <= 0) {
+  if (Number.isNaN(diff) || diff <= 0) {
     return 1;
   }
 
@@ -1289,6 +1295,7 @@ function BookingCard({
   onGuestChange,
   bookedRanges = [],
   bookingConflictMessage = "",
+  onBookedRangesRefresh,
 }) {
 
   // state for favorites
@@ -1456,18 +1463,19 @@ function BookingCard({
 
   const isValidDates = () => {
     if (!dates.checkIn || !dates.checkOut) return false;
-    const checkInDate = new Date(dates.checkIn);
-    const checkOutDate = new Date(dates.checkOut);
-    const todayDate = new Date(todayDateString);
+    const checkInDate = parseLocalDate(dates.checkIn);
+    const checkOutDate = parseLocalDate(dates.checkOut);
+    const todayDate = parseLocalDate(todayDateString);
 
     if (checkInDate < todayDate || checkOutDate < todayDate) return false;
-    if (checkOutDate < checkInDate) return false;
+    // checkout must be strictly after check-in (same day = 0-night stay is invalid)
+    if (checkOutDate <= checkInDate) return false;
     if (
       property.availableFrom &&
-      checkInDate < new Date(property.availableFrom)
+      checkInDate < parseLocalDate(property.availableFrom)
     )
       return false;
-    if (property.availableTo && checkOutDate > new Date(property.availableTo))
+    if (property.availableTo && checkOutDate > parseLocalDate(property.availableTo))
       return false;
 
     return true;
@@ -1524,6 +1532,31 @@ function BookingCard({
       return;
     }
 
+    let latestBookedRanges = bookedRanges;
+
+    try {
+      if (onBookedRangesRefresh) {
+        latestBookedRanges = await onBookedRangesRefresh();
+      }
+    } catch (err) {
+      console.error("Could not refresh booked dates before checkout", err);
+      setAlertMessage("Could not verify availability. Please try again.");
+      setShowAlert(true);
+      return;
+    }
+
+    if (
+      doesDateRangeOverlapBooking(
+        dates.checkIn,
+        dates.checkOut,
+        latestBookedRanges,
+      )
+    ) {
+      setAlertMessage("This property is already reserved for the selected dates.");
+      setShowAlert(true);
+      return;
+    }
+
     try {
       const response = await axios.get(
         buildApiUrl("/api/my-bookings"),
@@ -1545,7 +1578,27 @@ function BookingCard({
       console.error("Could not fetch user bookings for verification", err);
     }
 
-    // ── Intercept: redirect to Checkout page instead of calling API directly ──
+    let lockData = null;
+
+    try {
+      const response = await axios.post(
+        buildApiUrl("/api/booking-lock"),
+        { id_property: property.id, checkIn: dates.checkIn, checkOut: dates.checkOut },
+        createAuthConfig(currentToken),
+      );
+      lockData = response.data || null;
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        "This property is no longer available for the selected dates.";
+      setAlertMessage(message);
+      setShowAlert(true);
+      if (onBookedRangesRefresh) {
+        onBookedRangesRefresh().catch(() => {});
+      }
+      return;
+    }
+
     navigate(`/checkout/${id}`, {
       state: {
         checkIn: dates.checkIn,
@@ -1554,6 +1607,8 @@ function BookingCard({
         pricePerNight: property.pricePerNight,
         propertyImage: property.images?.[0] || null,
         propertyCity: property.city || "",
+        lockId: lockData?.lockId || null,
+        lockExpiresAt: lockData?.expiresAt || null,
         lockStart: Date.now(),
       },
     });
@@ -1675,10 +1730,11 @@ function BookingCard({
         )}
 
         <button
-          // type="button"
+          type="button"
           className="pd-primary-btn"
           onClick={handleReserveFunction}
-          // disabled={!isBookingValid || Boolean(bookingConflictMessage)}
+          disabled={!isBookingValid || Boolean(bookingConflictMessage)}
+          aria-disabled={!isBookingValid || Boolean(bookingConflictMessage)}
         >
           Reserve
         </button>
@@ -2715,6 +2771,37 @@ const getOffsetDateString = (dateValue, offsetDays) => {
   return formatDate(date.getFullYear(), date.getMonth(), date.getDate());
 };
 
+const fetchPropertyBookedRanges = async (propertyId, signal) => {
+  const fetchOptions = { cache: "no-store" };
+  if (signal) fetchOptions.signal = signal;
+
+  const response = await fetch(
+    buildApiUrl(`/api/properties/${propertyId}/booked-dates`),
+    fetchOptions,
+  );
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Unable to load booked dates.");
+  }
+
+  const ranges = Array.isArray(data?.bookedDates) ? data.bookedDates : [];
+  return ranges.map(normalizeBookedRange).filter(isValidBookedRange);
+};
+
+const getNextLockedRangeRefreshDelay = (bookedRanges = []) => {
+  const now = Date.now();
+  const nextExpiry = bookedRanges
+    .filter((range) => range.status === "locked" && range.expiresAt)
+    .map((range) => new Date(range.expiresAt).getTime())
+    .filter((time) => Number.isFinite(time) && time > now)
+    .sort((a, b) => a - b)[0];
+
+  if (!nextExpiry) return null;
+
+  return Math.max(1000, nextExpiry - now + 1000);
+};
+
 function AvailabilitySection({
   property,
   dates,
@@ -2722,19 +2809,42 @@ function AvailabilitySection({
   bookedRanges = [],
   showSelectedRange = false,
 }) {
-  const [currentMonth, setCurrentMonth] = useState(4); // May
-  const year = 2026;
+  // Start from the current month/year dynamically, not a hardcoded 2026/May.
+  const today = new Date();
+  const [calendarCursor, setCalendarCursor] = useState({
+    year: today.getFullYear(),
+    month: today.getMonth(), // 0-indexed
+  });
 
-  const visibleMonths = [currentMonth, currentMonth + 1];
   const todayDate = parseLocalDate(getTodayDateString());
   const minDate = property.availableFrom
-    ? new Date(property.availableFrom)
+    ? parseLocalDate(property.availableFrom)
     : null;
-  const maxDate = property.availableTo ? new Date(property.availableTo) : null;
+  const maxDate = property.availableTo ? parseLocalDate(property.availableTo) : null;
 
-  const isDisabled = (month, day) => {
+  // Build the two visible months, supporting year rollover.
+  const visibleMonthSlots = [
+    { year: calendarCursor.year, month: calendarCursor.month },
+    calendarCursor.month === 11
+      ? { year: calendarCursor.year + 1, month: 0 }
+      : { year: calendarCursor.year, month: calendarCursor.month + 1 },
+  ];
+
+  const goToPrevMonth = () => {
+    setCalendarCursor(({ year, month }) =>
+      month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 },
+    );
+  };
+
+  const goToNextMonth = () => {
+    setCalendarCursor(({ year, month }) =>
+      month === 11 ? { year: year + 1, month: 0 } : { year, month: month + 1 },
+    );
+  };
+
+  const isDisabled = (year, month, day) => {
     const dateValue = formatDate(year, month, day);
-    const date = new Date(dateValue);
+    const date = parseLocalDate(dateValue);
 
     if (todayDate && date < todayDate) return true;
     if (minDate && date < minDate) return true;
@@ -2744,28 +2854,33 @@ function AvailabilitySection({
     return false;
   };
 
-  const handleDayClick = (month, day) => {
+  const handleDayClick = (year, month, day) => {
     const selectedDate = formatDate(year, month, day);
 
-    if (isDisabled(month, day)) {
-      return;
-    }
+    if (isDisabled(year, month, day)) return;
 
+    // If no check-in yet, or both dates already set → start a new selection.
     if (!dates.checkIn || (dates.checkIn && dates.checkOut)) {
       onDateChange("checkIn", selectedDate);
       onDateChange("checkOut", "");
       return;
     }
 
-    const firstDate = new Date(dates.checkIn);
-    const secondDate = new Date(selectedDate);
+    const firstDate = parseLocalDate(dates.checkIn);
+    const secondDate = parseLocalDate(selectedDate);
 
     if (secondDate > firstDate) {
+      // Normal: second click is checkout
       onDateChange("checkOut", selectedDate);
-    } else {
+    } else if (secondDate < firstDate) {
+      // Clicked before check-in: swap — use atomic update to avoid stale-closure bug
+      const previousCheckIn = dates.checkIn;
       onDateChange("checkIn", selectedDate);
-      onDateChange("checkOut", dates.checkIn);
+      // Use a timeout of 0 to let the state flush before setting checkout
+      // so that updateDate sees the new checkIn value.
+      window.setTimeout(() => onDateChange("checkOut", previousCheckIn), 0);
     }
+    // Same day as check-in → ignore (0-night stay not allowed)
   };
 
   const selectedRangeUnavailable = doesDateRangeOverlapBooking(
@@ -2774,19 +2889,25 @@ function AvailabilitySection({
     bookedRanges,
   );
 
-  const isInRange = (month, day) => {
+  const isInRange = (year, month, day) => {
     if (!showSelectedRange) return false;
     if (!dates.checkIn) return false;
 
-    const date = new Date(formatDate(year, month, day));
-    const checkInDate = new Date(dates.checkIn);
+    const date = parseLocalDate(formatDate(year, month, day));
+    const checkInDate = parseLocalDate(dates.checkIn);
 
     if (!dates.checkOut) {
       return date.getTime() === checkInDate.getTime();
     }
 
-    return date >= checkInDate && date <= new Date(dates.checkOut);
+    const checkOutDate = parseLocalDate(dates.checkOut);
+    return checkOutDate ? date >= checkInDate && date <= checkOutDate : false;
   };
+
+  // Navigation label — e.g. "June 2026 – July 2026" or "December 2026 – January 2027"
+  const navLabel = visibleMonthSlots
+    .map((s) => `${monthNames[s.month]} ${s.year}`)
+    .join(" – ");
 
   return (
     <section className="pd-section" id="availability-section">
@@ -2808,32 +2929,30 @@ function AvailabilitySection({
         <div className="pd-calendar__head">
           <button
             type="button"
-            onClick={() => setCurrentMonth((m) => Math.max(0, m - 1))}
+            onClick={goToPrevMonth}
           >
             ‹
           </button>
 
-          <strong>
-            {monthNames[currentMonth]} - {monthNames[currentMonth + 1]} {year}
-          </strong>
+          <strong>{navLabel}</strong>
 
           <button
             type="button"
-            onClick={() => setCurrentMonth((m) => Math.min(10, m + 1))}
+            onClick={goToNextMonth}
           >
             ›
           </button>
         </div>
 
         <div className="pd-calendar__months">
-          {visibleMonths.map((month) => {
+          {visibleMonthSlots.map(({ year, month }) => {
             const days = Array.from(
               { length: getMonthDays(year, month) },
               (_, index) => index + 1,
             );
 
             return (
-              <div className="pd-calendar__month" key={month}>
+              <div className="pd-calendar__month" key={`${year}-${month}`}>
                 <h3>
                   {monthNames[month]} {year}
                 </h3>
@@ -2852,7 +2971,7 @@ function AvailabilitySection({
                   }).map((_, index) => (
                     <span
                       className="pd-calendar__day pd-calendar__day--empty"
-                      key={`empty-${month}-${index}`}
+                      key={`empty-${year}-${month}-${index}`}
                     />
                   ))}
 
@@ -2869,7 +2988,7 @@ function AvailabilitySection({
                       bookedRanges,
                     );
                     const disabled = isPast || isOutsideAvailability || isBooked;
-                    const isSelected = isInRange(month, day);
+                    const isSelected = isInRange(year, month, day);
 
                     return (
                       <button
@@ -2886,8 +3005,8 @@ function AvailabilitySection({
                         ]
                           .filter(Boolean)
                           .join(" ")}
-                        key={`${month}-${day}`}
-                        onClick={() => !disabled && handleDayClick(month, day)}
+                        key={`${year}-${month}-${day}`}
+                        onClick={() => !disabled && handleDayClick(year, month, day)}
                         disabled={disabled}
                       >
                         {day}
@@ -3061,25 +3180,27 @@ export default function PropertyDetails() {
 
   useEffect(() => {
     const controller = new AbortController();
+    let lockExpiryTimeout = null;
 
-    const fetchBookedRanges = async () => {
+    const scheduleLockExpiryRefresh = (ranges) => {
+      if (lockExpiryTimeout) {
+        window.clearTimeout(lockExpiryTimeout);
+        lockExpiryTimeout = null;
+      }
+
+      const delay = getNextLockedRangeRefreshDelay(ranges);
+      if (delay !== null) {
+        lockExpiryTimeout = window.setTimeout(() => {
+          if (!controller.signal.aborted) refreshBookedRanges();
+        }, delay);
+      }
+    };
+
+    const refreshBookedRanges = async () => {
       try {
-        const response = await fetch(
-          buildApiUrl(`/api/properties/${id}/booked-dates`),
-          {
-            signal: controller.signal,
-          },
-        );
-        const data = await response.json().catch(() => null);
-
-        if (!response.ok) {
-          throw new Error(data?.message || "Unable to load booked dates.");
-        }
-
-        const ranges = Array.isArray(data?.bookedDates) ? data.bookedDates : [];
-        setBookedRanges(
-          ranges.map(normalizeBookedRange).filter(isValidBookedRange),
-        );
+        const ranges = await fetchPropertyBookedRanges(id, controller.signal);
+        setBookedRanges(ranges);
+        scheduleLockExpiryRefresh(ranges);
       } catch (fetchError) {
         if (fetchError.name !== "AbortError") {
           setBookedRanges([]);
@@ -3087,9 +3208,18 @@ export default function PropertyDetails() {
       }
     };
 
-    fetchBookedRanges();
+    refreshBookedRanges();
 
-    return () => controller.abort();
+    // Keep checkout locks visible quickly and remove expired locks soon after expiry.
+    const refreshInterval = window.setInterval(() => {
+      if (!controller.signal.aborted) refreshBookedRanges();
+    }, 15_000);
+
+    return () => {
+      controller.abort();
+      window.clearInterval(refreshInterval);
+      if (lockExpiryTimeout) window.clearTimeout(lockExpiryTimeout);
+    };
   }, [id]);
 
   useEffect(() => {
@@ -3122,13 +3252,19 @@ export default function PropertyDetails() {
       const newDates = { ...currentDates, [field]: value };
 
       if (field === "checkIn" && newDates.checkOut) {
-        if (new Date(value) > new Date(newDates.checkOut)) {
+        // If new checkIn is on or after checkOut, clear checkOut
+        const nextCheckIn = parseLocalDate(value);
+        const currentCheckOut = parseLocalDate(newDates.checkOut);
+        if (nextCheckIn && currentCheckOut && nextCheckIn >= currentCheckOut) {
           newDates.checkOut = "";
         }
       }
 
       if (field === "checkOut" && newDates.checkIn) {
-        if (new Date(value) < new Date(newDates.checkIn)) {
+        // checkOut must be strictly after checkIn (>= means same day = 0 nights = invalid)
+        const nextCheckOut = parseLocalDate(value);
+        const currentCheckIn = parseLocalDate(newDates.checkIn);
+        if (nextCheckOut && currentCheckIn && nextCheckOut <= currentCheckIn) {
           return currentDates;
         }
       }
@@ -3157,6 +3293,12 @@ export default function PropertyDetails() {
 
     return "";
   }, [dates.checkIn, dates.checkOut, bookedRanges]);
+
+  const refreshBookedRanges = async () => {
+    const ranges = await fetchPropertyBookedRanges(id);
+    setBookedRanges(ranges);
+    return ranges;
+  };
 
   if (loading) {
     return (
@@ -3287,6 +3429,7 @@ export default function PropertyDetails() {
             onGuestChange={updateGuests}
             bookedRanges={bookedRanges}
             bookingConflictMessage={bookingConflictMessage}
+            onBookedRangesRefresh={refreshBookedRanges}
           />
         </section>
 

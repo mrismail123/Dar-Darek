@@ -9,8 +9,7 @@ import { buildApiUrl, createAuthConfig } from "../lib/api";
 import "./Checkout.css";
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
-// const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
-const LOCK_DURATION_MS = 50 * 1000; // 15 minutes
+const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-MA", {
@@ -124,12 +123,18 @@ export default function Checkout() {
   const propertyCity = passed.propertyCity || "";
 
   /* Timer & Lock */
-  const lockIdRef = useRef(null);
+  const passedLockId = Number(passed.lockId);
+  const passedLockExpiresAt = passed.lockExpiresAt
+    ? new Date(passed.lockExpiresAt).getTime()
+    : NaN;
+  const lockIdRef = useRef(Number.isFinite(passedLockId) ? passedLockId : null);
   const lockStartRef = useRef(
     passed.lockStart ? Number(passed.lockStart) : Date.now(),
   );
   const [expiresAt, setExpiresAt] = useState(
-    lockStartRef.current + LOCK_DURATION_MS,
+    Number.isFinite(passedLockExpiresAt)
+      ? passedLockExpiresAt
+      : lockStartRef.current + LOCK_DURATION_MS,
   );
 
   /* form */
@@ -165,6 +170,24 @@ export default function Checkout() {
 
     let cancelled = false;
 
+    const releaseLock = () => {
+      if (lockIdRef.current && token) {
+        axios
+          .delete(
+            buildApiUrl(`/api/booking-lock/${lockIdRef.current}`),
+            createAuthConfig(token),
+          )
+          .catch(() => {});
+      }
+    };
+
+    if (lockIdRef.current) {
+      return () => {
+        cancelled = true;
+        releaseLock();
+      };
+    }
+
     async function acquireLock() {
       try {
         const { data } = await axios.post(
@@ -187,9 +210,10 @@ export default function Checkout() {
         setToast({ message: msg, type: "error" });
 
         if (err?.response?.status === 409) {
+          // Give the user enough time to read the conflict message before redirecting back.
           window.setTimeout(() => {
             navigate(`/property-details/${propertyId}`);
-          }, 2800);
+          }, 4500);
         }
       }
     }
@@ -198,15 +222,7 @@ export default function Checkout() {
 
     return () => {
       cancelled = true;
-      // Release lock on unmount
-      if (lockIdRef.current && token) {
-        axios
-          .delete(
-            buildApiUrl(`/api/booking-lock/${lockIdRef.current}`),
-            createAuthConfig(token),
-          )
-          .catch(() => {});
-      }
+      releaseLock();
     };
   }, [checkIn, checkOut, token, propertyId, navigate]);
 
@@ -571,7 +587,7 @@ export default function Checkout() {
                   Request…
                 </>
               ) : (
-                <>✈ Confirm Reservation Request</>
+                <>Confirm Reservation Request</>
               )}
             </button>
 

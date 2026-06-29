@@ -157,7 +157,7 @@ function StatusBadge({ status }) {
   );
 }
 
-function PropertyActions({ property, onArchive, onDelete, onEdit, onFeedback, onManageAvailability, onPreview, onView }) {
+function PropertyActions({ property, onArchive, onDelete, onDeleteProperty, onEdit, onFeedback, onManageAvailability, onPreview, onView }) {
   if (property.status === "active") {
     return (
       <>
@@ -165,6 +165,7 @@ function PropertyActions({ property, onArchive, onDelete, onEdit, onFeedback, on
         <button className="action-btn action-btn--ghost" onClick={onEdit}><FiEdit3 /> Edit</button>
         <button className="action-btn action-btn--ghost" onClick={onManageAvailability}><FiCalendar /> Calendar</button>
         <button className="action-btn action-btn--danger" onClick={onArchive}><FiArchive /> Archive</button>
+        <button className="action-btn action-btn--danger" onClick={onDeleteProperty}><FiTrash2 /> Delete</button>
       </>
     );
   }
@@ -173,6 +174,7 @@ function PropertyActions({ property, onArchive, onDelete, onEdit, onFeedback, on
       <>
         <button className="action-btn action-btn--primary" onClick={onPreview}><FiEye /> Preview</button>
         <button className="action-btn action-btn--ghost" onClick={onEdit}><FiEdit3 /> Edit</button>
+        <button className="action-btn action-btn--danger" onClick={onDeleteProperty}><FiTrash2 /> Delete</button>
       </>
     );
   }
@@ -184,21 +186,37 @@ function PropertyActions({ property, onArchive, onDelete, onEdit, onFeedback, on
       </>
     );
   }
+  // rejected
   return (
     <>
       <button className="action-btn action-btn--danger" onClick={onFeedback}><FiMessageSquare /> View feedback</button>
       <button className="action-btn action-btn--primary" onClick={onEdit}><FiEdit3 /> Edit & resubmit</button>
+      <button className="action-btn action-btn--danger" onClick={onDeleteProperty}><FiTrash2 /> Delete</button>
     </>
   );
 }
 
 function ConfirmationModal({ action, property, onClose, onConfirm }) {
   if (!action || !property) return null;
-  const isDelete = action === "delete";
-  const title = isDelete ? "Delete this draft?" : "Archive this property?";
-  const message = isDelete ? "This draft will be removed." : "This will hide your property from search results.";
-  const confirmLabel = isDelete ? "Delete draft" : "Archive listing";
-  const Icon = isDelete ? FiTrash2 : FiArchive;
+
+  let title, message, confirmLabel, Icon;
+
+  if (action === "delete") {
+    title = "Delete this draft?";
+    message = "This draft will be permanently removed. This action cannot be undone.";
+    confirmLabel = "Delete draft";
+    Icon = FiTrash2;
+  } else if (action === "delete-property") {
+    title = `Delete "${property.title}"?`;
+    message = "This will permanently remove the listing, all its images, reviews, and data. This action cannot be undone.";
+    confirmLabel = "Delete property";
+    Icon = FiTrash2;
+  } else {
+    title = "Archive this property?";
+    message = "This will hide your property from search results.";
+    confirmLabel = "Archive listing";
+    Icon = FiArchive;
+  }
 
   return (
     <div className="properties-modal-overlay" onMouseDown={onClose}>
@@ -207,9 +225,80 @@ function ConfirmationModal({ action, property, onClose, onConfirm }) {
         <div className="properties-modal-icon properties-modal-icon--danger"><Icon /></div>
         <h2 style={{fontFamily: 'Cormorant Garamond', fontSize: '1.8rem', margin: '0 0 12px'}}>{title}</h2>
         <p style={{color: 'var(--text-muted)', margin: '0 0 24px'}}>{message}</p>
+        {action === "delete-property" && (
+          <div style={{
+            background: 'var(--danger-light)',
+            border: '1px solid rgba(183,50,50,0.2)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '12px 16px',
+            marginBottom: 24,
+            display: 'flex',
+            gap: 10,
+            alignItems: 'flex-start',
+            textAlign: 'left',
+          }}>
+            <FiAlertCircle style={{color: 'var(--danger)', flexShrink: 0, marginTop: 2}} />
+            <span style={{fontSize: '0.88rem', color: 'var(--danger)', lineHeight: 1.5}}>
+              Make sure there are no active or upcoming guest bookings before deleting. If there are, the system will block this action and notify you.
+            </span>
+          </div>
+        )}
         <div className="properties-modal__actions">
           <button className="action-btn action-btn--ghost" onClick={onClose} style={{width: 'auto'}}>Cancel</button>
           <button className="action-btn action-btn--danger" onClick={onConfirm} style={{width: 'auto'}}>{confirmLabel}</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ActiveBookingsBlockedModal({ data, property, onClose }) {
+  if (!data || !property) return null;
+
+  const fmt = (dateStr) => {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  };
+
+  return (
+    <div className="properties-modal-overlay" onMouseDown={onClose}>
+      <section className="properties-modal" onMouseDown={(e) => e.stopPropagation()}>
+        <button className="properties-modal__close" onClick={onClose}><FiX /></button>
+        <div className="properties-modal-icon properties-modal-icon--warning"><FiUsers /></div>
+        <h2 style={{fontFamily: 'Cormorant Garamond', fontSize: '1.8rem', margin: '0 0 12px'}}>Active Bookings Found</h2>
+        <p style={{color: 'var(--text-muted)', margin: '0 0 20px'}}>
+          <strong style={{color: 'var(--text-main)'}}>&ldquo;{property.title}&rdquo;</strong> cannot be deleted right now because it has guests with active or upcoming reservations.
+        </p>
+        <div style={{
+          background: 'var(--warning-light)',
+          border: '1px solid rgba(201,133,23,0.2)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '16px 20px',
+          marginBottom: 24,
+          textAlign: 'left',
+        }}>
+          <p style={{margin: '0 0 8px', fontWeight: 700, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 8}}>
+            <FiCalendar /> Booking details
+          </p>
+          <p style={{margin: '0 0 4px', fontSize: '0.92rem', color: 'var(--text-main)'}}>
+            <strong>{data.bookingCount}</strong> active or upcoming booking{data.bookingCount !== 1 ? 's' : ''}
+          </p>
+          {data.earliestCheckin && (
+            <p style={{margin: '0 0 4px', fontSize: '0.88rem', color: 'var(--text-muted)'}}>
+              Earliest check-in: <strong style={{color: 'var(--text-main)'}}>{fmt(data.earliestCheckin)}</strong>
+            </p>
+          )}
+          {data.latestCheckout && (
+            <p style={{margin: 0, fontSize: '0.88rem', color: 'var(--text-muted)'}}>
+              Last check-out: <strong style={{color: 'var(--text-main)'}}>{fmt(data.latestCheckout)}</strong>
+            </p>
+          )}
+        </div>
+        <p style={{fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0 0 24px'}}>
+          You can delete this property once all bookings are completed or cancelled. In the meantime, you can <strong>archive</strong> it to hide it from new guests.
+        </p>
+        <div className="properties-modal__actions">
+          <button className="action-btn action-btn--ghost" onClick={onClose} style={{width: 'auto'}}>Close</button>
         </div>
       </section>
     </div>
@@ -312,6 +401,7 @@ export default function MyProperties() {
   const [confirmation, setConfirmation] = useState(null);
   const [feedbackProperty, setFeedbackProperty] = useState(null);
   const [availabilityState, setAvailabilityState] = useState(null);
+  const [activeBookingsBlock, setActiveBookingsBlock] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const summary = useMemo(() => ({
@@ -357,15 +447,36 @@ export default function MyProperties() {
 
   const handleConfirmAction = async () => {
     if (!confirmation) return;
-    if (confirmation.action === "archive") {
+    const { action, property } = confirmation;
+
+    if (action === "archive") {
       alert("Archive not fully implemented on backend yet.");
       setConfirmation(null);
       return;
     }
+
+    // Draft delete uses the stricter /draft endpoint
+    const endpoint = action === "delete"
+      ? buildApiUrl(`/api/my-properties/${property.id}/draft`)
+      : buildApiUrl(`/api/my-properties/${property.id}`);
+
     try {
-      await fetch(buildApiUrl(`/api/my-properties/${confirmation.property.id}/draft`), { method: "DELETE", headers: getAuthHeaders() });
-      setProperties((prev) => prev.filter((p) => p.id !== confirmation.property.id));
-      setConfirmation(null);
+      const res = await fetch(endpoint, { method: "DELETE", headers: getAuthHeaders() });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 409) {
+        // Property has active bookings — show the blocker modal
+        setConfirmation(null);
+        setActiveBookingsBlock({ property, ...data });
+        return;
+      }
+
+      if (res.ok) {
+        setProperties((prev) => prev.filter((p) => p.id !== property.id));
+        setConfirmation(null);
+      } else {
+        console.error("Delete failed:", data.message);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -525,6 +636,7 @@ export default function MyProperties() {
                       property={property}
                       onArchive={() => setConfirmation({ action: "archive", property })}
                       onDelete={() => setConfirmation({ action: "delete", property })}
+                      onDeleteProperty={() => setConfirmation({ action: "delete-property", property })}
                       onEdit={() => navigate(`/new-listing?edit=${property.id}`)}
                       onFeedback={() => setFeedbackProperty(property)}
                       onManageAvailability={() => handleOpenAvailability(property)}
@@ -542,6 +654,7 @@ export default function MyProperties() {
       <ConfirmationModal action={confirmation?.action} property={confirmation?.property} onClose={() => setConfirmation(null)} onConfirm={handleConfirmAction} />
       <FeedbackModal property={feedbackProperty} onClose={() => setFeedbackProperty(null)} />
       <AvailabilityModal state={availabilityState} onClose={() => setAvailabilityState(null)} onDateRangeChange={(f, v) => setAvailabilityState(s => ({...s, [f]: v}))} onSave={handleSaveAvailability} onToggleDate={(d) => setAvailabilityState(s => ({...s, unavailableDates: s.unavailableDates.includes(d) ? s.unavailableDates.filter(x => x !== d) : [...s.unavailableDates, d]}))} />
+      <ActiveBookingsBlockedModal data={activeBookingsBlock} property={activeBookingsBlock?.property} onClose={() => setActiveBookingsBlock(null)} />
     </div>
   );
 }
