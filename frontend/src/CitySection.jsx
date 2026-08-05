@@ -197,7 +197,7 @@ export default function CitySection({ title, properties, message }) {
                         paddingTop: "10px"
                     }}>
                         <p style={{ margin: "0", fontSize: "0.92rem", color: "#1A1A1A" }}>
-                            <span style={{ fontWeight: "700" }}>${property.price_per_day}</span> / night
+                            <span style={{ fontWeight: "700" }}>{property.price_per_day}MAD</span> / night
                         </p>
                         <div
                             title={reviewMeta.title}

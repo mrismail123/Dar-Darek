@@ -240,6 +240,26 @@ const ensureReviewsSchema = async () => {
       );
     }
 
+    // Ensure host-reply columns exist (added in the host-reply feature)
+    const [reviewCols] = await db.query(
+      `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'reviews'`,
+    );
+    const existingReviewCols = new Set(reviewCols.map((c) => c.COLUMN_NAME));
+
+    if (!existingReviewCols.has("host_reply")) {
+      await db.query(
+        "ALTER TABLE reviews ADD COLUMN host_reply TEXT DEFAULT NULL",
+      );
+    }
+    if (!existingReviewCols.has("host_reply_at")) {
+      await db.query(
+        "ALTER TABLE reviews ADD COLUMN host_reply_at DATETIME DEFAULT NULL",
+      );
+    }
+
     reviewsSchemaReady = true;
   } catch (schemaErr) {
     console.error("Failed to migrate reviews schema:", schemaErr.message);
